@@ -1,5 +1,6 @@
 package dev.staticvar.agentpreview.tasks
 
+import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import org.gradle.api.DefaultTask
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.Input
@@ -11,6 +12,20 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun list() {
-        logger.lifecycle("No Compose previews discovered.")
+        val indexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json").get().asFile
+        val filters = previewNameFilter.get().toSet()
+        val previews = JsonIndexPreviewDiscovery(indexFile)
+            .discover()
+            .filter { filters.isEmpty() || it.id in filters || it.name in filters }
+
+        if (previews.isEmpty()) {
+            logger.lifecycle("No Compose previews discovered.")
+            return
+        }
+
+        previews.forEach { preview ->
+            val label = preview.name ?: preview.fullyQualifiedFunctionName
+            logger.lifecycle("${preview.id}  $label")
+        }
     }
 }

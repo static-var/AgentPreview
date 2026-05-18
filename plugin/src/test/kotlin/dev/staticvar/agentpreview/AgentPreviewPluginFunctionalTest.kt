@@ -43,4 +43,57 @@ class AgentPreviewPluginFunctionalTest {
         assertTrue(result.output.contains("listComposePreviews"))
         assertTrue(result.output.contains("captureComposePreviews"))
     }
+    @Test
+    fun `list task prints discovered preview ids from configured index file`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                [
+                  {
+                    "id": ":app:commonMain:LoginPreview",
+                    "name": "Login",
+                    "group": "Auth",
+                    "sourceSet": "commonMain",
+                    "fullyQualifiedFunctionName": "dev.staticvar.LoginPreviewKt.LoginPreview",
+                    "sourceFile": "LoginPreview.kt",
+                    "sourceLine": 12,
+                    "widthDp": 393,
+                    "heightDp": 852,
+                    "locale": null,
+                    "uiMode": null,
+                    "fontScale": null
+                  }
+                ]
+                """.trimIndent()
+            )
+        }
+
+        val result = GradleRunner.create()
+            .withProjectDir(projectDir)
+            .withArguments("listComposePreviews")
+            .withPluginClasspath()
+            .build()
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"))
+        assertTrue(result.output.contains("Login"))
+    }
 }
