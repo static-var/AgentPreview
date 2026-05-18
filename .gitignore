@@ -28,7 +28,7 @@ render.experimental.xml
 
 # Agents
 .pi/*
-docs/*
+docs/superpowers/
 .worktrees/
 
 # Keystore files
