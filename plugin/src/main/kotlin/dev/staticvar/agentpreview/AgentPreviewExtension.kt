@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview
 
 import org.gradle.api.Project
@@ -6,7 +11,9 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 
-abstract class AgentPreviewExtension(project: Project) {
+abstract class AgentPreviewExtension(
+    project: Project,
+) {
     val outputDirectory: Provider<Directory> =
         project.layout.buildDirectory.dir("agentPreviewSnapshots")
 

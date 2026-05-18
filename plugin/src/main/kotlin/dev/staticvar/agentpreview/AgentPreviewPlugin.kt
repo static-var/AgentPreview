@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview
 
 import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
@@ -7,11 +12,12 @@ import org.gradle.api.Project
 
 class AgentPreviewPlugin : Plugin<Project> {
     override fun apply(project: Project) {
-        val extension = project.extensions.create(
-            "agentPreview",
-            AgentPreviewExtension::class.java,
-            project,
-        )
+        val extension =
+            project.extensions.create(
+                "agentPreview",
+                AgentPreviewExtension::class.java,
+                project,
+            )
 
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"

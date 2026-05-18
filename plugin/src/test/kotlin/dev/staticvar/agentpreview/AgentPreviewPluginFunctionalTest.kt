@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview
 
 import org.gradle.testkit.runner.GradleRunner
@@ -23,26 +28,29 @@ class AgentPreviewPluginFunctionalTest {
                     mavenCentral()
                 }
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins {
                 id("dev.staticvar.agentpreview")
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
 
-        val result = GradleRunner.create()
-            .withProjectDir(projectDir)
-            .withArguments("tasks", "--group", "agent preview")
-            .withPluginClasspath()
-            .build()
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("tasks", "--group", "agent preview")
+                .withPluginClasspath()
+                .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":tasks")?.outcome)
         assertTrue(result.output.contains("listComposePreviews"))
         assertTrue(result.output.contains("captureComposePreviews"))
     }
+
     @Test
     fun `list task prints discovered preview ids from configured index file`() {
         projectDir.resolve("settings.gradle.kts").writeText(
@@ -54,14 +62,14 @@ class AgentPreviewPluginFunctionalTest {
                     mavenCentral()
                 }
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins {
                 id("dev.staticvar.agentpreview")
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
             parentFile.mkdirs()
@@ -83,19 +91,22 @@ class AgentPreviewPluginFunctionalTest {
                     "fontScale": null
                   }
                 ]
-                """.trimIndent()
+                """.trimIndent(),
             )
         }
 
-        val result = GradleRunner.create()
-            .withProjectDir(projectDir)
-            .withArguments("listComposePreviews")
-            .withPluginClasspath()
-            .build()
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
 
         assertTrue(result.output.contains(":app:commonMain:LoginPreview"))
         assertTrue(result.output.contains("Login"))
     }
+
     @Test
     fun `capture task exports snapshot bundle for indexed preview in fake mode`() {
         projectDir.resolve("settings.gradle.kts").writeText(
@@ -107,14 +118,14 @@ class AgentPreviewPluginFunctionalTest {
                     mavenCentral()
                 }
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins {
                 id("dev.staticvar.agentpreview")
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
             parentFile.mkdirs()
@@ -136,19 +147,23 @@ class AgentPreviewPluginFunctionalTest {
                     "fontScale": null
                   }
                 ]
-                """.trimIndent()
+                """.trimIndent(),
             )
         }
 
-        val result = GradleRunner.create()
-            .withProjectDir(projectDir)
-            .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
-            .withPluginClasspath()
-            .build()
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
 
         assertTrue(result.output.contains("Captured :app:commonMain:LoginPreview"))
         assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/screenshot.png").isFile)
-        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/snapshot.json").readText().contains("\"Login\""))
+        assertTrue(
+            projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/snapshot.json").readText().contains("\"Login\""),
+        )
     }
 
     @Test
@@ -162,14 +177,14 @@ class AgentPreviewPluginFunctionalTest {
                     mavenCentral()
                 }
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins {
                 id("dev.staticvar.agentpreview")
             }
-            """.trimIndent()
+            """.trimIndent(),
         )
         projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
             parentFile.mkdirs()
@@ -191,15 +206,17 @@ class AgentPreviewPluginFunctionalTest {
                     "fontScale": null
                   }
                 ]
-                """.trimIndent()
+                """.trimIndent(),
             )
         }
 
-        val result = GradleRunner.create()
-            .withProjectDir(projectDir)
-            .withArguments("captureComposePreviews")
-            .withPluginClasspath()
-            .buildAndFail()
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews")
+                .withPluginClasspath()
+                .buildAndFail()
 
         assertTrue(result.output.contains("Production preview rendering is not implemented in phase 1"))
         assertTrue(result.output.contains("-PagentPreview.fakeRenderer=true"))

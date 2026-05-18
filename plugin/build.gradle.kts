@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 plugins {
     `java-gradle-plugin`
     alias(libs.plugins.kotlin.jvm)

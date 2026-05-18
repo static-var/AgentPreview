@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.Viewport

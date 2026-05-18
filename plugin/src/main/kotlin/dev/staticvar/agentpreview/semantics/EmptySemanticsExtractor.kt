@@ -1,9 +1,12 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview.semantics
 
 import dev.staticvar.agentpreview.model.SnapshotNode
 
 class EmptySemanticsExtractor : SemanticsExtractor {
-    override fun extract(rawSemantics: Any?): List<SnapshotNode> {
-        return emptyList()
-    }
+    override fun extract(rawSemantics: Any?): List<SnapshotNode> = emptyList()
 }

@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
@@ -28,48 +33,61 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun capture() {
-        val indexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json").get().asFile
+        val indexFile =
+            project.layout.buildDirectory
+                .file("agentPreview/discovered-previews.json")
+                .get()
+                .asFile
         val filters = previewNameFilter.get().toSet()
-        val previews = JsonIndexPreviewDiscovery(indexFile)
-            .discover()
-            .filter { filters.isEmpty() || it.id in filters || it.name in filters }
+        val previews =
+            JsonIndexPreviewDiscovery(indexFile)
+                .discover()
+                .filter { filters.isEmpty() || it.id in filters || it.name in filters }
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")
             return
         }
 
-        val fakeRendererEnabled = project.providers.gradleProperty("agentPreview.fakeRenderer")
-            .map(String::toBoolean)
-            .getOrElse(false)
+        val fakeRendererEnabled =
+            project.providers
+                .gradleProperty("agentPreview.fakeRenderer")
+                .map(String::toBoolean)
+                .getOrElse(false)
 
         if (!fakeRendererEnabled) {
             throw GradleException(
                 "Production preview rendering is not implemented in phase 1. " +
-                    "Use -PagentPreview.fakeRenderer=true for scaffold testing, or implement the production renderer in the next phase."
+                    "Use -PagentPreview.fakeRenderer=true for scaffold testing, or implement the production renderer in the next phase.",
             )
         }
 
         val outputRoot = outputDirectory.get().asFile
-        val renderOutput = project.layout.buildDirectory.dir("agentPreview/fakeRender").get().asFile
+        val renderOutput =
+            project.layout.buildDirectory
+                .dir("agentPreview/fakeRender")
+                .get()
+                .asFile
         val renderer = FakePreviewRenderer()
         val semanticsExtractor = EmptySemanticsExtractor()
         val exporter = SnapshotExporter()
 
         previews.forEach { preview ->
             val renderResult = renderer.render(preview, renderOutput)
-            val snapshot = PreviewSnapshot(
-                schemaVersion = 1,
-                preview = PreviewMetadata(
-                    id = preview.id,
-                    name = preview.name,
-                    group = preview.group,
-                    source = sourceLabel(preview),
-                    sourceSet = preview.sourceSet,
-                ),
-                viewport = renderResult.viewport,
-                nodes = semanticsExtractor.extract(renderResult.rawSemantics),
-            )
+            val snapshot =
+                PreviewSnapshot(
+                    schemaVersion = 1,
+                    preview =
+                        PreviewMetadata(
+                            id = preview.id,
+                            name = preview.name,
+                            group = preview.group,
+                            source = sourceLabel(preview),
+                            sourceSet = preview.sourceSet,
+                        ),
+                    viewport = renderResult.viewport,
+                    nodes = semanticsExtractor.extract(renderResult.rawSemantics),
+                )
 
             exporter.export(
                 previewId = preview.id,
@@ -81,7 +99,6 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         }
     }
 
-    private fun sourceLabel(preview: PreviewDescriptor): String {
-        return if (preview.sourceLine == null) preview.sourceFile else "${preview.sourceFile}:${preview.sourceLine}"
-    }
+    private fun sourceLabel(preview: PreviewDescriptor): String =
+        if (preview.sourceLine == null) preview.sourceFile else "${preview.sourceFile}:${preview.sourceLine}"
 }
