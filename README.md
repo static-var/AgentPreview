@@ -69,14 +69,16 @@ Capture fake phase-1 bundles:
 
 Preview For Agents is licensed under the MIT License. See `LICENSE`.
 
-Kotlin and Gradle Kotlin DSL files use Spotless to apply and check license headers:
+Kotlin and Gradle Kotlin DSL files use Spotless with ktlint to apply formatting and license headers. Detekt provides conservative static analysis.
+
+Local quality gates:
 
 ```bash
 ./gradlew spotlessApply
-./gradlew spotlessCheck
+./gradlew spotlessCheck detekt :plugin:test
 ```
 
-Run `spotlessApply` before committing code changes. CI should run `spotlessCheck` with the test suite.
+Run `spotlessApply` before committing code changes. CI runs the same `spotlessCheck detekt :plugin:test` verification on pull requests and pushes to `main`.
 
 ## Intended Production Scope
 
