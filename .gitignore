@@ -29,6 +29,7 @@ render.experimental.xml
 # Agents
 .pi/*
 docs/*
+.worktrees/
 
 # Keystore files
 *.jks
