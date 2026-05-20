@@ -34,7 +34,11 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 
 ## Discovery Findings
 
-Record scanner API, sample command output, and whether discovery works here.
+- Command: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-android-compose/gradlew -p spikes/renderer-android-compose :app:testDebugUnitTest --tests dev.staticvar.agentpreview.spike.PreviewDiscoverySpikeTest`
+- Result: PASS, 1 test passed.
+- Scanner API used: `sergio.sastre.composable.preview.scanner.android.AndroidComposablePreviewScanner().scanPackageTrees("dev.staticvar.agentpreview.spike").getPreviews()`.
+- Preview result API used via reflection in the spike test: `getPreviewInfo`, `getDeclaringClass`, `getMethodName`, `getMethodParametersType`; Android preview info exposes `getName`, `getGroup`, `getWidthDp`, and `getHeightDp`.
+- Notes: AndroidX `@Preview` discovery works without Google's `@PreviewTest`. The Kotlin compiler did not expose all Java-style getters as direct Kotlin members in this test source, so the spike uses reflection for assertions. Production code can use Java reflection or revisit typed access in the plugin classpath.
 
 ## Rendering Findings
 
