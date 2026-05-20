@@ -7,7 +7,7 @@ package dev.staticvar.agentpreview.cmp
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicText
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ProfilePreview() {
     Column(modifier = Modifier.padding(24.dp)) {
-        BasicText("Static Var", modifier = Modifier.testTag("profile_name"))
-        BasicText("Compose Multiplatform preview", modifier = Modifier.testTag("profile_subtitle"))
+        Text("Static Var", modifier = Modifier.testTag("profile_name"))
+        Text("Compose Multiplatform preview", modifier = Modifier.testTag("profile_subtitle"))
     }
 }

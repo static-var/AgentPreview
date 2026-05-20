@@ -21,8 +21,9 @@ kotlin {
         }
 
         commonMain.dependencies {
-            implementation("androidx.compose.runtime:runtime:1.11.2")
-            implementation("androidx.compose.foundation:foundation:1.11.2")
+            implementation("org.jetbrains.compose.runtime:runtime:1.11.0")
+            implementation("org.jetbrains.compose.foundation:foundation:1.11.0")
+            implementation("org.jetbrains.compose.material3:material3:1.11.0-alpha07")
         }
 
         androidUnitTest.dependencies {

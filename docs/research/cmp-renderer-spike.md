@@ -18,7 +18,8 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 | --- | --- | --- |
 | Android Gradle Plugin | 8.13.0 | Maven metadata checked on 2026-05-20; selected because AGP 9.2.1 conflicts with Kotlin Multiplatform plugin in this spike |
 | Kotlin | 2.3.21 | Maven metadata checked on 2026-05-20 |
-| Compose Multiplatform | 1.11.0 | Maven metadata checked on 2026-05-20; plugin used with AndroidX runtime/foundation in commonMain |
+| Compose Multiplatform | 1.11.0 | Maven metadata checked on 2026-05-20 |
+| Compose Multiplatform Material3 | 1.11.0-alpha07 | JetBrains Compose 1.11.0 dependency table checked on 2026-05-20 |
 | Compose BOM / AndroidX Compose UI | BOM 2026.05.01 / UI 1.11.2 | Maven metadata checked on 2026-05-20 |
 | Roborazzi | 1.63.0 | Maven metadata checked on 2026-05-20 |
 | ComposablePreviewScanner | 0.9.0 | Maven metadata checked on 2026-05-20 |
@@ -35,7 +36,7 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 ## Rendering Findings
 
 - Command: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-cmp-compose/gradlew -p spikes/renderer-cmp-compose :composeApp:recordRoborazziDebug --tests dev.staticvar.agentpreview.cmp.CmpPreviewRenderingSpikeTest`
-- Result: PASS, 2 tests passed on Java 17 with Robolectric runtime SDK 35.
+- Result: PASS, 2 tests passed on Java 17 with Robolectric runtime SDK 35 after switching the common preview to JetBrains Compose Multiplatform Material3 `Text`.
 - Screenshot path: `spikes/renderer-cmp-compose/composeApp/build/outputs/renderer-cmp-spike/ProfilePreview.png`.
 - Rendering API used: `AndroidComposablePreviewScanner().scanPackageTrees(...).getPreviews().single().captureRoboImage(screenshot.absolutePath)`.
 - Notes: Rendering works through the Android target when `testOptions.unitTests.isIncludeAndroidResources = true` is enabled and `androidx.activity.ComponentActivity` is declared in the Android manifest.
@@ -55,7 +56,8 @@ Use the Android renderer backend for first-pass CMP support when a Compose Multi
 ## Limitations
 
 - The spike used AGP 8.13.0 because AGP 9.2.1 currently conflicts with applying `org.jetbrains.kotlin.multiplatform` in this sample; AGP 9 reports that a `kotlin` extension is already registered.
-- The spike used AndroidX Compose runtime/foundation in `commonMain` and avoided Material3 because stable AndroidX Material3 metadata did not publish a final `1.5.0` artifact at the checked coordinates.
+- The spike uses JetBrains Compose Multiplatform Material3 via `org.jetbrains.compose.material3:material3:1.11.0-alpha07`, matching the Compose Multiplatform 1.11.0 dependency table. Material3 is alpha in this release, but it is the documented M3 dependency for the new JetBrains Compose release.
 - The Android target must include Android resources for Robolectric tests via `testOptions.unitTests.isIncludeAndroidResources = true`.
 - The Android manifest must declare `androidx.activity.ComponentActivity` for `createComposeRule` and Roborazzi preview capture.
-- The Gradle build emits many D8 Kotlin metadata warnings with Kotlin 2.3.21 and AGP 8.13.0, but the build and tests pass.
+- The Gradle build emits D8 Kotlin metadata warnings with Kotlin 2.3.21, AGP 8.13.0, and JetBrains Material3 alpha artifacts, but the build and tests pass.
+- After adding JetBrains Material3, the Gradle daemon hit a local Metaspace limit once. Re-running with `--no-daemon` and `GRADLE_OPTS='-XX:MaxMetaspaceSize=1024m -Xmx4g'` passed.
