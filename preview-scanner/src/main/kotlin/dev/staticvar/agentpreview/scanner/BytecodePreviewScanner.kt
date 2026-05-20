@@ -15,43 +15,75 @@ import java.io.File
 
 class BytecodePreviewScanner : PreviewScanner {
     override fun scan(input: PreviewScanInput): PreviewScanResult {
-        val parsedClasses = input.classesDirs.flatMap { classesDir -> parseClassesIn(classesDir) }
-        val classPreviews = parsedClasses.associate { parsedClass -> parsedClass.name to parsedClass.previewAnnotations }
-        val previews = mutableListOf<ScannedPreview>()
-        val diagnostics = mutableListOf<PreviewScanDiagnostic>()
+        val parsedClasses = input.classesDirs.flatMap(::parseClassesIn)
+        val annotationPreviews = parsedClasses.annotationPreviewIndex()
 
-        parsedClasses.forEach { parsedClass ->
-            parsedClass.methods.forEach { method ->
-                val annotations = method.previewAnnotations + method.metaAnnotationNames.flatMap { classPreviews[it].orEmpty() }
-                if (annotations.isEmpty()) return@forEach
-
-                if (method.argumentCount > 0) {
-                    diagnostics += unsupportedParametersDiagnostic(parsedClass.name, method.name)
-                    return@forEach
-                }
-
-                previews += scannedPreview(input, parsedClass.name, method.name, annotations)
+        val discovered =
+            parsedClasses.flatMap { parsedClass ->
+                parsedClass.discoverPreviews(input, annotationPreviews)
             }
-        }
 
-        return PreviewScanResult(previews = previews.sortedBy { it.id }, diagnostics = diagnostics)
+        return PreviewScanResult(
+            previews = discovered.filterIsInstance<DiscoveredPreview>().map { it.preview }.sortedBy { it.id },
+            diagnostics = discovered.filterIsInstance<DiscoveryDiagnostic>().map { it.diagnostic },
+        )
     }
 
     private fun parseClassesIn(classesDir: File): List<ParsedClass> {
         if (!classesDir.isDirectory) return emptyList()
+
         return classesDir
             .walkTopDown()
-            .filter { it.isFile && it.extension == "class" }
-            .mapNotNull { classFile -> parseClass(classFile) }
+            .filter { classFile -> classFile.isFile && classFile.extension == CLASS_FILE_EXTENSION }
+            .mapNotNull(::parseClass)
             .toList()
     }
 
     private fun parseClass(classFile: File): ParsedClass? =
         runCatching {
             val visitor = PreviewClassVisitor()
-            ClassReader(classFile.readBytes()).accept(visitor, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+            ClassReader(classFile.readBytes()).accept(visitor, CLASS_READER_FLAGS)
             visitor.toParsedClass()
         }.getOrNull()
+
+    private fun List<ParsedClass>.annotationPreviewIndex(): Map<String, List<PreviewAnnotation>> =
+        associate { parsedClass -> parsedClass.name to parsedClass.previewAnnotations }
+
+    private fun ParsedClass.discoverPreviews(
+        input: PreviewScanInput,
+        annotationPreviews: Map<String, List<PreviewAnnotation>>,
+    ): List<Discovery> =
+        methods.mapNotNull { method ->
+            val annotations = method.resolvePreviewAnnotations(annotationPreviews)
+            when {
+                annotations.isEmpty() -> {
+                    null
+                }
+
+                method.argumentCount > 0 -> {
+                    DiscoveryDiagnostic(
+                        unsupportedParametersDiagnostic(className = name, methodName = method.name),
+                    )
+                }
+
+                else -> {
+                    DiscoveredPreview(
+                        scannedPreview(
+                            input = input,
+                            className = name,
+                            methodName = method.name,
+                            annotations = annotations,
+                        ),
+                    )
+                }
+            }
+        }
+
+    private fun ParsedMethod.resolvePreviewAnnotations(annotationPreviews: Map<String, List<PreviewAnnotation>>): List<PreviewAnnotation> =
+        previewAnnotations +
+            metaAnnotationNames.flatMap { annotationName ->
+                annotationPreviews[annotationName].orEmpty()
+            }
 
     private fun scannedPreview(
         input: PreviewScanInput,
@@ -76,12 +108,20 @@ class BytecodePreviewScanner : PreviewScanner {
     ): PreviewScanDiagnostic =
         PreviewScanDiagnostic(
             severity = PreviewScanDiagnostic.Severity.WARNING,
-            message =
-                "Skipping preview $className.$methodName because " +
-                    "preview methods with parameters are unsupported.",
+            message = "Skipping preview $className.$methodName because preview methods with parameters are unsupported.",
             className = className,
             methodName = methodName,
         )
+
+    private sealed interface Discovery
+
+    private data class DiscoveredPreview(
+        val preview: ScannedPreview,
+    ) : Discovery
+
+    private data class DiscoveryDiagnostic(
+        val diagnostic: PreviewScanDiagnostic,
+    ) : Discovery
 
     private data class ParsedClass(
         val name: String,
@@ -109,13 +149,13 @@ class BytecodePreviewScanner : PreviewScanner {
             superName: String?,
             interfaces: Array<out String>?,
         ) {
-            className = name.replace('/', '.')
+            className = name.toClassName()
         }
 
         override fun visitAnnotation(
             descriptor: String,
             visible: Boolean,
-        ): AnnotationVisitor = previewCollectingVisitor(descriptor, previewAnnotations) ?: emptyAnnotationVisitor()
+        ): AnnotationVisitor = descriptor.previewCollector(previewAnnotations) ?: emptyAnnotationVisitor()
 
         override fun visitMethod(
             access: Int,
@@ -123,7 +163,10 @@ class BytecodePreviewScanner : PreviewScanner {
             descriptor: String,
             signature: String?,
             exceptions: Array<out String>?,
-        ): MethodVisitor = PreviewMethodVisitor(name, descriptor) { methods += it }
+        ): MethodVisitor =
+            PreviewMethodVisitor(name, descriptor) { parsedMethod ->
+                methods += parsedMethod
+            }
 
         fun toParsedClass(): ParsedClass =
             ParsedClass(
@@ -145,13 +188,7 @@ class BytecodePreviewScanner : PreviewScanner {
         override fun visitAnnotation(
             descriptor: String,
             visible: Boolean,
-        ): AnnotationVisitor {
-            val visitor = previewCollectingVisitor(descriptor, previewAnnotations)
-            if (visitor != null) return visitor
-
-            metaAnnotationNames += descriptorToClassName(descriptor)
-            return emptyAnnotationVisitor()
-        }
+        ): AnnotationVisitor = descriptor.previewCollector(previewAnnotations) ?: descriptor.asMetaAnnotationVisitor()
 
         override fun visitEnd() {
             onComplete(
@@ -162,6 +199,11 @@ class BytecodePreviewScanner : PreviewScanner {
                     metaAnnotationNames = metaAnnotationNames.toList(),
                 ),
             )
+        }
+
+        private fun String.asMetaAnnotationVisitor(): AnnotationVisitor {
+            metaAnnotationNames += toClassName()
+            return emptyAnnotationVisitor()
         }
     }
 
@@ -178,33 +220,24 @@ class BytecodePreviewScanner : PreviewScanner {
             values[name] = value
         }
 
-        override fun visitArray(name: String): AnnotationVisitor =
-            object : AnnotationVisitor(Opcodes.ASM9) {
-                override fun visitAnnotation(
-                    name: String?,
-                    descriptor: String,
-                ): AnnotationVisitor? {
-                    if (descriptor != PREVIEW_DESCRIPTOR) return null
-                    return PreviewAnnotationCollector(nestedPreviews)
-                }
-            }
+        override fun visitArray(name: String): AnnotationVisitor = PreviewAnnotationArrayCollector(nestedPreviews)
 
         override fun visitEnd() {
-            destination += nestedPreviews.ifEmpty { listOf(asPreviewAnnotation()) }
+            destination += nestedPreviews.ifEmpty { listOf(toPreviewAnnotation()) }
         }
 
-        private fun asPreviewAnnotation(): PreviewAnnotation =
+        private fun toPreviewAnnotation(): PreviewAnnotation =
             PreviewAnnotation(
-                name = stringValue("name").emptyToNull(),
-                group = stringValue("group").emptyToNull(),
-                widthDp = intValue("widthDp"),
-                heightDp = intValue("heightDp"),
-                showBackground = booleanValue("showBackground"),
-                backgroundColor = longValue("backgroundColor"),
-                fontScale = floatValue("fontScale"),
-                locale = stringValue("locale").emptyToNull(),
-                device = stringValue("device").emptyToNull(),
-                uiMode = intValue("uiMode"),
+                name = stringValue(PREVIEW_NAME).emptyToNull(),
+                group = stringValue(PREVIEW_GROUP).emptyToNull(),
+                widthDp = intValue(PREVIEW_WIDTH_DP),
+                heightDp = intValue(PREVIEW_HEIGHT_DP),
+                showBackground = booleanValue(PREVIEW_SHOW_BACKGROUND),
+                backgroundColor = longValue(PREVIEW_BACKGROUND_COLOR),
+                fontScale = floatValue(PREVIEW_FONT_SCALE),
+                locale = stringValue(PREVIEW_LOCALE).emptyToNull(),
+                device = stringValue(PREVIEW_DEVICE).emptyToNull(),
+                uiMode = intValue(PREVIEW_UI_MODE),
             )
 
         private fun stringValue(name: String): String = values[name] as? String ?: ""
@@ -217,28 +250,49 @@ class BytecodePreviewScanner : PreviewScanner {
 
         private fun floatValue(name: String): Float = values[name] as? Float ?: 1.0f
 
-        private fun String.emptyToNull(): String? = takeIf { it.isNotBlank() }
+        private fun String.emptyToNull(): String? = takeIf(String::isNotBlank)
+    }
+
+    private class PreviewAnnotationArrayCollector(
+        private val destination: MutableList<PreviewAnnotation>,
+    ) : AnnotationVisitor(Opcodes.ASM9) {
+        override fun visitAnnotation(
+            name: String?,
+            descriptor: String,
+        ): AnnotationVisitor? =
+            when (descriptor) {
+                PREVIEW_DESCRIPTOR -> PreviewAnnotationCollector(destination)
+                else -> null
+            }
     }
 
     private companion object {
+        const val CLASS_FILE_EXTENSION = "class"
         const val PREVIEW_DESCRIPTOR = "Landroidx/compose/ui/tooling/preview/Preview;"
+        const val CLASS_READER_FLAGS = ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES
 
-        fun previewCollectingVisitor(
-            descriptor: String,
-            destination: MutableList<PreviewAnnotation>,
-        ): AnnotationVisitor? {
-            if (descriptor != PREVIEW_DESCRIPTOR && !descriptor.endsWith("Preview${'$'}Container;")) {
-                return null
-            }
-            return PreviewAnnotationCollector(destination)
-        }
+        const val PREVIEW_NAME = "name"
+        const val PREVIEW_GROUP = "group"
+        const val PREVIEW_WIDTH_DP = "widthDp"
+        const val PREVIEW_HEIGHT_DP = "heightDp"
+        const val PREVIEW_SHOW_BACKGROUND = "showBackground"
+        const val PREVIEW_BACKGROUND_COLOR = "backgroundColor"
+        const val PREVIEW_FONT_SCALE = "fontScale"
+        const val PREVIEW_LOCALE = "locale"
+        const val PREVIEW_DEVICE = "device"
+        const val PREVIEW_UI_MODE = "uiMode"
 
-        fun emptyAnnotationVisitor(): AnnotationVisitor = object : AnnotationVisitor(Opcodes.ASM9) {}
+        fun String.previewCollector(destination: MutableList<PreviewAnnotation>): AnnotationVisitor? =
+            takeIf { descriptor -> descriptor.isPreviewDescriptor() }
+                ?.let { PreviewAnnotationCollector(destination) }
 
-        fun descriptorToClassName(descriptor: String): String =
-            descriptor
-                .removePrefix("L")
+        fun String.isPreviewDescriptor(): Boolean = this == PREVIEW_DESCRIPTOR || endsWith("Preview${'$'}Container;")
+
+        fun String.toClassName(): String =
+            removePrefix("L")
                 .removeSuffix(";")
                 .replace('/', '.')
+
+        fun emptyAnnotationVisitor(): AnnotationVisitor = object : AnnotationVisitor(Opcodes.ASM9) {}
     }
 }
