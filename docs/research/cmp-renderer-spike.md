@@ -26,7 +26,11 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 
 ## Discovery Findings
 
-Record command, result, scanner API, discovered metadata, and limitations.
+- Command: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-cmp-compose/gradlew -p spikes/renderer-cmp-compose :composeApp:testDebugUnitTest --tests dev.staticvar.agentpreview.cmp.CmpPreviewDiscoverySpikeTest`
+- Result: PASS, 1 test passed on Java 17.
+- Scanner API used: `AndroidComposablePreviewScanner().scanPackageTrees("dev.staticvar.agentpreview.cmp").getPreviews()`.
+- Discovered metadata: declaring class `dev.staticvar.agentpreview.cmp.ProfilePreviewKt`, method `ProfilePreview`, preview name `Profile`, group `Account`, width `393`, height `852`.
+- Notes: The `commonMain` preview compiled into the Android target and was discoverable without old JetBrains preview annotations or Google's `@PreviewTest`.
 
 ## Rendering Findings
 
