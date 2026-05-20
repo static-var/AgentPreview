@@ -16,12 +16,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import sergio.sastre.composable.preview.scanner.android.AndroidComposablePreviewScanner
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
 class PreviewRenderingSpikeTest {
     @get:Rule
     val composeRule = createComposeRule()

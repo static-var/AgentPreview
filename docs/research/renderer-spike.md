@@ -43,10 +43,12 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 ## Rendering Findings
 
 - Command: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-android-compose/gradlew -p spikes/renderer-android-compose :app:recordRoborazziDebug --tests dev.staticvar.agentpreview.spike.PreviewRenderingSpikeTest`
-- Result: PASS, 2 tests passed under Java 21.
+- Result: PASS, 2 tests passed under Java 21 with Robolectric SDK 36.
+- Java 17 compatibility command after adding `@Config(sdk = [35])`: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-android-compose/gradlew -p spikes/renderer-android-compose :app:recordRoborazziDebug --tests dev.staticvar.agentpreview.spike.PreviewRenderingSpikeTest`
+- Java 17 compatibility result: PASS, 2 tests passed with compile SDK 36 and Robolectric runtime SDK 35.
 - Screenshot path: `spikes/renderer-android-compose/app/build/outputs/renderer-spike/LoginPreview.png`.
 - Rendering API used: `AndroidComposablePreviewScanner().scanPackageTrees(...).getPreviews().single().captureRoboImage(screenshot.absolutePath)` from `com.github.takahirom.roborazzi.captureRoboImage`.
-- Notes: Rendering requires the Roborazzi Gradle plugin and the `recordRoborazziDebug` task, plus Robolectric. With compile SDK 36, Robolectric requires Java 21; Java 17 failed with `Android SDK 36 requires Java 21`.
+- Notes: Rendering requires the Roborazzi Gradle plugin and the `recordRoborazziDebug` task, plus Robolectric. With Robolectric runtime SDK 36, Java 17 failed with `Android SDK 36 requires Java 21`. Forcing Robolectric runtime SDK 35 with `@Config(sdk = [35])` allows the same compile SDK 36 project to render on Java 17.
 
 ## Semantics Findings
 
@@ -60,7 +62,9 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 
 - AGP 9.2.1 requires Gradle 9.4.1 or newer. The spike project uses a local Gradle 9.4.1 wrapper because the repository wrapper is currently older.
 - AGP 9 has built-in Kotlin support. Applying `org.jetbrains.kotlin.android` fails, so Android sample projects should not apply that plugin when using AGP 9.
-- Compile SDK 36 with Robolectric 4.16.1 requires Java 21. Java 17 failed before test execution with `Android SDK 36 requires Java 21`.
+- Compile SDK 36 itself does not require Java 21 for normal project builds in this spike. `:app:assembleDebug` passed on Java 17 with compile SDK 36.
+- Robolectric runtime SDK 36 requires Java 21. Java 17 failed before test execution with `Android SDK 36 requires Java 21`.
+- Java 17 is viable for preview capture when the Robolectric runtime SDK is forced to 35 with `@Config(sdk = [35])`, while keeping compile SDK 36.
 - Roborazzi preview screenshot capture writes output when run through the Roborazzi `recordRoborazziDebug` task. A plain `testDebugUnitTest` run did not record the screenshot file.
 - Roborazzi preview capture requires Robolectric and an Android test runner. Without Robolectric instrumentation, capture failed with `No instrumentation registered`.
 - Compose test semantics were proven by directly composing `LoginPreview()` in a `createComposeRule` test. The spike did not prove extracting semantics from the Roborazzi preview wrapper object itself.
@@ -68,4 +72,4 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 
 ## Decision
 
-Use Roborazzi plus ComposablePreviewScanner for the first production Android Compose backend, with two constraints: production integration should run renderer work through a Roborazzi-backed test task, and the runtime should require Java 21 when targeting compile SDK 36. Keep the backend behind `PreviewDiscovery`, `PreviewRenderer`, and `SemanticsExtractor` interfaces so it can be replaced if upstream APIs or AGP behavior change.
+Use Roborazzi plus ComposablePreviewScanner for the first production Android Compose backend. Default production integration should prefer Java 17 compatibility by running the Roborazzi/Robolectric renderer with runtime SDK 35, even when the client project compiles with SDK 36. Offer an opt-in high-fidelity SDK 36 mode that requires Java 21. Keep the backend behind `PreviewDiscovery`, `PreviewRenderer`, and `SemanticsExtractor` interfaces so it can be replaced if upstream APIs or AGP behavior change.
