@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.export
 
 import dev.staticvar.agentpreview.model.PreviewSnapshot
+import dev.staticvar.agentpreview.sanitize
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -22,7 +23,7 @@ class SnapshotExporter {
         snapshot: PreviewSnapshot,
         outputRoot: File,
     ): File {
-        val destination = outputRoot.resolve(sanitize(previewId))
+        val destination = outputRoot.resolve(previewId.sanitize())
         destination.mkdirs()
         screenshotFile.copyTo(destination.resolve("screenshot.png"), overwrite = true)
         destination.resolve("snapshot.json").writeText(
@@ -30,11 +31,4 @@ class SnapshotExporter {
         )
         return destination
     }
-
-    private fun sanitize(previewId: String): String =
-        previewId
-            .trim()
-            .replace(Regex("[^A-Za-z0-9._-]+"), "-")
-            .trim('-')
-            .ifEmpty { "preview" }
 }
