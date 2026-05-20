@@ -34,11 +34,19 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 
 ## Rendering Findings
 
-Record command, result, screenshot path, rendering API, Java/Robolectric SDK mode, and limitations.
+- Command: `ANDROID_HOME=$HOME/Library/Android/sdk build-brief spikes/renderer-cmp-compose/gradlew -p spikes/renderer-cmp-compose :composeApp:recordRoborazziDebug --tests dev.staticvar.agentpreview.cmp.CmpPreviewRenderingSpikeTest`
+- Result: PASS, 2 tests passed on Java 17 with Robolectric runtime SDK 35.
+- Screenshot path: `spikes/renderer-cmp-compose/composeApp/build/outputs/renderer-cmp-spike/ProfilePreview.png`.
+- Rendering API used: `AndroidComposablePreviewScanner().scanPackageTrees(...).getPreviews().single().captureRoboImage(screenshot.absolutePath)`.
+- Notes: Rendering works through the Android target when `testOptions.unitTests.isIncludeAndroidResources = true` is enabled and `androidx.activity.ComponentActivity` is declared in the Android manifest.
 
 ## Semantics Findings
 
-Record command, result, semantics API, observed fields, and limitations.
+- Command: same `CmpPreviewRenderingSpikeTest` command above.
+- Result: PASS.
+- Semantics API used: `createComposeRule`, `onAllNodesWithText`, `onNodeWithTag`, `onRoot`, and `fetchSemanticsNode()`.
+- Proven fields: text lookup for `Static Var` and `Compose Multiplatform preview`, test tag lookup for `profile_name`, and non-zero bounds.
+- Notes: Semantics were proven by directly composing the common preview function in the Android unit test. Production can use the same Android-target invocation path for common preview functions.
 
 ## Decision
 
