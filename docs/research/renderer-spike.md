@@ -22,7 +22,7 @@ Determine whether Preview For Agents should use Roborazzi plus ComposablePreview
 
 ## Version Matrix
 
-Record resolved versions here after Task 2.
+Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the spike project owns a local Gradle wrapper at `spikes/renderer-android-compose/gradlew`. AGP 9 also has built-in Kotlin support, so the sample does not apply `org.jetbrains.kotlin.android`.
 
 | Dependency | Version | Source |
 | --- | --- | --- |
