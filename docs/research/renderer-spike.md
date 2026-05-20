@@ -26,11 +26,11 @@ Record resolved versions here after Task 2.
 
 | Dependency | Version | Source |
 | --- | --- | --- |
-| Android Gradle Plugin | | |
-| Kotlin | | |
-| Compose BOM / Compose UI | | |
-| Roborazzi | | |
-| ComposablePreviewScanner | | |
+| Android Gradle Plugin | 9.2.1 | Maven metadata checked on 2026-05-19 |
+| Kotlin | 2.3.21 | Maven metadata checked on 2026-05-19 |
+| Compose BOM / Compose UI | BOM 2026.05.01 / UI 1.11.2 | Maven metadata checked on 2026-05-19 |
+| Roborazzi | 1.63.0 | Maven metadata checked on 2026-05-19 |
+| ComposablePreviewScanner | 0.9.0 | Maven metadata checked on 2026-05-19 |
 
 ## Discovery Findings
 
