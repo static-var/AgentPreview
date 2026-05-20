@@ -73,3 +73,5 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 ## Decision
 
 Use Roborazzi plus ComposablePreviewScanner for the first production Android Compose backend. Default production integration should prefer Java 17 compatibility by running the Roborazzi/Robolectric renderer with runtime SDK 35, even when the client project compiles with SDK 36. Offer an opt-in high-fidelity SDK 36 mode that requires Java 21. Keep the backend behind `PreviewDiscovery`, `PreviewRenderer`, and `SemanticsExtractor` interfaces so it can be replaced if upstream APIs or AGP behavior change.
+
+Production Android rendering should expose explicit Android viewport configuration. If an Android `@Preview` declares positive `widthDp` and `heightDp`, render that preview using those annotation dimensions. If either dimension is missing or a sentinel value such as `-1`, render one bundle per configured Android viewport, defaulting to a Java-17-friendly `phone` viewport of 393x852 dp.

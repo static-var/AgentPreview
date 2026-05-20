@@ -22,6 +22,8 @@ snapshot.json
     "sourceSet": "commonMain"
   },
   "viewport": {
+    "platform": "android",
+    "name": "phone",
     "width": 393,
     "height": 852,
     "density": 1.0
@@ -43,6 +45,12 @@ snapshot.json
   ]
 }
 ```
+
+## Viewports
+
+Production captures identify the platform and named viewport used for rendering. If an Android `@Preview` omits `widthDp` or `heightDp`, the production renderer should render the preview once for each configured Android viewport, such as `android-phone` and `android-tablet`. If the annotation specifies positive dimensions, those dimensions win and the viewport name should be `preview`.
+
+Future desktop and web renderers should use separate platform-specific viewport configuration instead of reusing Android viewport settings.
 
 ## Phase 1 Semantics
 

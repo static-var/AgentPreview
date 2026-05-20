@@ -53,6 +53,8 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 
 Use the Android renderer backend for first-pass CMP support when a Compose Multiplatform project has an Android target. Common previews using AndroidX `@Preview` can be discovered and rendered through Android target outputs. Default to Robolectric runtime SDK 35 for Java 17 compatibility, with an opt-in SDK 36 mode that requires Java 21.
 
+CMP previews rendered through the Android target should use the same explicit Android viewport configuration as Android-only previews. If a common `@Preview` omits positive `widthDp` and `heightDp`, render one output per configured Android viewport. Future desktop/web CMP rendering should use separate platform-specific viewport containers instead of reusing Android viewports.
+
 ## Limitations
 
 - The spike used AGP 8.13.0 because AGP 9.2.1 currently conflicts with applying `org.jetbrains.kotlin.multiplatform` in this sample; AGP 9 reports that a `kotlin` extension is already registered.
