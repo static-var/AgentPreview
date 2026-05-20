@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner
+package dev.staticvar.agentpreview.scanner.discovery
 
 import java.io.File
 

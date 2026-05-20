@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner
+package dev.staticvar.agentpreview.scanner.fixtures
 
 import androidx.compose.ui.tooling.preview.Preview
 

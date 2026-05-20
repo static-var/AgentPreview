@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner
+package dev.staticvar.agentpreview.scanner.discovery
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -16,10 +16,10 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         val preview = result.previews.single { it.methodName == "topLevelPreview" }
-        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.PreviewFixturesKt.topLevelPreview", preview.id)
+        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.id)
         assertEquals("test", preview.sourceSet)
-        assertEquals("dev.staticvar.agentpreview.scanner.PreviewFixturesKt", preview.declaringClassName)
-        assertEquals("dev.staticvar.agentpreview.scanner.PreviewFixturesKt.topLevelPreview", preview.fullyQualifiedFunctionName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt", preview.declaringClassName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.fullyQualifiedFunctionName)
         assertEquals("Top Level", preview.name)
         assertEquals("Auth", preview.group)
 
@@ -39,7 +39,7 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         val preview = result.previews.single { it.methodName == "objectPreview" }
-        assertEquals("ObjectPreviewFixtures", preview.declaringClassName.substringAfterLast('.'))
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.ObjectPreviewFixtures", preview.declaringClassName)
         assertEquals("Phone", preview.name)
         assertEquals("Auth", preview.group)
         assertEquals(393, preview.annotations.single().widthDp)
@@ -52,7 +52,7 @@ class BytecodePreviewScannerTest {
 
         val preview = result.previews.single { it.methodName == "nestedObjectPreview" }
         assertEquals("Nested", preview.name)
-        assertTrue(preview.declaringClassName.endsWith("ObjectPreviewFixtures${'$'}Nested"))
+        assertTrue(preview.declaringClassName.endsWith("dev.staticvar.agentpreview.scanner.fixtures.ObjectPreviewFixtures${'$'}Nested"))
     }
 
     @Test

@@ -3,8 +3,10 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner
+package dev.staticvar.agentpreview.scanner.discovery
 
+import dev.staticvar.agentpreview.scanner.preview.PreviewAnnotation
+import dev.staticvar.agentpreview.scanner.preview.ScannedPreview
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
