@@ -7,7 +7,9 @@ package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.Viewport
+import java.awt.image.BufferedImage
 import java.io.File
+import javax.imageio.ImageIO
 
 class FakePreviewRenderer : PreviewRenderer {
     override fun render(
@@ -16,15 +18,17 @@ class FakePreviewRenderer : PreviewRenderer {
     ): RenderResult {
         outputDirectory.mkdirs()
         val screenshot = outputDirectory.resolve(sanitize(preview.id) + ".png")
-        screenshot.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
+        val viewport =
+            Viewport(
+                width = preview.widthDp ?: 393,
+                height = preview.heightDp ?: 852,
+                density = 1.0f,
+            )
+        val image = BufferedImage(viewport.width.coerceAtLeast(1), viewport.height.coerceAtLeast(1), BufferedImage.TYPE_INT_ARGB)
+        ImageIO.write(image, "png", screenshot)
         return RenderResult(
             screenshotFile = screenshot,
-            viewport =
-                Viewport(
-                    width = preview.widthDp ?: 393,
-                    height = preview.heightDp ?: 852,
-                    density = 1.0f,
-                ),
+            viewport = viewport,
             rawSemantics = null,
         )
     }
