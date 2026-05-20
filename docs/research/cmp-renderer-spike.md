@@ -50,4 +50,12 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 
 ## Decision
 
-Pending.
+Use the Android renderer backend for first-pass CMP support when a Compose Multiplatform project has an Android target. Common previews using AndroidX `@Preview` can be discovered and rendered through Android target outputs. Default to Robolectric runtime SDK 35 for Java 17 compatibility, with an opt-in SDK 36 mode that requires Java 21.
+
+## Limitations
+
+- The spike used AGP 8.13.0 because AGP 9.2.1 currently conflicts with applying `org.jetbrains.kotlin.multiplatform` in this sample; AGP 9 reports that a `kotlin` extension is already registered.
+- The spike used AndroidX Compose runtime/foundation in `commonMain` and avoided Material3 because stable AndroidX Material3 metadata did not publish a final `1.5.0` artifact at the checked coordinates.
+- The Android target must include Android resources for Robolectric tests via `testOptions.unitTests.isIncludeAndroidResources = true`.
+- The Android manifest must declare `androidx.activity.ComponentActivity` for `createComposeRule` and Roborazzi preview capture.
+- The Gradle build emits many D8 Kotlin metadata warnings with Kotlin 2.3.21 and AGP 8.13.0, but the build and tests pass.
