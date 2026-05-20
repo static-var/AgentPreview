@@ -16,9 +16,9 @@ Determine whether Preview For Agents can support Compose Multiplatform previews 
 
 | Dependency | Version | Source |
 | --- | --- | --- |
-| Android Gradle Plugin | 9.2.1 | Maven metadata checked on 2026-05-20 |
+| Android Gradle Plugin | 8.13.0 | Maven metadata checked on 2026-05-20; selected because AGP 9.2.1 conflicts with Kotlin Multiplatform plugin in this spike |
 | Kotlin | 2.3.21 | Maven metadata checked on 2026-05-20 |
-| Compose Multiplatform | 1.11.0 | Maven metadata checked on 2026-05-20 |
+| Compose Multiplatform | 1.11.0 | Maven metadata checked on 2026-05-20; plugin used with AndroidX runtime/foundation in commonMain |
 | Compose BOM / AndroidX Compose UI | BOM 2026.05.01 / UI 1.11.2 | Maven metadata checked on 2026-05-20 |
 | Roborazzi | 1.63.0 | Maven metadata checked on 2026-05-20 |
 | ComposablePreviewScanner | 0.9.0 | Maven metadata checked on 2026-05-20 |
