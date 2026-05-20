@@ -58,8 +58,14 @@ Resolved versions for the spike sample. AGP 9.2.1 requires Gradle 9.4.1+, so the
 
 ## Limitations
 
-Record limitations that production code must account for here.
+- AGP 9.2.1 requires Gradle 9.4.1 or newer. The spike project uses a local Gradle 9.4.1 wrapper because the repository wrapper is currently older.
+- AGP 9 has built-in Kotlin support. Applying `org.jetbrains.kotlin.android` fails, so Android sample projects should not apply that plugin when using AGP 9.
+- Compile SDK 36 with Robolectric 4.16.1 requires Java 21. Java 17 failed before test execution with `Android SDK 36 requires Java 21`.
+- Roborazzi preview screenshot capture writes output when run through the Roborazzi `recordRoborazziDebug` task. A plain `testDebugUnitTest` run did not record the screenshot file.
+- Roborazzi preview capture requires Robolectric and an Android test runner. Without Robolectric instrumentation, capture failed with `No instrumentation registered`.
+- Compose test semantics were proven by directly composing `LoginPreview()` in a `createComposeRule` test. The spike did not prove extracting semantics from the Roborazzi preview wrapper object itself.
+- The scanner API is viable, but typed Kotlin property access was awkward in the spike test. Reflection worked for reading preview metadata.
 
 ## Decision
 
-Pending.
+Use Roborazzi plus ComposablePreviewScanner for the first production Android Compose backend, with two constraints: production integration should run renderer work through a Roborazzi-backed test task, and the runtime should require Java 21 when targeting compile SDK 36. Keep the backend behind `PreviewDiscovery`, `PreviewRenderer`, and `SemanticsExtractor` interfaces so it can be replaced if upstream APIs or AGP behavior change.
