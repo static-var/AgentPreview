@@ -5,8 +5,15 @@
  */
 package dev.staticvar.agentpreview.scanner.discovery
 
-import dev.staticvar.agentpreview.scanner.preview.PreviewAnnotation
-import dev.staticvar.agentpreview.scanner.preview.ScannedPreview
+import dev.staticvar.agentpreview.scanner.discovery.bytecode.CLASS_READER_FLAGS
+import dev.staticvar.agentpreview.scanner.discovery.bytecode.PreviewClassVisitor
+import dev.staticvar.agentpreview.scanner.model.DiscoveredPreview
+import dev.staticvar.agentpreview.scanner.model.Discovery
+import dev.staticvar.agentpreview.scanner.model.DiscoveryDiagnostic
+import dev.staticvar.agentpreview.scanner.model.ParsedClass
+import dev.staticvar.agentpreview.scanner.model.ParsedMethod
+import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
+import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import org.objectweb.asm.ClassReader
 import java.io.File
 

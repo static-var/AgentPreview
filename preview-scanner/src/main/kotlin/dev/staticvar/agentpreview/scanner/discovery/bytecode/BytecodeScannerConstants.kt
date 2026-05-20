@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner.discovery
+package dev.staticvar.agentpreview.scanner.discovery.bytecode
 
 import org.objectweb.asm.ClassReader
 

@@ -3,9 +3,9 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner.discovery
+package dev.staticvar.agentpreview.scanner.model
 
-import dev.staticvar.agentpreview.scanner.preview.PreviewAnnotation
+import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 
 internal data class ParsedMethod(
     val name: String,

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner.preview
+package dev.staticvar.agentpreview.scanner.model
 
 data class PreviewAnnotation(
     val name: String?,

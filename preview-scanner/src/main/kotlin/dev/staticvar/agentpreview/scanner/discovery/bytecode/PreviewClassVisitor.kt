@@ -3,9 +3,11 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.scanner.discovery
+package dev.staticvar.agentpreview.scanner.discovery.bytecode
 
-import dev.staticvar.agentpreview.scanner.preview.PreviewAnnotation
+import dev.staticvar.agentpreview.scanner.model.ParsedClass
+import dev.staticvar.agentpreview.scanner.model.ParsedMethod
+import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.MethodVisitor

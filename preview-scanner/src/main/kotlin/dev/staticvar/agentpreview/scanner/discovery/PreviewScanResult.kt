@@ -5,7 +5,7 @@
  */
 package dev.staticvar.agentpreview.scanner.discovery
 
-import dev.staticvar.agentpreview.scanner.preview.ScannedPreview
+import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 
 data class PreviewScanResult(
     val previews: List<ScannedPreview>,
