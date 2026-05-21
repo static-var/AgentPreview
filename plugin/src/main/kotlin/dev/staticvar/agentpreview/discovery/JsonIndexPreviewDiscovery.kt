@@ -12,10 +12,10 @@ import java.io.File
 
 class JsonIndexPreviewDiscovery(
     private val indexFile: File,
-) : PreviewDiscovery {
+) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    override fun discover(): List<PreviewDescriptor> {
+    fun discover(): List<PreviewDescriptor> {
         if (!indexFile.isFile) return emptyList()
         return json.decodeFromString(
             ListSerializer(PreviewDescriptor.serializer()),

@@ -24,6 +24,8 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.description = "Lists Compose previews discoverable by Preview For Agents."
             it.previewIndexFile.set(project.layout.buildDirectory.file("agentPreview/discovered-previews.json"))
             it.previewNameFilter.set(extension.previewNameFilter)
+            it.previewClassesDirs.from(extension.previewClassesDirs)
+            it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
         }
 
         project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
@@ -33,6 +35,8 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.outputDirectory.set(extension.outputDirectory)
             it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
             it.previewNameFilter.set(extension.previewNameFilter)
+            it.previewClassesDirs.from(extension.previewClassesDirs)
+            it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
             it.fakeRenderer.set(
                 project.providers
                     .gradleProperty("agentPreview.fakeRenderer")

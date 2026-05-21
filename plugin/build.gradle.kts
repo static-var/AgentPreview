@@ -21,6 +21,7 @@ gradlePlugin {
 }
 
 dependencies {
+    implementation(project(":preview-scanner"))
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
