@@ -11,6 +11,7 @@ data class ScannedPreview(
     val group: String?,
     val sourceSet: String,
     val declaringClassName: String,
+    val sourceFile: String?,
     val methodName: String,
     val fullyQualifiedFunctionName: String,
     val annotations: List<PreviewAnnotation>,

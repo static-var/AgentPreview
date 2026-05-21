@@ -10,6 +10,10 @@ import androidx.compose.ui.tooling.preview.Preview
 @Preview(name = "Phone", group = "Auth", widthDp = 393, heightDp = 852)
 annotation class PhonePreview
 
+@Preview(name = "Small", group = "Multi", widthDp = 320, heightDp = 640)
+@Preview(name = "Large", group = "Multi", widthDp = 800, heightDp = 1280)
+annotation class MultiDevicePreview
+
 @Preview(
     name = "Login",
     group = "Auth",
@@ -24,4 +28,7 @@ fun loginPreview() = Unit
 object PreviewFixtureObject {
     @PhonePreview
     fun objectPreview() = Unit
+
+    @MultiDevicePreview
+    fun multiPreview() = Unit
 }

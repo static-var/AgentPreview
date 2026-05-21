@@ -29,7 +29,7 @@ class PreviewDiscoveryTest {
         assertEquals("Auth", login.group)
         assertEquals("test", login.sourceSet)
         assertEquals("dev.staticvar.agentpreview.discovery.PreviewFixturesKt.loginPreview", login.fullyQualifiedFunctionName)
-        assertEquals("dev.staticvar.agentpreview.discovery.PreviewFixturesKt.kt", login.sourceFile)
+        assertEquals("PreviewFixtures.kt", login.sourceFile)
         assertEquals(411, login.widthDp)
         assertEquals(891, login.heightDp)
         assertEquals("en", login.locale)
@@ -54,6 +54,32 @@ class PreviewDiscoveryTest {
         assertEquals("Auth", objectPreview.group)
         assertEquals(393, objectPreview.widthDp)
         assertEquals(852, objectPreview.heightDp)
+    }
+
+    @Test
+    fun `expands multipreview annotations with stable variant ids`() {
+        val discovery =
+            PreviewDiscovery(
+                projectPath = ":app",
+                sourceSetName = "test",
+                classesDirs = listOf(testClassesDir()),
+                runtimeClasspath = emptyList(),
+            )
+
+        val previews =
+            discovery
+                .discover()
+                .filter { it.fullyQualifiedFunctionName.endsWith("PreviewFixtureObject.multiPreview") }
+                .sortedBy { it.widthDp }
+
+        assertEquals(listOf("Small", "Large"), previews.map { it.name })
+        assertEquals(
+            listOf(
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:small",
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:large",
+            ),
+            previews.map { it.id },
+        )
     }
 
     @Test
