@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "PreviewForAgents"
-include(":plugin")
+include(":plugin", ":preview-scanner")
