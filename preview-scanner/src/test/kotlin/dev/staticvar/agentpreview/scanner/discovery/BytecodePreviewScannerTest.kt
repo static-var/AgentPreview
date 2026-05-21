@@ -8,9 +8,16 @@ package dev.staticvar.agentpreview.scanner.discovery
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.nio.file.Path
+import java.util.jar.JarEntry
+import java.util.jar.JarOutputStream
 
 class BytecodePreviewScannerTest {
+    @TempDir
+    lateinit var tempDir: Path
+
     @Test
     fun `discovers direct top-level AndroidX preview annotation`() {
         val result = scanTestClasses()
@@ -67,6 +74,35 @@ class BytecodePreviewScannerTest {
     }
 
     @Test
+    fun `discovers meta-annotations from runtime classpath jar`() {
+        val classesDir = tempDir.resolve("classes").toFile()
+        val runtimeJar = tempDir.resolve("runtime-annotations.jar").toFile()
+
+        copyClassResource(
+            resourceName = "dev/staticvar/agentpreview/scanner/fixtures/ObjectPreviewFixtures.class",
+            destinationDir = classesDir,
+        )
+        writeJar(
+            runtimeJar,
+            "dev/staticvar/agentpreview/scanner/fixtures/PhonePreview.class",
+        )
+
+        val result =
+            BytecodePreviewScanner().scan(
+                PreviewScanInput(
+                    projectPath = ":app",
+                    sourceSetName = "test",
+                    classesDirs = listOf(classesDir),
+                    runtimeClasspath = listOf(runtimeJar),
+                ),
+            )
+
+        val preview = result.previews.single { it.methodName == "objectPreview" }
+        assertEquals("Phone", preview.name)
+        assertEquals(393, preview.annotations.single().widthDp)
+    }
+
+    @Test
     fun `reports diagnostic for preview methods with parameters`() {
         val result = scanTestClasses()
 
@@ -94,4 +130,31 @@ class BytecodePreviewScannerTest {
                 runtimeClasspath = emptyList(),
             ),
         )
+
+    private fun copyClassResource(
+        resourceName: String,
+        destinationDir: File,
+    ) {
+        val destination = destinationDir.resolve(resourceName)
+        destination.parentFile.mkdirs()
+        destination.writeBytes(classBytes(resourceName))
+    }
+
+    private fun writeJar(
+        jarFile: File,
+        vararg resourceNames: String,
+    ) {
+        JarOutputStream(jarFile.outputStream()).use { jar ->
+            resourceNames.forEach { resourceName ->
+                jar.putNextEntry(JarEntry(resourceName))
+                jar.write(classBytes(resourceName))
+                jar.closeEntry()
+            }
+        }
+    }
+
+    private fun classBytes(resourceName: String): ByteArray =
+        requireNotNull(javaClass.classLoader.getResourceAsStream(resourceName)) {
+            "Missing test class resource: $resourceName"
+        }.use { input -> input.readBytes() }
 }

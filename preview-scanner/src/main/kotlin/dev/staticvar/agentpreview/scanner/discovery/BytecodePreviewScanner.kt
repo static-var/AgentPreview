@@ -16,11 +16,13 @@ import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import org.objectweb.asm.ClassReader
 import java.io.File
+import java.util.jar.JarFile
 
 class BytecodePreviewScanner : PreviewScanner {
     override fun scan(input: PreviewScanInput): PreviewScanResult {
         val parsedClasses = input.classesDirs.flatMap(::parseClassesIn)
-        val annotationPreviews = parsedClasses.annotationPreviewIndex()
+        val classpathClasses = input.runtimeClasspath.flatMap(::parseClassesIn)
+        val annotationPreviews = (parsedClasses + classpathClasses).annotationPreviewIndex()
 
         val discovered =
             parsedClasses.flatMap { parsedClass ->
@@ -33,20 +35,37 @@ class BytecodePreviewScanner : PreviewScanner {
         )
     }
 
-    private fun parseClassesIn(classesDir: File): List<ParsedClass> {
-        if (!classesDir.isDirectory) return emptyList()
+    private fun parseClassesIn(path: File): List<ParsedClass> =
+        when {
+            path.isDirectory -> parseClassesInDirectory(path)
+            path.isFile && path.extension == JAR_FILE_EXTENSION -> parseClassesInJar(path)
+            path.isFile && path.extension == CLASS_FILE_EXTENSION -> listOfNotNull(parseClass(path.readBytes()))
+            else -> emptyList()
+        }
 
-        return classesDir
+    private fun parseClassesInDirectory(classesDir: File): List<ParsedClass> =
+        classesDir
             .walkTopDown()
             .filter { classFile -> classFile.isFile && classFile.extension == CLASS_FILE_EXTENSION }
-            .mapNotNull(::parseClass)
+            .mapNotNull { classFile -> parseClass(classFile.readBytes()) }
             .toList()
-    }
 
-    private fun parseClass(classFile: File): ParsedClass? =
+    private fun parseClassesInJar(jarFile: File): List<ParsedClass> =
+        runCatching {
+            JarFile(jarFile).use { jar ->
+                jar
+                    .entries()
+                    .asSequence()
+                    .filter { entry -> !entry.isDirectory && entry.name.endsWith(CLASS_FILE_SUFFIX) }
+                    .mapNotNull { entry -> jar.getInputStream(entry).use { input -> parseClass(input.readBytes()) } }
+                    .toList()
+            }
+        }.getOrDefault(emptyList())
+
+    private fun parseClass(bytecode: ByteArray): ParsedClass? =
         runCatching {
             val visitor = PreviewClassVisitor()
-            ClassReader(classFile.readBytes()).accept(visitor, CLASS_READER_FLAGS)
+            ClassReader(bytecode).accept(visitor, CLASS_READER_FLAGS)
             visitor.toParsedClass()
         }.getOrNull()
 
@@ -119,5 +138,7 @@ class BytecodePreviewScanner : PreviewScanner {
 
     private companion object {
         const val CLASS_FILE_EXTENSION = "class"
+        const val CLASS_FILE_SUFFIX = ".$CLASS_FILE_EXTENSION"
+        const val JAR_FILE_EXTENSION = "jar"
     }
 }
