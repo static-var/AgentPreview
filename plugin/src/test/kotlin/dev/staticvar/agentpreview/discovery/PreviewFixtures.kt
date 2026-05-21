@@ -14,6 +14,10 @@ annotation class PhonePreview
 @Preview(name = "Large", group = "Multi", widthDp = 800, heightDp = 1280)
 annotation class MultiDevicePreview
 
+@Preview(name = "Phone", group = "Duplicate", widthDp = 393, heightDp = 852)
+@Preview(name = "Phone", group = "Duplicate", widthDp = 411, heightDp = 891)
+annotation class DuplicateNamePreview
+
 @Preview(
     name = "Login",
     group = "Auth",
@@ -31,4 +35,7 @@ object PreviewFixtureObject {
 
     @MultiDevicePreview
     fun multiPreview() = Unit
+
+    @DuplicateNamePreview
+    fun duplicateNamePreview() = Unit
 }

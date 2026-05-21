@@ -59,7 +59,7 @@ class PreviewDiscovery(
         if (scannedPreview.annotations.size == 1) {
             scannedPreview.id
         } else {
-            "${scannedPreview.id}:${variantName(annotation, index)}"
+            "${scannedPreview.id}:${index + 1}-${variantName(annotation, index)}"
         }
 
     private fun variantName(

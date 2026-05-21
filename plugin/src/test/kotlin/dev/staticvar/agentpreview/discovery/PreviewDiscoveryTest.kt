@@ -75,8 +75,34 @@ class PreviewDiscoveryTest {
         assertEquals(listOf("Small", "Large"), previews.map { it.name })
         assertEquals(
             listOf(
-                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:small",
-                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:large",
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:1-small",
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.multiPreview:2-large",
+            ),
+            previews.map { it.id },
+        )
+    }
+
+    @Test
+    fun `expands duplicate multipreview names with unique variant ids`() {
+        val discovery =
+            PreviewDiscovery(
+                projectPath = ":app",
+                sourceSetName = "test",
+                classesDirs = listOf(testClassesDir()),
+                runtimeClasspath = emptyList(),
+            )
+
+        val previews =
+            discovery
+                .discover()
+                .filter { it.fullyQualifiedFunctionName.endsWith("PreviewFixtureObject.duplicateNamePreview") }
+                .sortedBy { it.widthDp }
+
+        assertEquals(listOf("Phone", "Phone"), previews.map { it.name })
+        assertEquals(
+            listOf(
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.duplicateNamePreview:1-phone",
+                ":app:test:dev.staticvar.agentpreview.discovery.PreviewFixtureObject.duplicateNamePreview:2-phone",
             ),
             previews.map { it.id },
         )
