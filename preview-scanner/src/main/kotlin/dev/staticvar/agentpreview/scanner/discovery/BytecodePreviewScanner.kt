@@ -94,6 +94,7 @@ class BytecodePreviewScanner : PreviewScanner {
                         scannedPreview(
                             input = input,
                             className = name,
+                            sourceFile = sourceFile,
                             methodName = method.name,
                             annotations = annotations,
                         ),
@@ -111,6 +112,7 @@ class BytecodePreviewScanner : PreviewScanner {
     private fun scannedPreview(
         input: PreviewScanInput,
         className: String,
+        sourceFile: String?,
         methodName: String,
         annotations: List<PreviewAnnotation>,
     ): ScannedPreview =
@@ -120,6 +122,7 @@ class BytecodePreviewScanner : PreviewScanner {
             group = annotations.firstOrNull()?.group,
             sourceSet = input.sourceSetName,
             declaringClassName = className,
+            sourceFile = sourceFile,
             methodName = methodName,
             fullyQualifiedFunctionName = "$className.$methodName",
             annotations = annotations,

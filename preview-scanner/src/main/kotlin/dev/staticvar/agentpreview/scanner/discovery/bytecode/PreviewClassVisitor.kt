@@ -15,6 +15,7 @@ import org.objectweb.asm.Opcodes
 
 internal class PreviewClassVisitor : ClassVisitor(Opcodes.ASM9) {
     private var className = ""
+    private var sourceFile: String? = null
     private val previewAnnotations = mutableListOf<PreviewAnnotation>()
     private val methods = mutableListOf<ParsedMethod>()
 
@@ -27,6 +28,13 @@ internal class PreviewClassVisitor : ClassVisitor(Opcodes.ASM9) {
         interfaces: Array<out String>?,
     ) {
         className = name.toClassName()
+    }
+
+    override fun visitSource(
+        source: String?,
+        debug: String?,
+    ) {
+        sourceFile = source
     }
 
     override fun visitAnnotation(
@@ -48,6 +56,7 @@ internal class PreviewClassVisitor : ClassVisitor(Opcodes.ASM9) {
     fun toParsedClass(): ParsedClass =
         ParsedClass(
             name = className,
+            sourceFile = sourceFile,
             previewAnnotations = previewAnnotations.toList(),
             methods = methods.toList(),
         )

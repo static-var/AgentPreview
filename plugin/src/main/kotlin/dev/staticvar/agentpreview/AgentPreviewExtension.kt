@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview
 
 import org.gradle.api.Project
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
@@ -16,6 +17,9 @@ abstract class AgentPreviewExtension(
 ) {
     val outputDirectory: Provider<Directory> =
         project.layout.buildDirectory.dir("agentPreviewSnapshots")
+
+    val previewClassesDirs: ConfigurableFileCollection = project.objects.fileCollection()
+    val previewRuntimeClasspath: ConfigurableFileCollection = project.objects.fileCollection()
 
     abstract val includeUnmergedSemantics: Property<Boolean>
     abstract val previewNameFilter: ListProperty<String>

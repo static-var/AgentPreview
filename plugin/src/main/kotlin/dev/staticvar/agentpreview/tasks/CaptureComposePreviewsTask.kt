@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
+import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
@@ -14,10 +15,12 @@ import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Optional
@@ -44,13 +47,18 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
     abstract val fakeRenderer: Property<Boolean>
 
+    @get:Classpath
+    abstract val previewClassesDirs: ConfigurableFileCollection
+
+    @get:Classpath
+    abstract val previewRuntimeClasspath: ConfigurableFileCollection
+
     @TaskAction
     fun capture() {
         val indexFile = previewIndexFile.get().asFile
         val filters = previewNameFilter.get().toSet()
         val previews =
-            JsonIndexPreviewDiscovery(indexFile)
-                .discover()
+            discoverPreviews(indexFile)
                 .filter { filters.isEmpty() || it.id in filters || it.name in filters }
         val outputRoot = outputDirectory.get().asFile
         if (outputRoot.exists()) {
@@ -106,6 +114,18 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             logger.lifecycle("Captured ${preview.id}")
         }
     }
+
+    private fun discoverPreviews(indexFile: java.io.File): List<PreviewDescriptor> =
+        if (previewClassesDirs.files.isNotEmpty()) {
+            PreviewDiscovery(
+                projectPath = project.path,
+                sourceSetName = "main",
+                classesDirs = previewClassesDirs.files.toList(),
+                runtimeClasspath = previewRuntimeClasspath.files.toList(),
+            ).discover()
+        } else {
+            JsonIndexPreviewDiscovery(indexFile).discover()
+        }
 
     private fun sourceLabel(preview: PreviewDescriptor): String =
         if (preview.sourceLine == null) preview.sourceFile else "${preview.sourceFile}:${preview.sourceLine}"
