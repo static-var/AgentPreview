@@ -3,15 +3,15 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.model
+package dev.staticvar.agentpreview.config
 
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class Viewport(
-    val platform: String? = null,
-    val name: String? = null,
+data class ConfiguredViewport(
+    val platform: String,
+    val name: String,
     val width: Int,
     val height: Int,
-    val density: Float,
+    val density: Float = 1.0f,
 )
