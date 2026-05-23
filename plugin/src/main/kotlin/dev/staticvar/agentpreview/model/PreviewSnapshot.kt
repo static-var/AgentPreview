@@ -13,4 +13,5 @@ data class PreviewSnapshot(
     val preview: PreviewMetadata,
     val viewport: Viewport,
     val nodes: List<SnapshotNode>,
+    val render: SnapshotRenderMetadata? = null,
 )

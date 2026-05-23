@@ -175,13 +175,14 @@ class AgentPreviewPluginFunctionalTest {
         assertEquals(393, image.width)
         assertEquals(852, image.height)
         assertFalse(staleBundle.exists())
-        assertTrue(
+        val snapshotJson =
             projectDir
                 .resolve(
                     "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
                 ).readText()
-                .contains("\"Login\""),
-        )
+        assertTrue(snapshotJson.contains("\"Login\""))
+        assertTrue(snapshotJson.contains("\"render\""))
+        assertTrue(snapshotJson.contains("\"mode\": \"fake\""))
     }
 
     @Test

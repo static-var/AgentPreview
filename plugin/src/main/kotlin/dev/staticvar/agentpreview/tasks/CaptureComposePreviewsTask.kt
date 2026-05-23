@@ -13,6 +13,7 @@ import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
+import dev.staticvar.agentpreview.model.SnapshotRenderMetadata
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
@@ -122,6 +123,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                             ),
                         viewport = renderResult.viewport,
                         nodes = semanticsExtractor.extract(renderResult.rawSemantics),
+                        render = SnapshotRenderMetadata(mode = renderResult.renderMode.logLabel),
                     )
 
                 exporter.export(

@@ -43,6 +43,7 @@ class SnapshotSerializationTest {
                             source = "LoginScreen.kt:84",
                         ),
                     ),
+                render = SnapshotRenderMetadata(mode = "robolectric"),
             )
 
         val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
@@ -50,6 +51,37 @@ class SnapshotSerializationTest {
         assertTrue(encoded.contains("\"schemaVersion\": 1"))
         assertTrue(encoded.contains("\"screenshot\"").not())
         assertTrue(encoded.contains("\"rawSemantics\"").not())
+        assertTrue(encoded.contains("\"render\""))
+        assertTrue(encoded.contains("\"mode\": \"robolectric\""))
         assertEquals(snapshot, json.decodeFromString(PreviewSnapshot.serializer(), encoded))
+    }
+
+    @Test
+    fun `snapshot decodes without render metadata for backwards compatibility`() {
+        val encoded =
+            """
+            {
+              "schemaVersion": 1,
+              "preview": {
+                "id": ":app:commonMain:LoginPreview",
+                "name": "Login",
+                "group": null,
+                "source": null,
+                "sourceSet": "commonMain"
+              },
+              "viewport": {
+                "platform": "android",
+                "name": "phone",
+                "width": 393,
+                "height": 852,
+                "density": 3.0
+              },
+              "nodes": []
+            }
+            """.trimIndent()
+
+        val snapshot = json.decodeFromString(PreviewSnapshot.serializer(), encoded)
+
+        assertEquals(null, snapshot.render)
     }
 }
