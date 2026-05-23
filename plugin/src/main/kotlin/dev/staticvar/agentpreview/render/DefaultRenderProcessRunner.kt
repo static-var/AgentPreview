@@ -13,6 +13,8 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         previewClasspath: List<File>,
     ): RenderProcessResult {
         val classpath = materializeClasspath(currentPluginClasspath() + androidJar(request.robolectricSdk) + previewClasspath)
+        val harnessResultFile = File.createTempFile("agentpreview-render-harness-", ".properties")
+        harnessResultFile.delete()
         val command =
             listOf(
                 javaExecutable(),
@@ -26,6 +28,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 request.density.toString(),
                 request.robolectricSdk.toString(),
                 request.outputFile.absolutePath,
+                harnessResultFile.absolutePath,
             )
         val process =
             ProcessBuilder(command)
@@ -33,36 +36,24 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 .start()
         val output = process.inputStream.bufferedReader().readText()
         val exitCode = process.waitFor()
-        if (exitCode == 0) return RenderProcessResult.Success
+        if (exitCode == 0) {
+            harnessResultFile.delete()
+            return RenderProcessResult.Success
+        }
         val message =
             "Android Compose preview rendering failed for ${request.className}.${request.methodName} " +
                 "with exit code $exitCode.\n$output"
+        val failureKind = RenderHarnessResultFile.readFailureKind(harnessResultFile)
+        harnessResultFile.delete()
         return RenderProcessResult.Failure(
             kind =
-                if (isResourceLoadingGap(
-                        output,
-                    )
-                ) {
+                if (failureKind == RenderProcessFailureKind.ResourceLoadingGap) {
                     RenderProcessFailureKind.ResourceLoadingGap
                 } else {
                     RenderProcessFailureKind.HarnessFailure
                 },
             message = message,
         )
-    }
-
-    private fun isResourceLoadingGap(output: String): Boolean =
-        RESOURCE_LOADING_GAP_MARKERS.any { marker -> output.contains(marker, ignoreCase = true) }
-
-    private companion object {
-        val RESOURCE_LOADING_GAP_MARKERS =
-            listOf(
-                "Resources\$NotFoundException",
-                "resource ID #",
-                "Unable to find resource",
-                "No package ID",
-                "Package not found",
-            )
     }
 
     private fun currentPluginClasspath(): List<File> {
