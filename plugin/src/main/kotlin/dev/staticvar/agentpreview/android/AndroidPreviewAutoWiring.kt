@@ -69,6 +69,7 @@ class AndroidPreviewAutoWiring(
         val capitalized = variantName.replaceFirstChar { char -> char.uppercaseChar() }
         return setOf(
             "compile${capitalized}Kotlin",
+            "compile${capitalized}KotlinAndroid",
             "compile${capitalized}JavaWithJavac",
         )
     }

@@ -42,6 +42,32 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
+    fun `wires Compose Multiplatform Android compile task into preview task graph`() {
+        writeFakeAndroidPlugin()
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("com.android.library")
+                id("dev.staticvar.agentpreview")
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains(":compileDebugKotlinAndroid"), result.output)
+        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
     fun `uses configured Android variant for auto wiring`() {
         writeFakeAndroidPlugin()
         writeSettings()
@@ -127,7 +153,9 @@ class AndroidAutoWiringFunctionalTest {
                         project.getConfigurations().create("debugRuntimeClasspath");
                         project.getConfigurations().create("releaseRuntimeClasspath");
                         project.getTasks().register("compileDebugKotlin");
+                        project.getTasks().register("compileDebugKotlinAndroid");
                         project.getTasks().register("compileReleaseKotlin");
+                        project.getTasks().register("compileReleaseKotlinAndroid");
                     }
                 }
                 """.trimIndent(),
