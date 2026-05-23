@@ -108,10 +108,19 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         assertTrue(result.previews.none { it.methodName == "unsupportedPreview" })
+        assertTrue(result.previews.none { it.methodName == "unsupportedIntPreview" })
+        assertParameterDiagnostic(result, "unsupportedPreview")
+        assertParameterDiagnostic(result, "unsupportedIntPreview")
+    }
+
+    private fun assertParameterDiagnostic(
+        result: PreviewScanResult,
+        methodName: String,
+    ) {
         assertTrue(
             result.diagnostics.any { diagnostic ->
                 diagnostic.severity == PreviewScanDiagnostic.Severity.WARNING &&
-                    diagnostic.message.contains("unsupportedPreview") &&
+                    diagnostic.message.contains(methodName) &&
                     diagnostic.message.contains("parameters")
             },
         )

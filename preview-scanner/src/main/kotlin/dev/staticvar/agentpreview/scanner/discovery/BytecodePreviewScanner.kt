@@ -109,8 +109,10 @@ class BytecodePreviewScanner : PreviewScanner {
                 annotationPreviews[annotationName].orEmpty()
             }
 
-    private fun ParsedMethod.hasUnsupportedParameters(): Boolean =
-        argumentTypes.isNotEmpty() && !argumentTypes.all { type -> type == COMPOSER_TYPE || type == INT_TYPE }
+    private fun ParsedMethod.hasUnsupportedParameters(): Boolean = argumentTypes.isNotEmpty() && !hasOnlyComposeSyntheticParameters()
+
+    private fun ParsedMethod.hasOnlyComposeSyntheticParameters(): Boolean =
+        argumentTypes.firstOrNull() == COMPOSER_TYPE && argumentTypes.drop(1).all { type -> type == INT_TYPE }
 
     private fun scannedPreview(
         input: PreviewScanInput,
