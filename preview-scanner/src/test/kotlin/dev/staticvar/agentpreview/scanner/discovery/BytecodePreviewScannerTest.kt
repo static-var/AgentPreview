@@ -23,10 +23,11 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         val preview = result.previews.single { it.methodName == "topLevelPreview" }
-        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.id)
+        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.fixtures.topLevelPreview", preview.id)
         assertEquals("test", preview.sourceSet)
         assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt", preview.declaringClassName)
-        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.fullyQualifiedFunctionName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt", preview.fullyQualifiedClassName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.topLevelPreview", preview.fullyQualifiedFunctionName)
         assertEquals("Top Level", preview.name)
         assertEquals("Auth", preview.group)
 

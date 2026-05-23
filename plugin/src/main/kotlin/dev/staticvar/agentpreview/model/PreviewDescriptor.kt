@@ -14,6 +14,7 @@ data class PreviewDescriptor(
     val group: String? = null,
     val sourceSet: String,
     val fullyQualifiedFunctionName: String,
+    val fullyQualifiedClassName: String? = null,
     val sourceFile: String,
     val sourceLine: Int? = null,
     val widthDp: Int? = null,

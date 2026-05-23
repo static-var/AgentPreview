@@ -41,6 +41,7 @@ class PreviewDiscovery(
                 group = annotation.group ?: scannedPreview.group,
                 sourceSet = scannedPreview.sourceSet,
                 fullyQualifiedFunctionName = scannedPreview.fullyQualifiedFunctionName,
+                fullyQualifiedClassName = scannedPreview.fullyQualifiedClassName,
                 sourceFile = scannedPreview.sourceFile ?: scannedPreview.declaringClassName,
                 sourceLine = null,
                 widthDp = annotation.widthDp,

@@ -118,18 +118,40 @@ class BytecodePreviewScanner : PreviewScanner {
         sourceFile: String?,
         methodName: String,
         annotations: List<PreviewAnnotation>,
-    ): ScannedPreview =
-        ScannedPreview(
-            id = "${input.projectPath}:${input.sourceSetName}:$className.$methodName",
+    ): ScannedPreview {
+        val functionName = sourceQualifiedFunctionName(className, sourceFile, methodName)
+        return ScannedPreview(
+            id = "${input.projectPath}:${input.sourceSetName}:$functionName",
             name = annotations.firstOrNull()?.name,
             group = annotations.firstOrNull()?.group,
             sourceSet = input.sourceSetName,
             declaringClassName = className,
             sourceFile = sourceFile,
             methodName = methodName,
-            fullyQualifiedFunctionName = "$className.$methodName",
+            fullyQualifiedClassName = className,
+            fullyQualifiedFunctionName = functionName,
             annotations = annotations,
         )
+    }
+
+    private fun sourceQualifiedFunctionName(
+        className: String,
+        sourceFile: String?,
+        methodName: String,
+    ): String {
+        val packageName = className.substringBeforeLast('.', missingDelimiterValue = "")
+        val simpleClassName = className.substringAfterLast('.')
+        val sourceBaseName = sourceFile?.substringBeforeLast('.')
+        val ownerName =
+            if (sourceBaseName != null && simpleClassName == "${sourceBaseName}Kt") {
+                packageName
+            } else {
+                className
+            }
+        return listOf(ownerName, methodName)
+            .filter { it.isNotBlank() }
+            .joinToString(".")
+    }
 
     private fun unsupportedParametersDiagnostic(
         className: String,
