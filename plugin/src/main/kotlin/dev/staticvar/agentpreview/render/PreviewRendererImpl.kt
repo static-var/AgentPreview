@@ -7,10 +7,14 @@ package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.Viewport
+import dev.staticvar.agentpreview.sanitize
 import java.io.File
+import kotlin.math.roundToInt
 
 class PreviewRendererImpl(
     private val robolectricSdk: Int = DEFAULT_ROBOLECTRIC_SDK,
+    private val previewClasspath: List<File> = emptyList(),
+    private val processRunner: RenderProcessRunner = DefaultRenderProcessRunner(),
 ) : PreviewRenderer {
     fun render(
         preview: PreviewDescriptor,
@@ -18,11 +22,47 @@ class PreviewRendererImpl(
         outputDirectory: File,
     ): RenderResult {
         outputDirectory.mkdirs()
-        error(
-            "PreviewRendererImpl selected for ${preview.id} (${viewport.platform}-${viewport.name ?: "preview"}) " +
-                "with Robolectric SDK $robolectricSdk, but Roborazzi-backed preview rendering is not wired into " +
-                "the Gradle plugin yet. Use -PagentPreview.fakeRenderer=true for scaffold captures until the " +
-                "Roborazzi renderer bridge is completed.",
+        val screenshot = outputDirectory.resolve(preview.id.sanitize() + "-" + (viewport.name ?: "preview") + ".png")
+        require(previewClasspath.isNotEmpty()) {
+            "PreviewRendererImpl requires Android compiled classes and runtime classpath for real Robolectric " +
+                "Compose rendering. Apply the plugin to an Android-backed variant or use " +
+                "-PagentPreview.fakeRenderer=true for JSON-index-only captures."
+        }
+        val request =
+            AndroidComposeRenderRequest(
+                className = preview.fullyQualifiedClassName ?: preview.fullyQualifiedFunctionName.substringBeforeLast('.', ""),
+                methodName = preview.fullyQualifiedFunctionName.substringAfterLast('.'),
+                widthPx = (viewport.width * viewport.density).roundToInt().coerceAtLeast(1),
+                heightPx = (viewport.height * viewport.density).roundToInt().coerceAtLeast(1),
+                density = viewport.density,
+                robolectricSdk = robolectricSdk,
+                outputFile = screenshot,
+            )
+        try {
+            processRunner.run(request, previewClasspath)
+        } catch (error: IllegalStateException) {
+            System.err.println(
+                "AgentPreview: falling back to diagnostic PNG for ${preview.id}; isolated Robolectric rendering failed. " +
+                    error.message.orEmpty(),
+            )
+            DiagnosticPngRenderer.render(
+                outputFile = screenshot,
+                widthPx = request.widthPx,
+                heightPx = request.heightPx,
+                title = "AgentPreview render fallback",
+                detail =
+                    "Robolectric Compose rendering failed for ${preview.id}. " +
+                        "This usually means merged Android resources were unavailable to the isolated harness. " +
+                        error.message.orEmpty(),
+            )
+        }
+        check(screenshot.isFile && screenshot.length() > PNG_HEADER_BYTES) {
+            "Android Compose preview renderer did not produce a valid PNG for ${preview.id} at ${screenshot.absolutePath}."
+        }
+        return RenderResult(
+            screenshotFile = screenshot,
+            viewport = viewport,
+            rawSemantics = null,
         )
     }
 
@@ -48,5 +88,6 @@ class PreviewRendererImpl(
         const val DEFAULT_WIDTH_DP = 393
         const val DEFAULT_HEIGHT_DP = 852
         const val DEFAULT_DENSITY = 1.0f
+        const val PNG_HEADER_BYTES = 8L
     }
 }

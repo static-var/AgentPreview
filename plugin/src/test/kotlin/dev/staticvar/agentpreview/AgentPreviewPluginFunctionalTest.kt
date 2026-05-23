@@ -279,7 +279,7 @@ class AgentPreviewPluginFunctionalTest {
                 .buildAndFail()
 
         assertTrue(result.output.contains("PreviewRendererImpl"))
-        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
+        assertTrue(result.output.contains("requires Android compiled classes and runtime classpath"))
         assertFalse(result.output.contains("Production preview rendering is not implemented in phase 1"))
     }
 
@@ -338,7 +338,7 @@ class AgentPreviewPluginFunctionalTest {
                 .buildAndFail()
 
         assertTrue(result.output.contains("PreviewRendererImpl"))
-        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
+        assertTrue(result.output.contains("requires Android compiled classes and runtime classpath"))
     }
 
     @Test
