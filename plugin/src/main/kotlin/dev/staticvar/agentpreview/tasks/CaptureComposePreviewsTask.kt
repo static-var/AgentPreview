@@ -26,9 +26,9 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
@@ -66,7 +66,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun capture() {
-        val indexFile = java.io.File(previewIndexFilePath.get())
+        val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
@@ -171,7 +171,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun discoverPreviews(indexFile: java.io.File): List<PreviewDescriptor> =
+    private fun discoverPreviews(indexFile: File): List<PreviewDescriptor> =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,

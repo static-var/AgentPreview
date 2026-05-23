@@ -14,15 +14,15 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 abstract class ListComposePreviewsTask : DefaultTask() {
     @get:Input
-    abstract val previewIndexFilePath: org.gradle.api.provider.Property<String>
+    abstract val previewIndexFilePath: Property<String>
 
     @get:Input
-    abstract val previewIndexContent: org.gradle.api.provider.Property<String>
+    abstract val previewIndexContent: Property<String>
 
     @get:Input
     abstract val previewNameFilter: ListProperty<String>
@@ -41,7 +41,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun list() {
-        val indexFile = java.io.File(previewIndexFilePath.get())
+        val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
@@ -67,7 +67,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun discoverPreviews(indexFile: java.io.File) =
+    private fun discoverPreviews(indexFile: File) =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,
