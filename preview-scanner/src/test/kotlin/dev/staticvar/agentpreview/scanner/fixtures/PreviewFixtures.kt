@@ -46,4 +46,9 @@ class ClassPreviewFixtures {
     fun unsupportedPreview(name: String) {
         check(name.isNotEmpty())
     }
+
+    @Preview(name = "Needs Int")
+    fun unsupportedIntPreview(count: Int) {
+        check(count > 0)
+    }
 }

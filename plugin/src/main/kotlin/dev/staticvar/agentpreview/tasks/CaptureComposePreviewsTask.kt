@@ -22,23 +22,20 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.PathSensitive
-import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
-    @get:InputFile
-    @get:Optional
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val previewIndexFile: RegularFileProperty
+    @get:Input
+    abstract val previewIndexFilePath: Property<String>
+
+    @get:Input
+    abstract val previewIndexContent: Property<String>
 
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
@@ -69,7 +66,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun capture() {
-        val indexFile = previewIndexFile.get().asFile
+        val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
@@ -174,7 +171,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun discoverPreviews(indexFile: java.io.File): List<PreviewDescriptor> =
+    private fun discoverPreviews(indexFile: File): List<PreviewDescriptor> =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,

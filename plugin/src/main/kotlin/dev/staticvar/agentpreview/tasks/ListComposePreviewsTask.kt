@@ -10,22 +10,19 @@ import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.Optional
-import org.gradle.api.tasks.PathSensitive
-import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import java.io.File
 
 abstract class ListComposePreviewsTask : DefaultTask() {
-    @get:InputFile
-    @get:Optional
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val previewIndexFile: RegularFileProperty
+    @get:Input
+    abstract val previewIndexFilePath: Property<String>
+
+    @get:Input
+    abstract val previewIndexContent: Property<String>
 
     @get:Input
     abstract val previewNameFilter: ListProperty<String>
@@ -44,7 +41,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun list() {
-        val indexFile = previewIndexFile.get().asFile
+        val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
@@ -70,7 +67,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun discoverPreviews(indexFile: java.io.File) =
+    private fun discoverPreviews(indexFile: File) =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,

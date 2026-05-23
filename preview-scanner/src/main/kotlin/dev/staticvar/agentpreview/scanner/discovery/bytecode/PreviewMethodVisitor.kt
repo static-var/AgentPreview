@@ -17,7 +17,7 @@ internal class PreviewMethodVisitor(
     methodDescriptor: String,
     private val onComplete: (ParsedMethod) -> Unit,
 ) : MethodVisitor(Opcodes.ASM9) {
-    private val argumentCount = Type.getArgumentTypes(methodDescriptor).size
+    private val argumentTypes = Type.getArgumentTypes(methodDescriptor).map(Type::getClassName)
     private val previewAnnotations = mutableListOf<PreviewAnnotation>()
     private val metaAnnotationNames = mutableListOf<String>()
 
@@ -30,7 +30,7 @@ internal class PreviewMethodVisitor(
         onComplete(
             ParsedMethod(
                 name = methodName,
-                argumentCount = argumentCount,
+                argumentTypes = argumentTypes,
                 previewAnnotations = previewAnnotations.toList(),
                 metaAnnotationNames = metaAnnotationNames.toList(),
             ),

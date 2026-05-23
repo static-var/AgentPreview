@@ -83,7 +83,7 @@ class BytecodePreviewScanner : PreviewScanner {
                     null
                 }
 
-                method.argumentCount > 0 -> {
+                method.hasUnsupportedParameters() -> {
                     DiscoveryDiagnostic(
                         unsupportedParametersDiagnostic(className = name, methodName = method.name),
                     )
@@ -109,24 +109,51 @@ class BytecodePreviewScanner : PreviewScanner {
                 annotationPreviews[annotationName].orEmpty()
             }
 
+    private fun ParsedMethod.hasUnsupportedParameters(): Boolean = argumentTypes.isNotEmpty() && !hasOnlyComposeSyntheticParameters()
+
+    private fun ParsedMethod.hasOnlyComposeSyntheticParameters(): Boolean =
+        argumentTypes.firstOrNull() == COMPOSER_TYPE && argumentTypes.drop(1).all { type -> type == INT_TYPE }
+
     private fun scannedPreview(
         input: PreviewScanInput,
         className: String,
         sourceFile: String?,
         methodName: String,
         annotations: List<PreviewAnnotation>,
-    ): ScannedPreview =
-        ScannedPreview(
-            id = "${input.projectPath}:${input.sourceSetName}:$className.$methodName",
+    ): ScannedPreview {
+        val functionName = sourceQualifiedFunctionName(className, sourceFile, methodName)
+        return ScannedPreview(
+            id = "${input.projectPath}:${input.sourceSetName}:$functionName",
             name = annotations.firstOrNull()?.name,
             group = annotations.firstOrNull()?.group,
             sourceSet = input.sourceSetName,
             declaringClassName = className,
             sourceFile = sourceFile,
             methodName = methodName,
-            fullyQualifiedFunctionName = "$className.$methodName",
+            fullyQualifiedClassName = className,
+            fullyQualifiedFunctionName = functionName,
             annotations = annotations,
         )
+    }
+
+    private fun sourceQualifiedFunctionName(
+        className: String,
+        sourceFile: String?,
+        methodName: String,
+    ): String {
+        val packageName = className.substringBeforeLast('.', missingDelimiterValue = "")
+        val simpleClassName = className.substringAfterLast('.')
+        val sourceBaseName = sourceFile?.substringBeforeLast('.')
+        val ownerName =
+            if (sourceBaseName != null && simpleClassName == "${sourceBaseName}Kt") {
+                packageName
+            } else {
+                className
+            }
+        return listOf(ownerName, methodName)
+            .filter { it.isNotBlank() }
+            .joinToString(".")
+    }
 
     private fun unsupportedParametersDiagnostic(
         className: String,
@@ -143,5 +170,7 @@ class BytecodePreviewScanner : PreviewScanner {
         const val CLASS_FILE_EXTENSION = "class"
         const val CLASS_FILE_SUFFIX = ".$CLASS_FILE_EXTENSION"
         const val JAR_FILE_EXTENSION = "jar"
+        const val COMPOSER_TYPE = "androidx.compose.runtime.Composer"
+        const val INT_TYPE = "int"
     }
 }

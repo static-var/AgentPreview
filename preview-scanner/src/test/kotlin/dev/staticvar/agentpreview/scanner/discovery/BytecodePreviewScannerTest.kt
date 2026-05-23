@@ -23,10 +23,11 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         val preview = result.previews.single { it.methodName == "topLevelPreview" }
-        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.id)
+        assertEquals(":app:test:dev.staticvar.agentpreview.scanner.fixtures.topLevelPreview", preview.id)
         assertEquals("test", preview.sourceSet)
         assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt", preview.declaringClassName)
-        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt.topLevelPreview", preview.fullyQualifiedFunctionName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.PreviewFixturesKt", preview.fullyQualifiedClassName)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.topLevelPreview", preview.fullyQualifiedFunctionName)
         assertEquals("Top Level", preview.name)
         assertEquals("Auth", preview.group)
 
@@ -107,10 +108,19 @@ class BytecodePreviewScannerTest {
         val result = scanTestClasses()
 
         assertTrue(result.previews.none { it.methodName == "unsupportedPreview" })
+        assertTrue(result.previews.none { it.methodName == "unsupportedIntPreview" })
+        assertParameterDiagnostic(result, "unsupportedPreview")
+        assertParameterDiagnostic(result, "unsupportedIntPreview")
+    }
+
+    private fun assertParameterDiagnostic(
+        result: PreviewScanResult,
+        methodName: String,
+    ) {
         assertTrue(
             result.diagnostics.any { diagnostic ->
                 diagnostic.severity == PreviewScanDiagnostic.Severity.WARNING &&
-                    diagnostic.message.contains("unsupportedPreview") &&
+                    diagnostic.message.contains(methodName) &&
                     diagnostic.message.contains("parameters")
             },
         )

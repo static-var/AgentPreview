@@ -23,12 +23,13 @@ class PreviewDiscoveryTest {
 
         val previews = discovery.discover()
 
-        val login = previews.single { it.fullyQualifiedFunctionName.endsWith("PreviewFixturesKt.loginPreview") }
-        assertEquals(":app:test:dev.staticvar.agentpreview.discovery.PreviewFixturesKt.loginPreview", login.id)
+        val login = previews.single { it.fullyQualifiedFunctionName.endsWith("discovery.loginPreview") }
+        assertEquals(":app:test:dev.staticvar.agentpreview.discovery.loginPreview", login.id)
         assertEquals("Login", login.name)
         assertEquals("Auth", login.group)
         assertEquals("test", login.sourceSet)
-        assertEquals("dev.staticvar.agentpreview.discovery.PreviewFixturesKt.loginPreview", login.fullyQualifiedFunctionName)
+        assertEquals("dev.staticvar.agentpreview.discovery.loginPreview", login.fullyQualifiedFunctionName)
+        assertEquals("dev.staticvar.agentpreview.discovery.PreviewFixturesKt", login.fullyQualifiedClassName)
         assertEquals("PreviewFixtures.kt", login.sourceFile)
         assertEquals(411, login.widthDp)
         assertEquals(891, login.heightDp)
