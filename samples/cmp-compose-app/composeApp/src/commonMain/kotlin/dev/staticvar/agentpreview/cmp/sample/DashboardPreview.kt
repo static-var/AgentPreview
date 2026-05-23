@@ -26,6 +26,17 @@ import androidx.compose.ui.unit.dp
 @Preview(name = "Dashboard", group = "CMP", widthDp = 393, heightDp = 852, showBackground = true)
 @Composable
 fun DashboardPreview() {
+    DashboardContent()
+}
+
+@Preview(name = "Responsive Dashboard", group = "CMP", showBackground = true)
+@Composable
+fun ResponsiveDashboardPreview() {
+    DashboardContent()
+}
+
+@Composable
+private fun DashboardContent() {
     MaterialTheme {
         Column(
             modifier =
