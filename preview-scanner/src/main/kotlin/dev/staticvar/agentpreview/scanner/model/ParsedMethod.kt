@@ -9,7 +9,7 @@ import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 
 internal data class ParsedMethod(
     val name: String,
-    val argumentCount: Int,
+    val argumentTypes: List<String>,
     val previewAnnotations: List<PreviewAnnotation>,
     val metaAnnotationNames: List<String>,
 )

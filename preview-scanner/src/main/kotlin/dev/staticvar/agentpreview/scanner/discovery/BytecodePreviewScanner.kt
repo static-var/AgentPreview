@@ -83,7 +83,7 @@ class BytecodePreviewScanner : PreviewScanner {
                     null
                 }
 
-                method.argumentCount > 0 -> {
+                method.hasUnsupportedParameters() -> {
                     DiscoveryDiagnostic(
                         unsupportedParametersDiagnostic(className = name, methodName = method.name),
                     )
@@ -108,6 +108,9 @@ class BytecodePreviewScanner : PreviewScanner {
             metaAnnotationNames.flatMap { annotationName ->
                 annotationPreviews[annotationName].orEmpty()
             }
+
+    private fun ParsedMethod.hasUnsupportedParameters(): Boolean =
+        argumentTypes.isNotEmpty() && !argumentTypes.all { type -> type == COMPOSER_TYPE || type == INT_TYPE }
 
     private fun scannedPreview(
         input: PreviewScanInput,
@@ -143,5 +146,7 @@ class BytecodePreviewScanner : PreviewScanner {
         const val CLASS_FILE_EXTENSION = "class"
         const val CLASS_FILE_SUFFIX = ".$CLASS_FILE_EXTENSION"
         const val JAR_FILE_EXTENSION = "jar"
+        const val COMPOSER_TYPE = "androidx.compose.runtime.Composer"
+        const val INT_TYPE = "int"
     }
 }

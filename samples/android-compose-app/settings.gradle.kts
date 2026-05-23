@@ -1,4 +1,11 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 pluginManagement {
+    includeBuild("../..")
+
     repositories {
         google()
         mavenCentral()
@@ -14,6 +21,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PreviewForAgents"
-include(":plugin", ":preview-scanner")
-includeBuild("samples/android-compose-app")
+rootProject.name = "AgentPreviewAndroidComposeSample"
+include(":app")

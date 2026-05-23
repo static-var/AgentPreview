@@ -24,11 +24,23 @@ class AgentPreviewPlugin : Plugin<Project> {
             )
 
         AndroidPreviewAutoWiring(project, extension).configure()
+        val previewIndexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json")
 
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"
             it.description = "Lists Compose previews discoverable by Preview For Agents."
-            it.previewIndexFile.set(project.layout.buildDirectory.file("agentPreview/discovered-previews.json"))
+            it.previewIndexFilePath.set(previewIndexFile.map { file -> file.asFile.path })
+            it.previewIndexContent.set(
+                project.provider {
+                    previewIndexFile
+                        .get()
+                        .asFile
+                        .takeIf { file ->
+                            file.isFile
+                        }?.readText()
+                        .orEmpty()
+                },
+            )
             it.previewNameFilter.set(extension.previewNameFilter)
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
@@ -39,7 +51,18 @@ class AgentPreviewPlugin : Plugin<Project> {
         project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
             it.group = "agent preview"
             it.description = "Captures Compose previews into screenshot.png and snapshot.json bundles."
-            it.previewIndexFile.set(project.layout.buildDirectory.file("agentPreview/discovered-previews.json"))
+            it.previewIndexFilePath.set(previewIndexFile.map { file -> file.asFile.path })
+            it.previewIndexContent.set(
+                project.provider {
+                    previewIndexFile
+                        .get()
+                        .asFile
+                        .takeIf { file ->
+                            file.isFile
+                        }?.readText()
+                        .orEmpty()
+                },
+            )
             it.outputDirectory.set(extension.outputDirectory)
             it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
             it.previewNameFilter.set(extension.previewNameFilter)
