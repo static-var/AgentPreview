@@ -7,7 +7,6 @@ package dev.staticvar.agentpreview.render
 
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -16,7 +15,7 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
-class AndroidComposeRenderHarnessTest {
+class AndroidComposeRobolectricEntryPoint {
     @Test
     fun renderPreview() {
         AndroidComposeRendererInRobolectric.render(

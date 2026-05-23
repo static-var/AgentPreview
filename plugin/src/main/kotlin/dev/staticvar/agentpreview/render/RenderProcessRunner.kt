@@ -11,5 +11,5 @@ interface RenderProcessRunner {
     fun run(
         request: AndroidComposeRenderRequest,
         previewClasspath: List<File>,
-    )
+    ): RenderProcessResult
 }

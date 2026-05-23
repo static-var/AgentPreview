@@ -223,7 +223,7 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .build()
 
-        assertTrue(result.output.contains("android.robolectricSdk=36 requires Java 21+"))
+        assertTrue(result.output.contains("android.robolectricSdk=36 is not supported by the Android renderer yet"))
     }
 
     @Test

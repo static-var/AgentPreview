@@ -11,7 +11,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
     override fun run(
         request: AndroidComposeRenderRequest,
         previewClasspath: List<File>,
-    ) {
+    ): RenderProcessResult {
         val classpath = materializeClasspath(currentPluginClasspath() + androidJar(request.robolectricSdk) + previewClasspath)
         val command =
             listOf(
@@ -33,12 +33,36 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 .start()
         val output = process.inputStream.bufferedReader().readText()
         val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            error(
-                "Android Compose preview rendering failed for ${request.className}.${request.methodName} " +
-                    "with exit code $exitCode.\n$output",
+        if (exitCode == 0) return RenderProcessResult.Success
+        val message =
+            "Android Compose preview rendering failed for ${request.className}.${request.methodName} " +
+                "with exit code $exitCode.\n$output"
+        return RenderProcessResult.Failure(
+            kind =
+                if (isResourceLoadingGap(
+                        output,
+                    )
+                ) {
+                    RenderProcessFailureKind.ResourceLoadingGap
+                } else {
+                    RenderProcessFailureKind.HarnessFailure
+                },
+            message = message,
+        )
+    }
+
+    private fun isResourceLoadingGap(output: String): Boolean =
+        RESOURCE_LOADING_GAP_MARKERS.any { marker -> output.contains(marker, ignoreCase = true) }
+
+    private companion object {
+        val RESOURCE_LOADING_GAP_MARKERS =
+            listOf(
+                "Resources\$NotFoundException",
+                "resource ID #",
+                "Unable to find resource",
+                "No package ID",
+                "Package not found",
             )
-        }
     }
 
     private fun currentPluginClasspath(): List<File> {
@@ -70,7 +94,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
     private fun materializeClasspath(classpath: List<File>): List<File> =
         classpath.flatMap { file ->
             if (file.extension == "aar" && file.isFile) {
-                extractAarClassesJar(file)?.let(::listOf) ?: emptyList()
+                listOfNotNull(extractAarClassesJar(file), file)
             } else {
                 listOf(file)
             }

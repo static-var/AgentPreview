@@ -131,7 +131,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     outputRoot = outputRoot,
                     viewport = viewport,
                 )
-                logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name})")
+                logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name}) via ${renderResult.renderMode.logLabel}")
             }
         }
     }
@@ -183,6 +183,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         } else {
             project.configurations
                 .detachedConfiguration(
+                    project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
                     project.dependencies.create("androidx.test:core:1.7.0"),
                     project.dependencies.create("androidx.test:monitor:1.8.0"),
                 ).resolve()

@@ -23,6 +23,10 @@ class PreviewRendererImpl(
     ): RenderResult {
         outputDirectory.mkdirs()
         val screenshot = outputDirectory.resolve(preview.id.sanitize() + "-" + (viewport.name ?: "preview") + ".png")
+        require(robolectricSdk == SUPPORTED_ROBOLECTRIC_SDK) {
+            "AgentPreview Android renderer currently supports only robolectricSdk=$SUPPORTED_ROBOLECTRIC_SDK; " +
+                "configured robolectricSdk=$robolectricSdk is not used by the Robolectric entry point."
+        }
         require(previewClasspath.isNotEmpty()) {
             "PreviewRendererImpl requires Android compiled classes and runtime classpath for real Robolectric " +
                 "Compose rendering. Apply the plugin to an Android-backed variant or use " +
@@ -38,24 +42,11 @@ class PreviewRendererImpl(
                 robolectricSdk = robolectricSdk,
                 outputFile = screenshot,
             )
-        try {
-            processRunner.run(request, previewClasspath)
-        } catch (error: IllegalStateException) {
-            System.err.println(
-                "AgentPreview: falling back to diagnostic PNG for ${preview.id}; isolated Robolectric rendering failed. " +
-                    error.message.orEmpty(),
-            )
-            DiagnosticPngRenderer.render(
-                outputFile = screenshot,
-                widthPx = request.widthPx,
-                heightPx = request.heightPx,
-                title = "AgentPreview render fallback",
-                detail =
-                    "Robolectric Compose rendering failed for ${preview.id}. " +
-                        "This usually means merged Android resources were unavailable to the isolated harness. " +
-                        error.message.orEmpty(),
-            )
-        }
+        val renderMode =
+            when (val result = processRunner.run(request, previewClasspath)) {
+                RenderProcessResult.Success -> RenderMode.Robolectric
+                is RenderProcessResult.Failure -> handleFailure(result, preview, request, screenshot)
+            }
         check(screenshot.isFile && screenshot.length() > PNG_HEADER_BYTES) {
             "Android Compose preview renderer did not produce a valid PNG for ${preview.id} at ${screenshot.absolutePath}."
         }
@@ -63,7 +54,33 @@ class PreviewRendererImpl(
             screenshotFile = screenshot,
             viewport = viewport,
             rawSemantics = null,
+            renderMode = renderMode,
         )
+    }
+
+    private fun handleFailure(
+        failure: RenderProcessResult.Failure,
+        preview: PreviewDescriptor,
+        request: AndroidComposeRenderRequest,
+        screenshot: File,
+    ): RenderMode {
+        if (failure.kind != RenderProcessFailureKind.ResourceLoadingGap) {
+            error(failure.message)
+        }
+        System.err.println(
+            "AgentPreview: falling back to diagnostic PNG for ${preview.id}; isolated Robolectric rendering hit a resource-loading gap. " +
+                failure.message,
+        )
+        DiagnosticPngRenderer.render(
+            outputFile = screenshot,
+            widthPx = request.widthPx,
+            heightPx = request.heightPx,
+            title = "AgentPreview resource fallback",
+            detail =
+                "Robolectric Compose rendering could not load Android resources for ${preview.id}. " +
+                    failure.message,
+        )
+        return RenderMode.DiagnosticFallback
     }
 
     override fun render(
@@ -84,7 +101,8 @@ class PreviewRendererImpl(
         )
 
     private companion object {
-        const val DEFAULT_ROBOLECTRIC_SDK = 35
+        const val SUPPORTED_ROBOLECTRIC_SDK = 35
+        const val DEFAULT_ROBOLECTRIC_SDK = SUPPORTED_ROBOLECTRIC_SDK
         const val DEFAULT_WIDTH_DP = 393
         const val DEFAULT_HEIGHT_DP = 852
         const val DEFAULT_DENSITY = 1.0f

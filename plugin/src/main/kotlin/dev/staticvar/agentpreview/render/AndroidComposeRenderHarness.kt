@@ -19,7 +19,7 @@ object AndroidComposeRenderHarness {
         System.setProperty("agentpreview.render.robolectricSdk", args[5])
         System.setProperty("agentpreview.render.outputFile", args[6])
 
-        val result = JUnitCore.runClasses(AndroidComposeRenderHarnessTest::class.java)
+        val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
             result.failures.forEach { failure ->
                 System.err.println(failure.testHeader)
@@ -27,6 +27,7 @@ object AndroidComposeRenderHarness {
             }
             kotlin.system.exitProcess(1)
         }
+        kotlin.system.exitProcess(0)
     }
 
     private const val ARG_COUNT = 7

@@ -12,4 +12,5 @@ data class RenderResult(
     val screenshotFile: File,
     val viewport: Viewport,
     val rawSemantics: Any?,
+    val renderMode: RenderMode,
 )

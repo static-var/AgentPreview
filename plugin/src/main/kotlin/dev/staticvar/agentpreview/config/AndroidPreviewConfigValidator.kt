@@ -16,13 +16,15 @@ object AndroidPreviewConfigValidator {
                     "Current Gradle JVM is Java $javaMajorVersion."
             }
 
-            robolectricSdk >= 36 && javaMajorVersion < 21 -> {
-                "AgentPreview: android.robolectricSdk=$robolectricSdk requires Java 21+ for Robolectric runtime. " +
-                    "Current Gradle JVM is Java $javaMajorVersion. Use robolectricSdk=35 or run Gradle with Java 21+."
+            robolectricSdk != SUPPORTED_ROBOLECTRIC_SDK -> {
+                "AgentPreview: android.robolectricSdk=$robolectricSdk is not supported by the Android renderer yet. " +
+                    "Use robolectricSdk=$SUPPORTED_ROBOLECTRIC_SDK; other values fail for non-fake capture."
             }
 
             else -> {
                 null
             }
         }
+
+    private const val SUPPORTED_ROBOLECTRIC_SDK = 35
 }
