@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview.config
 
 object AndroidPreviewConfigDefaults {
     const val ROBOLECTRIC_SDK = 35
+    const val VARIANT = "debug"
 
     val viewports: List<ConfiguredViewport> =
         listOf(
