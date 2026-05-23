@@ -168,7 +168,7 @@ class AgentPreviewPluginFunctionalTest {
                 .build()
 
         assertTrue(result.output.contains("Captured :app:commonMain:LoginPreview"))
-        val screenshot = projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/screenshot.png")
+        val screenshot = projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png")
         assertTrue(screenshot.isFile)
         val image = ImageIO.read(screenshot)
         assertNotNull(image)
@@ -176,8 +176,54 @@ class AgentPreviewPluginFunctionalTest {
         assertEquals(852, image.height)
         assertFalse(staleBundle.exists())
         assertTrue(
-            projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/snapshot.json").readText().contains("\"Login\""),
+            projectDir
+                .resolve(
+                    "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
+                ).readText()
+                .contains("\"Login\""),
         )
+    }
+
+    @Test
+    fun `capture task warns when Robolectric SDK requires newer Java`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                android {
+                    robolectricSdk.set(36)
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText("[]")
+        }
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true", "-PagentPreview.javaMajorVersion=17")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("android.robolectricSdk=36 requires Java 21+"))
     }
 
     @Test
@@ -365,7 +411,7 @@ class AgentPreviewPluginFunctionalTest {
                 .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
-        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-SettingsPreview/snapshot.json").isFile)
+        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-SettingsPreview/android-phone/snapshot.json").isFile)
         assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview").exists())
 
         indexFile.writeText("[]")

@@ -5,6 +5,8 @@
  */
 package dev.staticvar.agentpreview
 
+import dev.staticvar.agentpreview.config.AndroidPreviewConfig
+import org.gradle.api.Action
 import org.gradle.api.Project
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
@@ -20,6 +22,7 @@ abstract class AgentPreviewExtension(
 
     val previewClassesDirs: ConfigurableFileCollection = project.objects.fileCollection()
     val previewRuntimeClasspath: ConfigurableFileCollection = project.objects.fileCollection()
+    val android: AndroidPreviewConfig = project.objects.newInstance(AndroidPreviewConfig::class.java)
 
     abstract val includeUnmergedSemantics: Property<Boolean>
     abstract val previewNameFilter: ListProperty<String>
@@ -27,5 +30,9 @@ abstract class AgentPreviewExtension(
     init {
         includeUnmergedSemantics.convention(false)
         previewNameFilter.convention(emptyList())
+    }
+
+    fun android(action: Action<AndroidPreviewConfig>) {
+        action.execute(android)
     }
 }

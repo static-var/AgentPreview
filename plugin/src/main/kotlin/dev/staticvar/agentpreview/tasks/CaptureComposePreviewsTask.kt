@@ -5,14 +5,19 @@
  */
 package dev.staticvar.agentpreview.tasks
 
+import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
+import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
+import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
@@ -53,9 +58,19 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
 
+    @get:Input
+    abstract val androidViewportsJson: Property<String>
+
+    @get:Input
+    abstract val robolectricSdk: Property<Int>
+
+    @get:Input
+    abstract val javaMajorVersion: Property<Int>
+
     @TaskAction
     fun capture() {
         val indexFile = previewIndexFile.get().asFile
+        warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
             discoverPreviews(indexFile)
@@ -89,30 +104,74 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val exporter = SnapshotExporter()
 
         previews.forEach { preview ->
-            val renderResult = renderer.render(preview, renderOutput)
-            val snapshot =
-                PreviewSnapshot(
-                    schemaVersion = 1,
-                    preview =
-                        PreviewMetadata(
-                            id = preview.id,
-                            name = preview.name,
-                            group = preview.group,
-                            source = sourceLabel(preview),
-                            sourceSet = preview.sourceSet,
-                        ),
-                    viewport = renderResult.viewport,
-                    nodes = semanticsExtractor.extract(renderResult.rawSemantics),
-                )
+            viewportsFor(preview).forEach { viewport ->
+                val renderResult = renderer.render(preview, viewport, renderOutput)
+                val snapshot =
+                    PreviewSnapshot(
+                        schemaVersion = 1,
+                        preview =
+                            PreviewMetadata(
+                                id = preview.id,
+                                name = preview.name,
+                                group = preview.group,
+                                source = sourceLabel(preview),
+                                sourceSet = preview.sourceSet,
+                            ),
+                        viewport = renderResult.viewport,
+                        nodes = semanticsExtractor.extract(renderResult.rawSemantics),
+                    )
 
-            exporter.export(
-                previewId = preview.id,
-                screenshotFile = renderResult.screenshotFile,
-                snapshot = snapshot,
-                outputRoot = outputRoot,
-            )
-            logger.lifecycle("Captured ${preview.id}")
+                exporter.export(
+                    previewId = preview.id,
+                    screenshotFile = renderResult.screenshotFile,
+                    snapshot = snapshot,
+                    outputRoot = outputRoot,
+                    viewport = viewport,
+                )
+                logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name})")
+            }
         }
+    }
+
+    private fun viewportsFor(preview: PreviewDescriptor): List<Viewport> =
+        if (preview.hasExplicitWidth() && preview.hasExplicitHeight()) {
+            listOf(
+                Viewport(
+                    platform = "android",
+                    name = "preview",
+                    width = requireNotNull(preview.widthDp),
+                    height = requireNotNull(preview.heightDp),
+                    density = 1.0f,
+                ),
+            )
+        } else {
+            androidViewports().map { configured ->
+                Viewport(
+                    platform = configured.platform,
+                    name = configured.name,
+                    width = preview.widthDp.takeIf { preview.hasExplicitWidth() } ?: configured.width,
+                    height = preview.heightDp.takeIf { preview.hasExplicitHeight() } ?: configured.height,
+                    density = configured.density,
+                )
+            }
+        }
+
+    private fun PreviewDescriptor.hasExplicitWidth(): Boolean = widthDp != null && widthDp > 0
+
+    private fun PreviewDescriptor.hasExplicitHeight(): Boolean = heightDp != null && heightDp > 0
+
+    private fun androidViewports(): List<ConfiguredViewport> =
+        Json.decodeFromString(
+            ListSerializer(ConfiguredViewport.serializer()),
+            androidViewportsJson.get(),
+        )
+
+    private fun warnIfConfigurationIsIncompatible() {
+        AndroidPreviewConfigValidator
+            .warning(
+                robolectricSdk = robolectricSdk.get(),
+                javaMajorVersion = javaMajorVersion.get(),
+            )?.let { warning -> logger.warn(warning) }
     }
 
     private fun discoverPreviews(indexFile: java.io.File): List<PreviewDescriptor> =

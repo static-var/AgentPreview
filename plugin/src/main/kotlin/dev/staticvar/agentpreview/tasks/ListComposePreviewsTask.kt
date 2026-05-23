@@ -5,12 +5,14 @@
  */
 package dev.staticvar.agentpreview.tasks
 
+import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
@@ -34,9 +36,16 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
 
+    @get:Input
+    abstract val robolectricSdk: Property<Int>
+
+    @get:Input
+    abstract val javaMajorVersion: Property<Int>
+
     @TaskAction
     fun list() {
         val indexFile = previewIndexFile.get().asFile
+        warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val previews =
             discoverPreviews(indexFile)
@@ -51,6 +60,14 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             val label = preview.name ?: preview.fullyQualifiedFunctionName
             logger.lifecycle("${preview.id}  $label")
         }
+    }
+
+    private fun warnIfConfigurationIsIncompatible() {
+        AndroidPreviewConfigValidator
+            .warning(
+                robolectricSdk = robolectricSdk.get(),
+                javaMajorVersion = javaMajorVersion.get(),
+            )?.let { warning -> logger.warn(warning) }
     }
 
     private fun discoverPreviews(indexFile: java.io.File) =

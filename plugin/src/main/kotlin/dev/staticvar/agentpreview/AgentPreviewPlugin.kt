@@ -5,8 +5,11 @@
  */
 package dev.staticvar.agentpreview
 
+import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
 import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
@@ -26,6 +29,8 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.previewNameFilter.set(extension.previewNameFilter)
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+            it.robolectricSdk.set(extension.android.robolectricSdk)
+            it.javaMajorVersion.set(javaMajorVersion(project))
         }
 
         project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
@@ -37,6 +42,16 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.previewNameFilter.set(extension.previewNameFilter)
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+            it.androidViewportsJson.set(
+                project.provider {
+                    Json.encodeToString(
+                        ListSerializer(ConfiguredViewport.serializer()),
+                        extension.android.viewports.get(),
+                    )
+                },
+            )
+            it.robolectricSdk.set(extension.android.robolectricSdk)
+            it.javaMajorVersion.set(javaMajorVersion(project))
             it.fakeRenderer.set(
                 project.providers
                     .gradleProperty("agentPreview.fakeRenderer")
@@ -45,4 +60,10 @@ class AgentPreviewPlugin : Plugin<Project> {
             )
         }
     }
+
+    private fun javaMajorVersion(project: Project) =
+        project.providers
+            .gradleProperty("agentPreview.javaMajorVersion")
+            .map(String::toInt)
+            .orElse(Runtime.version().feature())
 }
