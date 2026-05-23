@@ -13,10 +13,12 @@ abstract class AndroidPreviewConfig
     @Inject
     constructor() {
         abstract val robolectricSdk: Property<Int>
+        abstract val variant: Property<String>
         abstract val viewports: ListProperty<ConfiguredViewport>
 
         init {
             robolectricSdk.convention(AndroidPreviewConfigDefaults.ROBOLECTRIC_SDK)
+            variant.convention(AndroidPreviewConfigDefaults.VARIANT)
             viewports.convention(AndroidPreviewConfigDefaults.viewports)
         }
 

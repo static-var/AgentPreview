@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview
 
+import dev.staticvar.agentpreview.android.AndroidPreviewAutoWiring
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
 import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
@@ -21,6 +22,8 @@ class AgentPreviewPlugin : Plugin<Project> {
                 AgentPreviewExtension::class.java,
                 project,
             )
+
+        AndroidPreviewAutoWiring(project, extension).configure()
 
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"
