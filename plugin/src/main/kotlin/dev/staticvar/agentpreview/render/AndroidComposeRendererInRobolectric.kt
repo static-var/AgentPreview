@@ -19,12 +19,13 @@ object AndroidComposeRendererInRobolectric {
     ) {
         outputFile.parentFile.mkdirs()
         val activityClass = Class.forName("androidx.activity.ComponentActivity")
-        val activity =
+        val controller =
             Robolectric::class.java
                 .getMethod("buildActivity", Class::class.java)
                 .invoke(null, activityClass)
-                .let { controller -> controller.javaClass.getMethod("setup").invoke(controller) }
-                .let { controller -> controller.javaClass.getMethod("get").invoke(controller) }
+        val activity = controller.javaClass.getMethod("get").invoke(controller)
+        setNoActionBarTheme(activity)
+        controller.javaClass.getMethod("setup").invoke(controller)
         setDensity(activity, density)
         setContent(activity, className, methodName)
         draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile)
@@ -64,8 +65,7 @@ object AndroidComposeRendererInRobolectric {
         heightPx: Int,
         outputFile: File,
     ) {
-        val window = activity.javaClass.getMethod("getWindow").invoke(activity)
-        val view = window.javaClass.getMethod("getDecorView").invoke(window)
+        val view = contentRoot(activity)
         val measureSpecClass = Class.forName("android.view.View\$MeasureSpec")
         val exactly = measureSpecClass.getField("EXACTLY").getInt(null)
         val makeMeasureSpec = measureSpecClass.getMethod("makeMeasureSpec", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
@@ -99,6 +99,18 @@ object AndroidComposeRendererInRobolectric {
                     .invoke(bitmap, png, PNG_QUALITY, stream) as Boolean
             check(wrote) { "Failed to write PNG to ${outputFile.absolutePath}" }
         }
+    }
+
+    private fun setNoActionBarTheme(activity: Any) {
+        val styleClass = Class.forName("android.R\$style")
+        val themeId = styleClass.getField("Theme_Material_NoActionBar").getInt(null)
+        activity.javaClass.getMethod("setTheme", Int::class.javaPrimitiveType).invoke(activity, themeId)
+    }
+
+    private fun contentRoot(activity: Any): Any {
+        val idClass = Class.forName("android.R\$id")
+        val contentId = idClass.getField("content").getInt(null)
+        return activity.javaClass.getMethod("findViewById", Int::class.javaPrimitiveType).invoke(activity, contentId)
     }
 
     private fun setField(
