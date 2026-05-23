@@ -15,11 +15,11 @@ import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
+import dev.staticvar.agentpreview.render.PreviewRendererImpl
 import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.ListProperty
@@ -82,27 +82,27 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             return
         }
 
-        if (!fakeRenderer.get()) {
-            throw GradleException(
-                "Production preview rendering is not implemented in phase 1. " +
-                    "Use -PagentPreview.fakeRenderer=true for scaffold testing, or implement the production renderer in the next phase.",
-            )
-        }
-
         outputRoot.mkdirs()
 
+        val useFakeRenderer = fakeRenderer.get()
         val renderOutput =
             project.layout.buildDirectory
-                .dir("agentPreview/fakeRender")
+                .dir("agentPreview/render")
                 .get()
                 .asFile
-        val renderer = FakePreviewRenderer()
+        val fakePreviewRenderer = FakePreviewRenderer()
+        val previewRenderer = PreviewRendererImpl(robolectricSdk.get())
         val semanticsExtractor = EmptySemanticsExtractor()
         val exporter = SnapshotExporter()
 
         previews.forEach { preview ->
             viewportsFor(preview).forEach { viewport ->
-                val renderResult = renderer.render(preview, viewport, renderOutput)
+                val renderResult =
+                    if (useFakeRenderer) {
+                        fakePreviewRenderer.render(preview, viewport, renderOutput)
+                    } else {
+                        previewRenderer.render(preview, viewport, renderOutput)
+                    }
                 val snapshot =
                     PreviewSnapshot(
                         schemaVersion = 1,

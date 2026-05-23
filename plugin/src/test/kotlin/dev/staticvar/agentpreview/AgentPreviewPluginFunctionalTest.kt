@@ -227,7 +227,7 @@ class AgentPreviewPluginFunctionalTest {
     }
 
     @Test
-    fun `capture task explains that production rendering is not available without fake mode`() {
+    fun `capture task uses PreviewRendererImpl without fake mode`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
             pluginManagement {
@@ -278,8 +278,9 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .buildAndFail()
 
-        assertTrue(result.output.contains("Production preview rendering is not implemented in phase 1"))
-        assertTrue(result.output.contains("-PagentPreview.fakeRenderer=true"))
+        assertTrue(result.output.contains("PreviewRendererImpl"))
+        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
+        assertFalse(result.output.contains("Production preview rendering is not implemented in phase 1"))
     }
 
     @Test
@@ -336,7 +337,8 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .buildAndFail()
 
-        assertTrue(result.output.contains("Production preview rendering is not implemented in phase 1"))
+        assertTrue(result.output.contains("PreviewRendererImpl"))
+        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
     }
 
     @Test
