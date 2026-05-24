@@ -18,12 +18,12 @@ class AndroidPreviewConfigTest {
     }
 
     @Test
-    fun `SDK 36 warns when Gradle runs below Java 21`() {
-        val warning = AndroidPreviewConfigValidator.warning(robolectricSdk = 36, javaMajorVersion = 17)
+    fun `SDK 36 warns that configurable renderer SDK is not supported`() {
+        val warning = AndroidPreviewConfigValidator.warning(robolectricSdk = 36, javaMajorVersion = 21)
 
         assertEquals(
-            "AgentPreview: android.robolectricSdk=36 requires Java 21+ for Robolectric runtime. " +
-                "Current Gradle JVM is Java 17. Use robolectricSdk=35 or run Gradle with Java 21+.",
+            "AgentPreview: android.robolectricSdk=36 is not supported by the Android renderer yet. " +
+                "Use robolectricSdk=35; other values fail for non-fake capture.",
             warning,
         )
     }

@@ -1,0 +1,146 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
+package dev.staticvar.agentpreview.render
+
+import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.Viewport
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
+
+class PreviewRendererImplTest {
+    @TempDir
+    lateinit var tempDir: File
+
+    @Test
+    fun `renders preview through isolated harness process`() {
+        val processRunner = RecordingRenderProcessRunner()
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes"), File("app/runtime.jar")),
+                processRunner = processRunner,
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.LoginPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.LoginPreview",
+                fullyQualifiedClassName = "dev.example.LoginPreviewKt",
+                sourceFile = "LoginPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(tempDir.resolve("dev.example.LoginPreview-phone.png"), result.screenshotFile)
+        assertEquals(viewport, result.viewport)
+        assertEquals(RenderMode.Robolectric, result.renderMode)
+        assertEquals(
+            AndroidComposeRenderRequest(
+                className = "dev.example.LoginPreviewKt",
+                methodName = "LoginPreview",
+                widthPx = 786,
+                heightPx = 1704,
+                density = 2.0f,
+                robolectricSdk = 35,
+                outputFile = result.screenshotFile,
+            ),
+            processRunner.request,
+        )
+        assertEquals(listOf(File("app/classes"), File("app/runtime.jar")), processRunner.previewClasspath)
+        assertTrue(result.screenshotFile.parentFile.isDirectory)
+    }
+
+    @Test
+    fun `non resource harness failures fail instead of exporting diagnostic png`() {
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = FailingRenderProcessRunner("java.lang.ClassNotFoundException: dev.example.MissingPreview"),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.MissingPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.MissingPreview",
+                fullyQualifiedClassName = "dev.example.MissingPreviewKt",
+                sourceFile = "MissingPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 1.0f)
+
+        val error = assertThrows(IllegalStateException::class.java) { renderer.render(preview, viewport, tempDir) }
+
+        assertTrue(error.message.orEmpty().contains("ClassNotFoundException"))
+        assertFalse(tempDir.resolve("dev.example.MissingPreview-phone.png").exists())
+    }
+
+    @Test
+    fun `resource loading gaps are explicitly marked as diagnostic fallback`() {
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = ResourceGapRenderProcessRunner(),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.ResourcePreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.ResourcePreview",
+                fullyQualifiedClassName = "dev.example.ResourcePreviewKt",
+                sourceFile = "ResourcePreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 20, height = 10, density = 1.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(RenderMode.DiagnosticFallback, result.renderMode)
+        assertTrue(result.screenshotFile.isFile)
+    }
+
+    private class FailingRenderProcessRunner(
+        private val message: String,
+    ) : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult = RenderProcessResult.Failure(RenderProcessFailureKind.HarnessFailure, message)
+    }
+
+    private class ResourceGapRenderProcessRunner : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult =
+            RenderProcessResult.Failure(
+                RenderProcessFailureKind.ResourceLoadingGap,
+                "android.content.res.Resources\$NotFoundException: Resource ID #0x7f010001",
+            )
+    }
+
+    private class RecordingRenderProcessRunner : RenderProcessRunner {
+        lateinit var request: AndroidComposeRenderRequest
+        lateinit var previewClasspath: List<File>
+
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            this.request = request
+            this.previewClasspath = previewClasspath
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
+            return RenderProcessResult.Success
+        }
+    }
+}

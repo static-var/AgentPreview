@@ -175,13 +175,14 @@ class AgentPreviewPluginFunctionalTest {
         assertEquals(393, image.width)
         assertEquals(852, image.height)
         assertFalse(staleBundle.exists())
-        assertTrue(
+        val snapshotJson =
             projectDir
                 .resolve(
                     "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
                 ).readText()
-                .contains("\"Login\""),
-        )
+        assertTrue(snapshotJson.contains("\"Login\""))
+        assertTrue(snapshotJson.contains("\"render\""))
+        assertTrue(snapshotJson.contains("\"mode\": \"fake\""))
     }
 
     @Test
@@ -223,7 +224,7 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .build()
 
-        assertTrue(result.output.contains("android.robolectricSdk=36 requires Java 21+"))
+        assertTrue(result.output.contains("android.robolectricSdk=36 is not supported by the Android renderer yet"))
     }
 
     @Test
@@ -279,7 +280,7 @@ class AgentPreviewPluginFunctionalTest {
                 .buildAndFail()
 
         assertTrue(result.output.contains("PreviewRendererImpl"))
-        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
+        assertTrue(result.output.contains("requires Android compiled classes and runtime classpath"))
         assertFalse(result.output.contains("Production preview rendering is not implemented in phase 1"))
     }
 
@@ -338,7 +339,7 @@ class AgentPreviewPluginFunctionalTest {
                 .buildAndFail()
 
         assertTrue(result.output.contains("PreviewRendererImpl"))
-        assertTrue(result.output.contains("Roborazzi-backed preview rendering is not wired into the Gradle plugin yet"))
+        assertTrue(result.output.contains("requires Android compiled classes and runtime classpath"))
     }
 
     @Test

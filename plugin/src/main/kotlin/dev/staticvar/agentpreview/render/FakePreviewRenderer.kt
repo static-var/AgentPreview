@@ -26,6 +26,7 @@ class FakePreviewRenderer : PreviewRenderer {
             screenshotFile = screenshot,
             viewport = viewport,
             rawSemantics = null,
+            renderMode = RenderMode.Fake,
         )
     }
 

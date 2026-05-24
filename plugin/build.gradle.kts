@@ -23,6 +23,8 @@ gradlePlugin {
 dependencies {
     implementation(project(":preview-scanner"))
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.junit4)
+    implementation(libs.robolectric)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(gradleTestKit())

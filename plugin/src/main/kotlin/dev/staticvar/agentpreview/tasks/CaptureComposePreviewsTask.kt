@@ -13,6 +13,7 @@ import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
+import dev.staticvar.agentpreview.model.SnapshotRenderMetadata
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
@@ -91,7 +92,13 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 .get()
                 .asFile
         val fakePreviewRenderer = FakePreviewRenderer()
-        val previewRenderer = PreviewRendererImpl(robolectricSdk.get())
+        val previewRenderer by lazy {
+            PreviewRendererImpl(
+                robolectricSdk = robolectricSdk.get(),
+                previewClasspath =
+                    (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+            )
+        }
         val semanticsExtractor = EmptySemanticsExtractor()
         val exporter = SnapshotExporter()
 
@@ -116,6 +123,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                             ),
                         viewport = renderResult.viewport,
                         nodes = semanticsExtractor.extract(renderResult.rawSemantics),
+                        render = SnapshotRenderMetadata(mode = renderResult.renderMode.logLabel),
                     )
 
                 exporter.export(
@@ -125,7 +133,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     outputRoot = outputRoot,
                     viewport = viewport,
                 )
-                logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name})")
+                logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name}) via ${renderResult.renderMode.logLabel}")
             }
         }
     }
@@ -170,6 +178,18 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
+
+    private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
+        if (previewClassesDirs.files.isEmpty()) {
+            emptySet()
+        } else {
+            project.configurations
+                .detachedConfiguration(
+                    project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                    project.dependencies.create("androidx.test:core:1.7.0"),
+                    project.dependencies.create("androidx.test:monitor:1.8.0"),
+                ).resolve()
+        }
 
     private fun discoverPreviews(indexFile: File): List<PreviewDescriptor> =
         if (previewClassesDirs.files.isNotEmpty()) {

@@ -44,6 +44,13 @@ class AndroidPreviewAutoWiring(
             project.layout.buildDirectory
                 .dir("intermediates/javac/$variantName/classes")
                 .map { it.asFile },
+            project.layout.buildDirectory
+                .file(
+                    "intermediates/compile_and_runtime_not_namespaced_r_class_jar/$variantName/process${variantName.replaceFirstChar {
+                        it
+                            .uppercaseChar()
+                    }}Resources/R.jar",
+                ).map { it.asFile },
         )
 
     private fun runtimeClasspathFor(variantName: String): FileCollection =
