@@ -27,8 +27,15 @@ class AndroidComposeRobolectricEntryPoint {
             outputFile = File(requireProperty("agentpreview.render.outputFile")),
             semanticsOutputFile = File(requireProperty("agentpreview.render.semanticsOutputFile")),
             includeUnmergedSemantics = requireProperty("agentpreview.render.includeUnmergedSemantics").toBoolean(),
+            locale = optionalProperty("agentpreview.render.locale"),
+            uiMode = optionalProperty("agentpreview.render.uiMode")?.toInt(),
+            fontScale = optionalProperty("agentpreview.render.fontScale")?.toFloat(),
+            showBackground = requireProperty("agentpreview.render.showBackground").toBoolean(),
+            backgroundColor = optionalProperty("agentpreview.render.backgroundColor")?.toLong(),
         )
     }
 
     private fun requireProperty(name: String): String = requireNotNull(System.getProperty(name)) { "Missing system property $name" }
+
+    private fun optionalProperty(name: String): String? = System.getProperty(name)?.takeIf { it.isNotBlank() }
 }

@@ -36,6 +36,8 @@ class PreviewDiscoveryTest {
         assertEquals("en", login.locale)
         assertEquals(33, login.uiMode)
         assertEquals(1.2f, login.fontScale)
+        assertEquals(true, login.showBackground)
+        assertEquals(0xFFFF_FFFFL, login.backgroundColor)
     }
 
     @Test
@@ -55,6 +57,7 @@ class PreviewDiscoveryTest {
         assertEquals("Auth", objectPreview.group)
         assertEquals(393, objectPreview.widthDp)
         assertEquals(852, objectPreview.heightDp)
+        assertEquals(0, objectPreview.uiMode)
     }
 
     @Test

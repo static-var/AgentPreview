@@ -49,6 +49,8 @@ class PreviewDiscovery(
                 locale = annotation.locale,
                 uiMode = annotation.uiMode,
                 fontScale = annotation.fontScale,
+                showBackground = annotation.showBackground,
+                backgroundColor = annotation.backgroundColor,
             )
         }
 

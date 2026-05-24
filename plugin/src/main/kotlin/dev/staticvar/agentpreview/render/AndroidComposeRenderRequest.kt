@@ -17,4 +17,9 @@ data class AndroidComposeRenderRequest(
     val outputFile: File,
     val semanticsOutputFile: File,
     val includeUnmergedSemantics: Boolean = false,
+    val locale: String? = null,
+    val uiMode: Int? = null,
+    val fontScale: Float? = null,
+    val showBackground: Boolean = false,
+    val backgroundColor: Long? = null,
 )
