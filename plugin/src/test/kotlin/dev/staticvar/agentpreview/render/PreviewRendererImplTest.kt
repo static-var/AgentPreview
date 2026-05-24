@@ -30,6 +30,7 @@ class PreviewRendererImplTest {
             PreviewRendererImpl(
                 robolectricSdk = 35,
                 previewClasspath = listOf(File("app/classes"), File("app/runtime.jar")),
+                includeUnmergedSemantics = true,
                 processRunner = processRunner,
             )
         val preview =
@@ -57,6 +58,7 @@ class PreviewRendererImplTest {
                 robolectricSdk = 35,
                 outputFile = result.screenshotFile,
                 semanticsOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.semantics.json"),
+                includeUnmergedSemantics = true,
             ),
             processRunner.request,
         )

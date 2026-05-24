@@ -98,6 +98,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 robolectricSdk = robolectricSdk.get(),
                 previewClasspath =
                     (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+                includeUnmergedSemantics = includeUnmergedSemantics.get(),
             )
         }
         val emptySemanticsExtractor = EmptySemanticsExtractor()

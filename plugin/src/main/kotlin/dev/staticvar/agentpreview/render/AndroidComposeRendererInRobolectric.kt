@@ -23,6 +23,7 @@ object AndroidComposeRendererInRobolectric {
         density: Float,
         outputFile: File,
         semanticsOutputFile: File,
+        includeUnmergedSemantics: Boolean = false,
     ) {
         outputFile.parentFile.mkdirs()
         semanticsOutputFile.parentFile.mkdirs()
@@ -37,7 +38,7 @@ object AndroidComposeRendererInRobolectric {
         setDensity(activity, density)
         setContent(activity, className, methodName)
         val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile)
-        writeSemantics(view, semanticsOutputFile)
+        writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
     }
 
     private fun setDensity(
@@ -114,6 +115,7 @@ object AndroidComposeRendererInRobolectric {
     private fun writeSemantics(
         contentRoot: Any,
         outputFile: File,
+        includeUnmergedSemantics: Boolean,
     ) {
         val composeView =
             findComposeView(contentRoot) ?: run {
@@ -121,12 +123,23 @@ object AndroidComposeRendererInRobolectric {
                 return
             }
         val semanticsOwner = composeView.javaClass.getMethod("getSemanticsOwner").invoke(composeView)
-        val root =
-            semanticsOwner.javaClass.methods
-                .first { it.name == "getUnmergedRootSemanticsNode" }
-                .invoke(semanticsOwner)
-        val nodes = listOf(toSnapshotNode(root))
+        val nodes = listOf(toSnapshotNode(rootSemanticsNode(semanticsOwner, includeUnmergedSemantics), includeUnmergedSemantics))
         outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotNode.serializer()), nodes))
+    }
+
+    internal fun rootSemanticsNode(
+        semanticsOwner: Any,
+        includeUnmergedSemantics: Boolean,
+    ): Any {
+        val methodName =
+            if (includeUnmergedSemantics) {
+                "getUnmergedRootSemanticsNode"
+            } else {
+                "getRootSemanticsNode"
+            }
+        return semanticsOwner.javaClass.methods
+            .first { it.name == methodName }
+            .invoke(semanticsOwner)
     }
 
     private fun findComposeView(view: Any): Any? {
@@ -145,7 +158,10 @@ object AndroidComposeRendererInRobolectric {
         return null
     }
 
-    private fun toSnapshotNode(node: Any): SnapshotNode {
+    private fun toSnapshotNode(
+        node: Any,
+        includeUnmergedSemantics: Boolean,
+    ): SnapshotNode {
         val id =
             node.javaClass.methods
                 .first { it.name == "getId" }
@@ -156,7 +172,9 @@ object AndroidComposeRendererInRobolectric {
                 .first { it.name == "getConfig" }
                 .invoke(node)
         val properties = semanticsProperties(config)
-        val children = semanticsChildren(node).map(::toSnapshotNode)
+        val children =
+            semanticsChildren(node, includeUnmergedSemantics)
+                .map { child -> toSnapshotNode(child, includeUnmergedSemantics) }
         return SnapshotNode(
             id = id,
             role = properties["Role"]?.toString(),
@@ -190,13 +208,16 @@ object AndroidComposeRendererInRobolectric {
         }
     }
 
-    private fun semanticsChildren(node: Any): List<Any> {
+    internal fun semanticsChildren(
+        node: Any,
+        includeUnmergedSemantics: Boolean,
+    ): List<Any> {
         val method = node.javaClass.methods.firstOrNull { method -> method.name == "getChildren" } ?: return emptyList()
         @Suppress("UNCHECKED_CAST")
         return when (method.parameterTypes.size) {
-            3 -> method.invoke(node, true, true, false)
-            2 -> method.invoke(node, true, true)
-            1 -> method.invoke(node, true)
+            3 -> method.invoke(node, includeUnmergedSemantics, true, false)
+            2 -> method.invoke(node, includeUnmergedSemantics, true)
+            1 -> method.invoke(node, includeUnmergedSemantics)
             else -> method.invoke(node)
         } as List<Any>
     }

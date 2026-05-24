@@ -17,6 +17,7 @@ import kotlin.math.roundToInt
 class PreviewRendererImpl(
     private val robolectricSdk: Int = DEFAULT_ROBOLECTRIC_SDK,
     private val previewClasspath: List<File> = emptyList(),
+    private val includeUnmergedSemantics: Boolean = false,
     private val processRunner: RenderProcessRunner = DefaultRenderProcessRunner(),
 ) : PreviewRenderer {
     fun render(
@@ -47,6 +48,7 @@ class PreviewRendererImpl(
                 robolectricSdk = robolectricSdk,
                 outputFile = screenshot,
                 semanticsOutputFile = semanticsOutput,
+                includeUnmergedSemantics = includeUnmergedSemantics,
             )
         val renderMode =
             when (val result = processRunner.run(request, previewClasspath)) {
