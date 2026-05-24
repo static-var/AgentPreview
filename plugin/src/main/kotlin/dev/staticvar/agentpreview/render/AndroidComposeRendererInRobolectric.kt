@@ -206,24 +206,45 @@ object AndroidComposeRendererInRobolectric {
         density: Float,
     ) {
         runCatching {
-            val composeView = findComposeView(contentRoot)
-            val rootLayoutNode =
+            val composeView = checkNotNull(findComposeView(contentRoot)) { "Compose root view was not found." }
+            writeLayoutTreeFromComposeView(composeView, outputFile, density)
+        }.getOrElse { throwable ->
+            writeEmptyLayoutTreeWarning(outputFile, throwable)
+        }
+    }
+
+    internal fun writeLayoutTreeFromComposeView(
+        composeView: Any,
+        outputFile: File,
+        density: Float,
+    ) {
+        runCatching {
+            val getRoot =
                 composeView
-                    ?.javaClass
-                    ?.methods
-                    ?.firstOrNull {
+                    .javaClass
+                    .methods
+                    .firstOrNull {
                         it.name == "getRoot" && it.parameterTypes.isEmpty()
-                    }?.invoke(composeView)
-            val nodes = rootLayoutNode?.let { listOf(extractLayoutTree(it, density)) }.orEmpty()
+                    }
+                    ?: error("Compose root view ${composeView.javaClass.name} does not expose getRoot().")
+            val rootLayoutNode = getRoot.invoke(composeView)
+            val nodes = listOf(extractLayoutTree(rootLayoutNode, density))
             outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), nodes))
         }.getOrElse { throwable ->
-            outputFile.writeText("[]")
-            System.err.println(
-                "AgentPreview: failed to extract Compose layout tree for ${outputFile.absolutePath}; " +
-                    "wrote an empty layout tree sidecar. Screenshot and semantics output are preserved. " +
-                    "Cause: ${throwable.javaClass.name}: ${throwable.message}",
-            )
+            writeEmptyLayoutTreeWarning(outputFile, throwable)
         }
+    }
+
+    private fun writeEmptyLayoutTreeWarning(
+        outputFile: File,
+        throwable: Throwable,
+    ) {
+        outputFile.writeText("[]")
+        System.err.println(
+            "AgentPreview: failed to extract Compose layout tree for ${outputFile.absolutePath}; " +
+                "wrote an empty layout tree sidecar. Screenshot and semantics output are preserved. " +
+                "Cause: ${throwable.javaClass.name}: ${throwable.message}",
+        )
     }
 
     internal fun extractLayoutTree(

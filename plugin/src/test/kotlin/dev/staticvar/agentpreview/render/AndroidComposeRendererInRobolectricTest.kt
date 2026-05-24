@@ -8,9 +8,16 @@ package dev.staticvar.agentpreview.render
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.PrintStream
 import java.util.Locale
 
 class AndroidComposeRendererInRobolectricTest {
+    @TempDir
+    lateinit var tempDir: File
+
     @Test
     fun `scaled density multiplies viewport density by preview font scale`() {
         val scaledDensity = AndroidComposeRendererInRobolectric.scaledDensity(density = 2.0f, fontScale = 1.3f)
@@ -185,6 +192,40 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `missing compose root writes empty layout tree sidecar and warns`() {
+        val outputFile = tempDir.resolve("layout-tree.json")
+
+        val warning =
+            captureStderr {
+                AndroidComposeRendererInRobolectric::class.java
+                    .getDeclaredMethod("writeLayoutTree", Any::class.java, File::class.java, Float::class.javaPrimitiveType)
+                    .apply { isAccessible = true }
+                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f)
+            }
+
+        assertEquals("[]", outputFile.readText())
+        assertTrue(warning.contains("failed to extract Compose layout tree"), warning)
+        assertTrue(warning.contains("wrote an empty layout tree sidecar"), warning)
+    }
+
+    @Test
+    fun `layout tree reflection failure writes empty sidecar and warns without throwing`() {
+        val outputFile = tempDir.resolve("layout-tree.json")
+
+        val warning =
+            captureStderr {
+                AndroidComposeRendererInRobolectric.writeLayoutTreeFromComposeView(
+                    ComposeRootWithBrokenLayoutNode(),
+                    outputFile,
+                    density = 2.0f,
+                )
+            }
+
+        assertEquals("[]", outputFile.readText())
+        assertTrue(warning.contains("failed to extract Compose layout tree"), warning)
+    }
+
+    @Test
     fun `default semantics mode selects merged root`() {
         val owner = FakeSemanticsOwner()
 
@@ -206,6 +247,24 @@ class AndroidComposeRendererInRobolectricTest {
         @JvmField
         var uiMode: Int,
     )
+
+    private fun captureStderr(block: () -> Unit): String {
+        val originalErr = System.err
+        val bytes = ByteArrayOutputStream()
+        System.setErr(PrintStream(bytes))
+        try {
+            block()
+        } finally {
+            System.setErr(originalErr)
+        }
+        return bytes.toString()
+    }
+
+    private class ViewWithoutComposeRoot
+
+    private class ComposeRootWithBrokenLayoutNode {
+        fun getRoot(): Any = error("boom")
+    }
 
     private class FakeSemanticsOwner {
         private var calls = 0

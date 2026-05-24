@@ -113,6 +113,30 @@ class PreviewRendererImplTest {
     }
 
     @Test
+    fun `missing optional layout tree sidecar returns empty layout tree`() {
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = ScreenshotOnlyRenderProcessRunner(),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.MissingLayoutPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.MissingLayoutPreview",
+                fullyQualifiedClassName = "dev.example.MissingLayoutPreviewKt",
+                sourceFile = "MissingLayoutPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(emptyList<SnapshotLayoutNode>(), result.layoutTree)
+        assertEquals(RenderMode.Robolectric, result.renderMode)
+    }
+
+    @Test
     fun `malformed optional layout tree output does not fail render`() {
         val renderer =
             PreviewRendererImpl(
@@ -247,6 +271,18 @@ class PreviewRendererImplTest {
                 byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
             )
             request.layoutTreeOutputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), layoutTree))
+            return RenderProcessResult.Success
+        }
+    }
+
+    private class ScreenshotOnlyRenderProcessRunner : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
             return RenderProcessResult.Success
         }
     }
