@@ -84,8 +84,20 @@ class PreviewRendererImpl(
 
     private fun readLayoutTree(layoutTreeOutput: File): List<SnapshotLayoutNode> =
         if (layoutTreeOutput.isFile) {
-            Json.decodeFromString(ListSerializer(SnapshotLayoutNode.serializer()), layoutTreeOutput.readText())
+            runCatching {
+                Json.decodeFromString(ListSerializer(SnapshotLayoutNode.serializer()), layoutTreeOutput.readText())
+            }.getOrElse { throwable ->
+                System.err.println(
+                    "AgentPreview: failed to read optional layout tree sidecar at ${layoutTreeOutput.absolutePath}; " +
+                        "continuing with an empty layout tree. Cause: ${throwable.javaClass.name}: ${throwable.message}",
+                )
+                emptyList()
+            }
         } else {
+            System.err.println(
+                "AgentPreview: optional layout tree sidecar is missing at ${layoutTreeOutput.absolutePath}; " +
+                    "continuing with an empty layout tree.",
+            )
             emptyList()
         }
 

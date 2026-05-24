@@ -205,16 +205,25 @@ object AndroidComposeRendererInRobolectric {
         outputFile: File,
         density: Float,
     ) {
-        val composeView = findComposeView(contentRoot)
-        val rootLayoutNode =
-            composeView
-                ?.javaClass
-                ?.methods
-                ?.firstOrNull {
-                    it.name == "getRoot" && it.parameterTypes.isEmpty()
-                }?.invoke(composeView)
-        val nodes = rootLayoutNode?.let { listOf(extractLayoutTree(it, density)) }.orEmpty()
-        outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), nodes))
+        runCatching {
+            val composeView = findComposeView(contentRoot)
+            val rootLayoutNode =
+                composeView
+                    ?.javaClass
+                    ?.methods
+                    ?.firstOrNull {
+                        it.name == "getRoot" && it.parameterTypes.isEmpty()
+                    }?.invoke(composeView)
+            val nodes = rootLayoutNode?.let { listOf(extractLayoutTree(it, density)) }.orEmpty()
+            outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), nodes))
+        }.getOrElse { throwable ->
+            outputFile.writeText("[]")
+            System.err.println(
+                "AgentPreview: failed to extract Compose layout tree for ${outputFile.absolutePath}; " +
+                    "wrote an empty layout tree sidecar. Screenshot and semantics output are preserved. " +
+                    "Cause: ${throwable.javaClass.name}: ${throwable.message}",
+            )
+        }
     }
 
     internal fun extractLayoutTree(
