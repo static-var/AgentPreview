@@ -21,13 +21,14 @@ object AndroidComposeRenderHarness {
         System.setProperty("agentpreview.render.robolectricSdk", args[5])
         System.setProperty("agentpreview.render.outputFile", args[6])
         System.setProperty("agentpreview.render.semanticsOutputFile", args[7])
-        System.setProperty("agentpreview.render.includeUnmergedSemantics", args[8])
-        System.setProperty("agentpreview.render.locale", args[9])
-        System.setProperty("agentpreview.render.uiMode", args[10])
-        System.setProperty("agentpreview.render.fontScale", args[11])
-        System.setProperty("agentpreview.render.showBackground", args[12])
-        System.setProperty("agentpreview.render.backgroundColor", args[13])
-        val resultFile = File(args[14])
+        System.setProperty("agentpreview.render.layoutTreeOutputFile", args[8])
+        System.setProperty("agentpreview.render.includeUnmergedSemantics", args[9])
+        System.setProperty("agentpreview.render.locale", args[10])
+        System.setProperty("agentpreview.render.uiMode", args[11])
+        System.setProperty("agentpreview.render.fontScale", args[12])
+        System.setProperty("agentpreview.render.showBackground", args[13])
+        System.setProperty("agentpreview.render.backgroundColor", args[14])
+        val resultFile = File(args[15])
 
         val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
@@ -52,6 +53,6 @@ object AndroidComposeRenderHarness {
         generateSequence(this) { throwable -> throwable.cause }
             .any { throwable -> throwable.javaClass.name == RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME }
 
-    private const val ARG_COUNT = 15
+    private const val ARG_COUNT = 16
     private const val RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME = "android.content.res.Resources\$NotFoundException"
 }

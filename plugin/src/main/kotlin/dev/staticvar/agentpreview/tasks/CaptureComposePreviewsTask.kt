@@ -131,6 +131,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                             } else {
                                 renderedSemanticsExtractor.extract(renderResult.rawSemantics)
                             },
+                        layoutTree = renderResult.layoutTree.takeUnless { useFakeRenderer }.orEmpty(),
                         render = SnapshotRenderMetadata(mode = renderResult.renderMode.logLabel),
                     )
 

@@ -16,6 +16,7 @@ data class AndroidComposeRenderRequest(
     val robolectricSdk: Int,
     val outputFile: File,
     val semanticsOutputFile: File,
+    val layoutTreeOutputFile: File,
     val includeUnmergedSemantics: Boolean = false,
     val locale: String? = null,
     val uiMode: Int? = null,

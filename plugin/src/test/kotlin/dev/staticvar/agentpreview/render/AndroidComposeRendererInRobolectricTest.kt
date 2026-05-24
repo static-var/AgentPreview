@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.render
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.util.Locale
 
@@ -107,6 +108,83 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `extracts layout tree hints semantics summary and px dp bounds without test tags`() {
+        val child =
+            FakeLayoutNode(
+                semanticsId = 7,
+                coordinates = FakeCoordinates(width = 40, height = 20, rootX = 10.0f, rootY = 6.0f),
+                measurePolicy = FakeRowMeasurePolicy(),
+                modifier = FakeModifier("padding"),
+                semanticsConfiguration =
+                    FakeSemanticsConfiguration(
+                        "Text" to listOf("Welcome"),
+                        "ContentDescription" to listOf("Greeting"),
+                        "Role" to "Button",
+                        "OnClick" to "action",
+                    ),
+            )
+        val root =
+            FakeLayoutNode(
+                semanticsId = 1,
+                coordinates = FakeCoordinates(width = 100, height = 50, rootX = 0.0f, rootY = 0.0f),
+                measurePolicy = FakeColumnMeasurePolicy(),
+                modifier = FakeModifier("fillMaxSize"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+                children = listOf(child),
+            )
+
+        val tree = AndroidComposeRendererInRobolectric.extractLayoutTree(root, density = 2.0f)
+
+        assertEquals("layout-1", tree.id)
+        assertTrue(tree.componentHint.orEmpty().contains("FakeColumnMeasurePolicy"))
+        assertEquals(100, tree.boundsPx.width)
+        assertEquals(50.0f, tree.boundsDp.width)
+        assertEquals("7", tree.children.single().semanticsId)
+        assertTrue(
+            tree.children
+                .single()
+                .componentHint
+                .orEmpty()
+                .contains("FakeRowMeasurePolicy"),
+        )
+        assertEquals(
+            "Welcome",
+            tree.children
+                .single()
+                .semantics
+                ?.text,
+        )
+        assertEquals(
+            "Greeting",
+            tree.children
+                .single()
+                .semantics
+                ?.contentDescription,
+        )
+        assertEquals(
+            "Button",
+            tree.children
+                .single()
+                .semantics
+                ?.role,
+        )
+        assertEquals(
+            listOf("OnClick"),
+            tree.children
+                .single()
+                .semantics
+                ?.actions,
+        )
+        assertEquals(
+            null,
+            tree.children
+                .single()
+                .semantics
+                ?.tag,
+        )
+    }
+
+    @Test
     fun `default semantics mode selects merged root`() {
         val owner = FakeSemanticsOwner()
 
@@ -141,6 +219,67 @@ class AndroidComposeRendererInRobolectricTest {
             calls += 1
             return "unmerged-root"
         }
+    }
+
+    private class FakeLayoutNode(
+        private val semanticsId: Int,
+        private val coordinates: FakeCoordinates,
+        private val measurePolicy: Any,
+        private val modifier: FakeModifier,
+        private val semanticsConfiguration: FakeSemanticsConfiguration,
+        private val children: List<FakeLayoutNode> = emptyList(),
+    ) {
+        fun getSemanticsId(): Int = semanticsId
+
+        fun getCoordinates(): FakeCoordinates = coordinates
+
+        fun getMeasurePolicy(): Any = measurePolicy
+
+        fun getModifier(): FakeModifier = modifier
+
+        fun getSemanticsConfiguration(): FakeSemanticsConfiguration = semanticsConfiguration
+
+        fun getZSortedChildren(): List<FakeLayoutNode> = children
+    }
+
+    private class FakeColumnMeasurePolicy
+
+    private class FakeRowMeasurePolicy
+
+    private class FakeModifier(
+        private val label: String,
+    ) {
+        override fun toString(): String = label
+    }
+
+    private class FakeCoordinates(
+        private val width: Int,
+        private val height: Int,
+        private val rootX: Float,
+        private val rootY: Float,
+    ) {
+        fun getWidth(): Int = width
+
+        fun getHeight(): Int = height
+
+        fun `localToRoot-abc123`(offset: Long): Long {
+            require(offset == 0L)
+            return (rootX.toRawBits().toLong() shl 32) or (rootY.toRawBits().toLong() and 0xffffffffL)
+        }
+    }
+
+    private class FakeSemanticsConfiguration(
+        vararg entries: Pair<String, Any?>,
+    ) : Iterable<Map.Entry<FakeSemanticsKey, Any?>> {
+        private val values = entries.associate { (name, value) -> FakeSemanticsKey(name) to value }
+
+        override fun iterator(): Iterator<Map.Entry<FakeSemanticsKey, Any?>> = values.entries.iterator()
+    }
+
+    private data class FakeSemanticsKey(
+        private val name: String,
+    ) {
+        fun getName(): String = name
     }
 
     private class FakeSemanticsNode {

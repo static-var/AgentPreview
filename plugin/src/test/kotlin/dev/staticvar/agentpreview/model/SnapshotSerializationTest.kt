@@ -57,7 +57,45 @@ class SnapshotSerializationTest {
     }
 
     @Test
-    fun `snapshot decodes without render metadata for backwards compatibility`() {
+    fun `snapshot serializes experimental layout tree when present`() {
+        val snapshot =
+            PreviewSnapshot(
+                schemaVersion = 1,
+                preview = PreviewMetadata(id = "Preview", name = "Preview", sourceSet = "main"),
+                viewport = Viewport(width = 100, height = 50, density = 2.0f),
+                nodes = emptyList(),
+                layoutTree =
+                    listOf(
+                        SnapshotLayoutNode(
+                            id = "layout-1",
+                            boundsPx = Bounds(x = 8, y = 12, width = 40, height = 20),
+                            boundsDp = DpBounds(x = 4.0f, y = 6.0f, width = 20.0f, height = 10.0f),
+                            componentHint = "androidx.compose.foundation.layout.RowMeasurePolicy",
+                            modifierHint = "androidx.compose.ui.Modifier",
+                            classHint = "androidx.compose.ui.node.LayoutNode",
+                            semanticsId = "7",
+                            semantics =
+                                SnapshotLayoutSemanticsSummary(
+                                    text = "Continue",
+                                    contentDescription = "Primary action",
+                                    role = "Button",
+                                    actions = listOf("OnClick"),
+                                ),
+                        ),
+                    ),
+            )
+
+        val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
+
+        assertTrue(encoded.contains("\"layoutTree\""))
+        assertTrue(encoded.contains("\"boundsPx\""))
+        assertTrue(encoded.contains("\"boundsDp\""))
+        assertTrue(encoded.contains("\"componentHint\""))
+        assertEquals(snapshot, json.decodeFromString(PreviewSnapshot.serializer(), encoded))
+    }
+
+    @Test
+    fun `snapshot decodes without render metadata or layout tree for backwards compatibility`() {
         val encoded =
             """
             {
@@ -83,5 +121,6 @@ class SnapshotSerializationTest {
         val snapshot = json.decodeFromString(PreviewSnapshot.serializer(), encoded)
 
         assertEquals(null, snapshot.render)
+        assertEquals(emptyList<SnapshotLayoutNode>(), snapshot.layoutTree)
     }
 }

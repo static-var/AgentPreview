@@ -26,6 +26,7 @@ class AndroidComposeRobolectricEntryPoint {
             density = requireProperty("agentpreview.render.density").toFloat(),
             outputFile = File(requireProperty("agentpreview.render.outputFile")),
             semanticsOutputFile = File(requireProperty("agentpreview.render.semanticsOutputFile")),
+            layoutTreeOutputFile = File(requireProperty("agentpreview.render.layoutTreeOutputFile")),
             includeUnmergedSemantics = requireProperty("agentpreview.render.includeUnmergedSemantics").toBoolean(),
             locale = optionalProperty("agentpreview.render.locale"),
             uiMode = optionalProperty("agentpreview.render.uiMode")?.toInt(),
