@@ -57,6 +57,7 @@ class PreviewDiscoveryTest {
         assertEquals("Auth", objectPreview.group)
         assertEquals(393, objectPreview.widthDp)
         assertEquals(852, objectPreview.heightDp)
+        assertEquals(0, objectPreview.uiMode)
     }
 
     @Test

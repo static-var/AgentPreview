@@ -50,8 +50,10 @@ class BytecodePreviewScannerTest {
         assertEquals("dev.staticvar.agentpreview.scanner.fixtures.ObjectPreviewFixtures", preview.declaringClassName)
         assertEquals("Phone", preview.name)
         assertEquals("Auth", preview.group)
-        assertEquals(393, preview.annotations.single().widthDp)
-        assertEquals(852, preview.annotations.single().heightDp)
+        val annotation = preview.annotations.single()
+        assertEquals(393, annotation.widthDp)
+        assertEquals(852, annotation.heightDp)
+        assertEquals(0, annotation.uiMode)
     }
 
     @Test

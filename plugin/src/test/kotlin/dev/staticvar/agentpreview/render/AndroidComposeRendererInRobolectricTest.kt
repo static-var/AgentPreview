@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview.render
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.Locale
 
 class AndroidComposeRendererInRobolectricTest {
     @Test
@@ -14,6 +15,27 @@ class AndroidComposeRendererInRobolectricTest {
         val scaledDensity = AndroidComposeRendererInRobolectric.scaledDensity(density = 2.0f, fontScale = 1.3f)
 
         assertEquals(2.6f, scaledDensity)
+    }
+
+    @Test
+    fun `android resource locale qualifier maps language and region`() {
+        val locale = AndroidComposeRendererInRobolectric.localeForPreviewQualifier("en-rUS")
+
+        assertEquals(Locale("en", "US"), locale)
+    }
+
+    @Test
+    fun `language tag locale maps language and region`() {
+        val locale = AndroidComposeRendererInRobolectric.localeForPreviewQualifier("fr-FR")
+
+        assertEquals(Locale("fr", "FR"), locale)
+    }
+
+    @Test
+    fun `bare language locale maps language only`() {
+        val locale = AndroidComposeRendererInRobolectric.localeForPreviewQualifier("de")
+
+        assertEquals(Locale("de"), locale)
     }
 
     @Test

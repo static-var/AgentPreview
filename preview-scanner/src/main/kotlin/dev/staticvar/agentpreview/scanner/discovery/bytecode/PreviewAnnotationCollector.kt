@@ -32,19 +32,22 @@ internal class PreviewAnnotationCollector(
         PreviewAnnotation(
             name = stringValue(PREVIEW_NAME).emptyToNull(),
             group = stringValue(PREVIEW_GROUP).emptyToNull(),
-            widthDp = intValue(PREVIEW_WIDTH_DP),
-            heightDp = intValue(PREVIEW_HEIGHT_DP),
+            widthDp = intValue(PREVIEW_WIDTH_DP, default = -1),
+            heightDp = intValue(PREVIEW_HEIGHT_DP, default = -1),
             showBackground = booleanValue(PREVIEW_SHOW_BACKGROUND),
             backgroundColor = longValue(PREVIEW_BACKGROUND_COLOR),
             fontScale = floatValue(PREVIEW_FONT_SCALE),
             locale = stringValue(PREVIEW_LOCALE).emptyToNull(),
             device = stringValue(PREVIEW_DEVICE).emptyToNull(),
-            uiMode = intValue(PREVIEW_UI_MODE),
+            uiMode = intValue(PREVIEW_UI_MODE, default = 0),
         )
 
     private fun stringValue(name: String): String = values[name] as? String ?: ""
 
-    private fun intValue(name: String): Int = values[name] as? Int ?: -1
+    private fun intValue(
+        name: String,
+        default: Int,
+    ): Int = values[name] as? Int ?: default
 
     private fun booleanValue(name: String): Boolean = values[name] as? Boolean ?: false
 

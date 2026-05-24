@@ -62,7 +62,7 @@ object AndroidComposeRendererInRobolectric {
         val configuration = resources.javaClass.getMethod("getConfiguration").invoke(resources)
         setField(configuration, "fontScale", fontScale.coerceAtLeast(MIN_FONT_SCALE))
         localeTag?.let { tag ->
-            val locale = Locale.forLanguageTag(tag.replace('_', '-'))
+            val locale = localeForPreviewQualifier(tag)
             configuration.javaClass.getMethod("setLocale", Locale::class.java).invoke(configuration, locale)
         }
         applyNightMode(configuration, uiMode)
@@ -78,6 +78,18 @@ object AndroidComposeRendererInRobolectric {
         density: Float,
         fontScale: Float,
     ): Float = density * fontScale.coerceAtLeast(MIN_FONT_SCALE)
+
+    internal fun localeForPreviewQualifier(localeQualifier: String): Locale {
+        val parts = localeQualifier.replace('_', '-').split('-').filter(String::isNotBlank)
+        val language = parts.firstOrNull().orEmpty()
+        val region =
+            parts
+                .drop(1)
+                .firstOrNull()
+                ?.removePrefix("r")
+                .orEmpty()
+        return if (region.isBlank()) Locale(language) else Locale(language, region)
+    }
 
     internal fun applyNightMode(
         configuration: Any,
