@@ -25,6 +25,7 @@ class AndroidComposeRobolectricEntryPoint {
             heightPx = requireProperty("agentpreview.render.heightPx").toInt(),
             density = requireProperty("agentpreview.render.density").toFloat(),
             outputFile = File(requireProperty("agentpreview.render.outputFile")),
+            semanticsOutputFile = File(requireProperty("agentpreview.render.semanticsOutputFile")),
         )
     }
 

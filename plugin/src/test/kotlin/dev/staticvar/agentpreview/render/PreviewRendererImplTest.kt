@@ -5,8 +5,12 @@
  */
 package dev.staticvar.agentpreview.render
 
+import dev.staticvar.agentpreview.model.Bounds
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -52,11 +56,44 @@ class PreviewRendererImplTest {
                 density = 2.0f,
                 robolectricSdk = 35,
                 outputFile = result.screenshotFile,
+                semanticsOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.semantics.json"),
             ),
             processRunner.request,
         )
         assertEquals(listOf(File("app/classes"), File("app/runtime.jar")), processRunner.previewClasspath)
         assertTrue(result.screenshotFile.parentFile.isDirectory)
+    }
+
+    @Test
+    fun `reads structured semantics output from isolated harness process`() {
+        val expectedNodes =
+            listOf(
+                SnapshotNode(
+                    id = "1",
+                    text = "Welcome back",
+                    contentDescription = "Login heading",
+                    bounds = Bounds(x = 4, y = 8, width = 120, height = 32),
+                ),
+            )
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = SemanticsRenderProcessRunner(expectedNodes),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.SemanticsPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.SemanticsPreview",
+                fullyQualifiedClassName = "dev.example.SemanticsPreviewKt",
+                sourceFile = "SemanticsPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 1.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(expectedNodes, result.rawSemantics)
     }
 
     @Test
@@ -125,6 +162,21 @@ class PreviewRendererImplTest {
                 RenderProcessFailureKind.ResourceLoadingGap,
                 "android.content.res.Resources\$NotFoundException: Resource ID #0x7f010001",
             )
+    }
+
+    private class SemanticsRenderProcessRunner(
+        private val nodes: List<SnapshotNode>,
+    ) : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
+            request.semanticsOutputFile.writeText(Json.encodeToString(ListSerializer(SnapshotNode.serializer()), nodes))
+            return RenderProcessResult.Success
+        }
     }
 
     private class RecordingRenderProcessRunner : RenderProcessRunner {

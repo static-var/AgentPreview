@@ -18,6 +18,7 @@ import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
 import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
+import dev.staticvar.agentpreview.semantics.RenderedSemanticsExtractor
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
@@ -99,7 +100,8 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
             )
         }
-        val semanticsExtractor = EmptySemanticsExtractor()
+        val emptySemanticsExtractor = EmptySemanticsExtractor()
+        val renderedSemanticsExtractor = RenderedSemanticsExtractor()
         val exporter = SnapshotExporter()
 
         previews.forEach { preview ->
@@ -122,7 +124,12 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                                 sourceSet = preview.sourceSet,
                             ),
                         viewport = renderResult.viewport,
-                        nodes = semanticsExtractor.extract(renderResult.rawSemantics),
+                        nodes =
+                            if (useFakeRenderer) {
+                                emptySemanticsExtractor.extract(renderResult.rawSemantics)
+                            } else {
+                                renderedSemanticsExtractor.extract(renderResult.rawSemantics)
+                            },
                         render = SnapshotRenderMetadata(mode = renderResult.renderMode.logLabel),
                     )
 

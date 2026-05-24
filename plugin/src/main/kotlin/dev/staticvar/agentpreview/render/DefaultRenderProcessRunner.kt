@@ -33,6 +33,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 request.density.toString(),
                 request.robolectricSdk.toString(),
                 request.outputFile.absolutePath,
+                request.semanticsOutputFile.absolutePath,
                 harnessResultFile.absolutePath,
             )
         val process =

@@ -37,7 +37,7 @@ class DefaultRenderProcessRunnerTest {
             runWithFakeJava(
                 """
                 #!/bin/sh
-                cat > "${'$'}{11}" <<'EOF'
+                cat > "${'$'}{12}" <<'EOF'
                 status=failure
                 failureKind=ResourceLoadingGap
                 EOF
@@ -69,6 +69,7 @@ class DefaultRenderProcessRunnerTest {
                         density = 1.0f,
                         robolectricSdk = 35,
                         outputFile = tempDir.resolve("preview.png"),
+                        semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
                     ),
                 previewClasspath = emptyList(),
             )

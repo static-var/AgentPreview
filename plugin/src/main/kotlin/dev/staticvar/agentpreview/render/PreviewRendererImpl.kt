@@ -6,8 +6,11 @@
 package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.sanitize
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -22,7 +25,9 @@ class PreviewRendererImpl(
         outputDirectory: File,
     ): RenderResult {
         outputDirectory.mkdirs()
-        val screenshot = outputDirectory.resolve(preview.id.sanitize() + "-" + (viewport.name ?: "preview") + ".png")
+        val outputName = preview.id.sanitize() + "-" + (viewport.name ?: "preview")
+        val screenshot = outputDirectory.resolve("$outputName.png")
+        val semanticsOutput = outputDirectory.resolve("$outputName.semantics.json")
         require(robolectricSdk == SUPPORTED_ROBOLECTRIC_SDK) {
             "AgentPreview Android renderer currently supports only robolectricSdk=$SUPPORTED_ROBOLECTRIC_SDK; " +
                 "configured robolectricSdk=$robolectricSdk is not used by the Robolectric entry point."
@@ -41,6 +46,7 @@ class PreviewRendererImpl(
                 density = viewport.density,
                 robolectricSdk = robolectricSdk,
                 outputFile = screenshot,
+                semanticsOutputFile = semanticsOutput,
             )
         val renderMode =
             when (val result = processRunner.run(request, previewClasspath)) {
@@ -53,10 +59,17 @@ class PreviewRendererImpl(
         return RenderResult(
             screenshotFile = screenshot,
             viewport = viewport,
-            rawSemantics = null,
+            rawSemantics = readSemantics(semanticsOutput).takeIf { renderMode == RenderMode.Robolectric },
             renderMode = renderMode,
         )
     }
+
+    private fun readSemantics(semanticsOutput: File): List<SnapshotNode> =
+        if (semanticsOutput.isFile) {
+            Json.decodeFromString(ListSerializer(SnapshotNode.serializer()), semanticsOutput.readText())
+        } else {
+            emptyList()
+        }
 
     private fun handleFailure(
         failure: RenderProcessResult.Failure,
