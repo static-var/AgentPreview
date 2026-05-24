@@ -5,9 +5,14 @@
  */
 package dev.staticvar.agentpreview.render
 
+import dev.staticvar.agentpreview.model.Bounds
+import dev.staticvar.agentpreview.model.SnapshotNode
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 import org.robolectric.Robolectric
 import java.io.File
 import java.io.OutputStream
+import kotlin.math.roundToInt
 
 object AndroidComposeRendererInRobolectric {
     fun render(
@@ -17,8 +22,11 @@ object AndroidComposeRendererInRobolectric {
         heightPx: Int,
         density: Float,
         outputFile: File,
+        semanticsOutputFile: File,
+        includeUnmergedSemantics: Boolean = false,
     ) {
         outputFile.parentFile.mkdirs()
+        semanticsOutputFile.parentFile.mkdirs()
         val activityClass = Class.forName("androidx.activity.ComponentActivity")
         val controller =
             Robolectric::class.java
@@ -29,7 +37,8 @@ object AndroidComposeRendererInRobolectric {
         controller.javaClass.getMethod("setup").invoke(controller)
         setDensity(activity, density)
         setContent(activity, className, methodName)
-        draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile)
+        val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile)
+        writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
     }
 
     private fun setDensity(
@@ -65,7 +74,7 @@ object AndroidComposeRendererInRobolectric {
         widthPx: Int,
         heightPx: Int,
         outputFile: File,
-    ) {
+    ): Any {
         val view = contentRoot(activity)
         val measureSpecClass = Class.forName("android.view.View\$MeasureSpec")
         val exactly = measureSpecClass.getField("EXACTLY").getInt(null)
@@ -100,7 +109,153 @@ object AndroidComposeRendererInRobolectric {
                     .invoke(bitmap, png, PNG_QUALITY, stream) as Boolean
             check(wrote) { "Failed to write PNG to ${outputFile.absolutePath}" }
         }
+        return view
     }
+
+    private fun writeSemantics(
+        contentRoot: Any,
+        outputFile: File,
+        includeUnmergedSemantics: Boolean,
+    ) {
+        val composeView =
+            findComposeView(contentRoot) ?: run {
+                outputFile.writeText("[]")
+                return
+            }
+        val semanticsOwner = composeView.javaClass.getMethod("getSemanticsOwner").invoke(composeView)
+        val nodes = listOf(toSnapshotNode(rootSemanticsNode(semanticsOwner, includeUnmergedSemantics), includeUnmergedSemantics))
+        outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotNode.serializer()), nodes))
+    }
+
+    internal fun rootSemanticsNode(
+        semanticsOwner: Any,
+        includeUnmergedSemantics: Boolean,
+    ): Any {
+        val methodName =
+            if (includeUnmergedSemantics) {
+                "getUnmergedRootSemanticsNode"
+            } else {
+                "getRootSemanticsNode"
+            }
+        return semanticsOwner.javaClass.methods
+            .first { it.name == methodName }
+            .invoke(semanticsOwner)
+    }
+
+    private fun findComposeView(view: Any): Any? {
+        if (view.javaClass.name == "androidx.compose.ui.platform.AndroidComposeView") return view
+        val childCountMethod =
+            view.javaClass.methods.firstOrNull { it.name == "getChildCount" && it.parameterTypes.isEmpty() } ?: return null
+        val getChildAtMethod =
+            view.javaClass.methods.firstOrNull { method ->
+                method.name == "getChildAt" && method.parameterTypes.contentEquals(arrayOf(Int::class.javaPrimitiveType))
+            } ?: return null
+        val childCount = childCountMethod.invoke(view) as Int
+        for (index in 0 until childCount) {
+            val match = findComposeView(getChildAtMethod.invoke(view, index))
+            if (match != null) return match
+        }
+        return null
+    }
+
+    private fun toSnapshotNode(
+        node: Any,
+        includeUnmergedSemantics: Boolean,
+    ): SnapshotNode {
+        val id =
+            node.javaClass.methods
+                .first { it.name == "getId" }
+                .invoke(node)
+                .toString()
+        val config =
+            node.javaClass.methods
+                .first { it.name == "getConfig" }
+                .invoke(node)
+        val properties = semanticsProperties(config)
+        val children =
+            semanticsChildren(node, includeUnmergedSemantics)
+                .map { child -> toSnapshotNode(child, includeUnmergedSemantics) }
+        return SnapshotNode(
+            id = id,
+            role = properties["Role"]?.toString(),
+            text = properties["Text"]?.toSnapshotText(),
+            contentDescription = properties["ContentDescription"]?.toSnapshotText(),
+            bounds = bounds(node),
+            actions = properties.filterKeys { it.startsWith("On") }.keys.sorted(),
+            tag = properties["TestTag"]?.toString(),
+            children = children,
+        )
+    }
+
+    private fun semanticsProperties(config: Any): Map<String, Any?> {
+        @Suppress("UNCHECKED_CAST")
+        val iterator =
+            config.javaClass.methods
+                .firstOrNull { it.name == "iterator" && it.parameterTypes.isEmpty() }
+                ?.invoke(config)
+                as? Iterator<Map.Entry<Any, Any?>>
+                ?: return emptyMap()
+        return buildMap {
+            iterator.forEach { entry ->
+                val key = entry.key
+                val name =
+                    key.javaClass.methods
+                        .firstOrNull { it.name == "getName" }
+                        ?.invoke(key)
+                        ?.toString() ?: key.toString()
+                put(name, entry.value)
+            }
+        }
+    }
+
+    internal fun semanticsChildren(
+        node: Any,
+        includeUnmergedSemantics: Boolean,
+    ): List<Any> {
+        val method = node.javaClass.methods.firstOrNull { method -> method.name == "getChildren" } ?: return emptyList()
+        @Suppress("UNCHECKED_CAST")
+        return when (method.parameterTypes.size) {
+            3 -> method.invoke(node, includeUnmergedSemantics, true, false)
+            2 -> method.invoke(node, includeUnmergedSemantics, true)
+            1 -> method.invoke(node, includeUnmergedSemantics)
+            else -> method.invoke(node)
+        } as List<Any>
+    }
+
+    private fun bounds(node: Any): Bounds {
+        val rect =
+            node.javaClass.methods
+                .first { it.name == "getBoundsInRoot" }
+                .invoke(node)
+        val left =
+            rect.javaClass.methods
+                .first { it.name == "getLeft" }
+                .invoke(rect) as Float
+        val top =
+            rect.javaClass.methods
+                .first { it.name == "getTop" }
+                .invoke(rect) as Float
+        val right =
+            rect.javaClass.methods
+                .first { it.name == "getRight" }
+                .invoke(rect) as Float
+        val bottom =
+            rect.javaClass.methods
+                .first { it.name == "getBottom" }
+                .invoke(rect) as Float
+        return Bounds(
+            x = left.roundToInt(),
+            y = top.roundToInt(),
+            width = (right - left).roundToInt().coerceAtLeast(0),
+            height = (bottom - top).roundToInt().coerceAtLeast(0),
+        )
+    }
+
+    private fun Any.toSnapshotText(): String =
+        when (this) {
+            is Iterable<*> -> joinToString(" ") { item -> item.toString() }
+            else -> toString()
+        }
 
     private fun setNoActionBarTheme(activity: Any) {
         val styleClass = Class.forName("android.R\$style")

@@ -32,12 +32,33 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `passes include unmerged semantics flag to isolated harness`() {
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                if [ "${'$'}{12}" != "true" ]; then
+                  echo "Expected includeUnmergedSemantics arg true, got ${'$'}{12}" >&2
+                  exit 1
+                fi
+                cat > "${'$'}{13}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                includeUnmergedSemantics = true,
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `structured resource loading gap result is classified as diagnostic fallback`() {
         val result =
             runWithFakeJava(
                 """
                 #!/bin/sh
-                cat > "${'$'}{11}" <<'EOF'
+                cat > "${'$'}{13}" <<'EOF'
                 status=failure
                 failureKind=ResourceLoadingGap
                 EOF
@@ -50,7 +71,10 @@ class DefaultRenderProcessRunnerTest {
         assertEquals(RenderProcessFailureKind.ResourceLoadingGap, (result as RenderProcessResult.Failure).kind)
     }
 
-    private fun runWithFakeJava(script: String): RenderProcessResult {
+    private fun runWithFakeJava(
+        script: String,
+        includeUnmergedSemantics: Boolean = false,
+    ): RenderProcessResult {
         val originalJavaHome = System.getProperty("java.home")
         val javaHome = tempDir.resolve("fake-java-home")
         val javaExecutable = javaHome.resolve("bin/java")
@@ -69,6 +93,8 @@ class DefaultRenderProcessRunnerTest {
                         density = 1.0f,
                         robolectricSdk = 35,
                         outputFile = tempDir.resolve("preview.png"),
+                        semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
+                        includeUnmergedSemantics = includeUnmergedSemantics,
                     ),
                 previewClasspath = emptyList(),
             )

@@ -20,7 +20,9 @@ object AndroidComposeRenderHarness {
         System.setProperty("agentpreview.render.density", args[4])
         System.setProperty("agentpreview.render.robolectricSdk", args[5])
         System.setProperty("agentpreview.render.outputFile", args[6])
-        val resultFile = File(args[7])
+        System.setProperty("agentpreview.render.semanticsOutputFile", args[7])
+        System.setProperty("agentpreview.render.includeUnmergedSemantics", args[8])
+        val resultFile = File(args[9])
 
         val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
@@ -45,6 +47,6 @@ object AndroidComposeRenderHarness {
         generateSequence(this) { throwable -> throwable.cause }
             .any { throwable -> throwable.javaClass.name == RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME }
 
-    private const val ARG_COUNT = 8
+    private const val ARG_COUNT = 10
     private const val RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME = "android.content.res.Resources\$NotFoundException"
 }
