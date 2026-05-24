@@ -65,7 +65,7 @@ object AndroidComposeRendererInRobolectric {
             val locale = localeForPreviewQualifier(tag)
             configuration.javaClass.getMethod("setLocale", Locale::class.java).invoke(configuration, locale)
         }
-        applyNightMode(configuration, uiMode)
+        applyUiMode(configuration, uiMode)
         resources.javaClass
             .getMethod(
                 "updateConfiguration",
@@ -91,17 +91,25 @@ object AndroidComposeRendererInRobolectric {
         return if (region.isBlank()) Locale(language) else Locale(language, region)
     }
 
-    internal fun applyNightMode(
+    internal fun applyUiMode(
         configuration: Any,
         uiMode: Int?,
     ) {
-        val requestedNightMode = uiMode?.and(UI_MODE_NIGHT_MASK) ?: return
-        if (requestedNightMode != UI_MODE_NIGHT_YES && requestedNightMode != UI_MODE_NIGHT_NO) return
-        val currentUiMode = configuration.javaClass.getField("uiMode").getInt(configuration)
-        configuration.javaClass.getField("uiMode").setInt(
-            configuration,
-            currentUiMode.and(UI_MODE_NIGHT_MASK.inv()).or(requestedNightMode),
-        )
+        if (uiMode == null || uiMode == 0) return
+
+        val requestedTypeMode = uiMode.and(UI_MODE_TYPE_MASK)
+        val requestedNightMode = uiMode.and(UI_MODE_NIGHT_MASK)
+        val field = configuration.javaClass.getField("uiMode")
+        var updatedUiMode = field.getInt(configuration)
+
+        if (requestedTypeMode != 0) {
+            updatedUiMode = updatedUiMode.and(UI_MODE_TYPE_MASK.inv()).or(requestedTypeMode)
+        }
+        if (requestedNightMode == UI_MODE_NIGHT_YES || requestedNightMode == UI_MODE_NIGHT_NO) {
+            updatedUiMode = updatedUiMode.and(UI_MODE_NIGHT_MASK.inv()).or(requestedNightMode)
+        }
+
+        field.setInt(configuration, updatedUiMode)
     }
 
     private fun setContent(
@@ -348,6 +356,7 @@ object AndroidComposeRendererInRobolectric {
     private const val PNG_QUALITY = 100
     private const val DEFAULT_FONT_SCALE = 1.0f
     private const val MIN_FONT_SCALE = 0.01f
+    private const val UI_MODE_TYPE_MASK = 0x0f
     private const val UI_MODE_NIGHT_MASK = 0x30
     private const val UI_MODE_NIGHT_NO = 0x10
     private const val UI_MODE_NIGHT_YES = 0x20

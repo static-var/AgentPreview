@@ -39,12 +39,39 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
-    fun `night ui mode replaces only night bits`() {
-        val configuration = FakeConfiguration(uiMode = 0x03 or 0x10)
+    fun `ui mode replaces requested type and night bits while preserving unrelated bits`() {
+        val unrelatedBits = 0x100
+        val configuration =
+            FakeConfiguration(
+                uiMode = unrelatedBits or UI_MODE_TYPE_DESK or UI_MODE_NIGHT_NO,
+            )
 
-        AndroidComposeRendererInRobolectric.applyNightMode(configuration, uiMode = 0x20)
+        AndroidComposeRendererInRobolectric.applyUiMode(
+            configuration,
+            uiMode = UI_MODE_TYPE_CAR or UI_MODE_NIGHT_YES,
+        )
 
-        assertEquals(0x03 or 0x20, configuration.uiMode)
+        assertEquals(unrelatedBits or UI_MODE_TYPE_CAR or UI_MODE_NIGHT_YES, configuration.uiMode)
+    }
+
+    @Test
+    fun `ui mode type-only request preserves current night bits`() {
+        val configuration = FakeConfiguration(uiMode = UI_MODE_TYPE_DESK or UI_MODE_NIGHT_YES)
+
+        AndroidComposeRendererInRobolectric.applyUiMode(configuration, uiMode = UI_MODE_TYPE_TELEVISION)
+
+        assertEquals(UI_MODE_TYPE_TELEVISION or UI_MODE_NIGHT_YES, configuration.uiMode)
+    }
+
+    @Test
+    fun `empty ui mode request preserves current ui mode`() {
+        val initialUiMode = UI_MODE_TYPE_DESK or UI_MODE_NIGHT_NO
+        val configuration = FakeConfiguration(uiMode = initialUiMode)
+
+        AndroidComposeRendererInRobolectric.applyUiMode(configuration, uiMode = 0)
+        AndroidComposeRendererInRobolectric.applyUiMode(configuration, uiMode = null)
+
+        assertEquals(initialUiMode, configuration.uiMode)
     }
 
     @Test
@@ -129,3 +156,9 @@ class AndroidComposeRendererInRobolectricTest {
             }
     }
 }
+
+private const val UI_MODE_TYPE_DESK = 0x02
+private const val UI_MODE_TYPE_CAR = 0x03
+private const val UI_MODE_TYPE_TELEVISION = 0x04
+private const val UI_MODE_NIGHT_NO = 0x10
+private const val UI_MODE_NIGHT_YES = 0x20
