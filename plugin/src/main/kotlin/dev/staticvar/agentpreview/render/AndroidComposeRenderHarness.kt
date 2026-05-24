@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview.render
 
 import org.junit.runner.JUnitCore
+import java.io.File
+import kotlin.system.exitProcess
 
 object AndroidComposeRenderHarness {
     @JvmStatic
@@ -18,7 +20,7 @@ object AndroidComposeRenderHarness {
         System.setProperty("agentpreview.render.density", args[4])
         System.setProperty("agentpreview.render.robolectricSdk", args[5])
         System.setProperty("agentpreview.render.outputFile", args[6])
-        val resultFile = java.io.File(args[7])
+        val resultFile = File(args[7])
 
         val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
@@ -33,10 +35,10 @@ object AndroidComposeRenderHarness {
                 System.err.println(failure.testHeader)
                 failure.exception.printStackTrace(System.err)
             }
-            kotlin.system.exitProcess(1)
+            exitProcess(1)
         }
         RenderHarnessResultFile.writeSuccess(resultFile)
-        kotlin.system.exitProcess(0)
+        exitProcess(0)
     }
 
     private fun Throwable.hasResourceNotFoundCause(): Boolean =

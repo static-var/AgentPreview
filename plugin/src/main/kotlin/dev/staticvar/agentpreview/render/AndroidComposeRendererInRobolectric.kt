@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview.render
 
 import org.robolectric.Robolectric
 import java.io.File
+import java.io.OutputStream
 
 object AndroidComposeRendererInRobolectric {
     fun render(
@@ -95,7 +96,7 @@ object AndroidComposeRendererInRobolectric {
         outputFile.outputStream().use { stream ->
             val wrote =
                 bitmapClass
-                    .getMethod("compress", compressFormatClass, Int::class.javaPrimitiveType, java.io.OutputStream::class.java)
+                    .getMethod("compress", compressFormatClass, Int::class.javaPrimitiveType, OutputStream::class.java)
                     .invoke(bitmap, png, PNG_QUALITY, stream) as Boolean
             check(wrote) { "Failed to write PNG to ${outputFile.absolutePath}" }
         }

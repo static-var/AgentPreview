@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.render
 
 import java.io.File
+import java.io.IOException
 import java.util.Properties
 
 internal object RenderHarnessResultFile {
@@ -43,7 +44,7 @@ internal object RenderHarnessResultFile {
             file.inputStream().use(properties::load)
         } catch (_: RuntimeException) {
             return null
-        } catch (_: java.io.IOException) {
+        } catch (_: IOException) {
             return null
         }
         if (properties.getProperty(STATUS) != STATUS_FAILURE) return null

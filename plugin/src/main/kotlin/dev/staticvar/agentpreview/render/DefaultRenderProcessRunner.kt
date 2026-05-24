@@ -5,7 +5,12 @@
  */
 package dev.staticvar.agentpreview.render
 
+import org.junit.runner.JUnitCore
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.net.URLClassLoader
+import java.util.zip.ZipFile
 
 class DefaultRenderProcessRunner : RenderProcessRunner {
     override fun run(
@@ -58,7 +63,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
 
     private fun currentPluginClasspath(): List<File> {
         val loaderFiles =
-            (DefaultRenderProcessRunner::class.java.classLoader as? java.net.URLClassLoader)
+            (DefaultRenderProcessRunner::class.java.classLoader as? URLClassLoader)
                 ?.urLs
                 ?.mapNotNull { url -> url.toURI().takeIf { it.scheme == "file" } }
                 ?.map(::File)
@@ -66,10 +71,10 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         val requiredCodeSources =
             listOf(
                 DefaultRenderProcessRunner::class.java,
-                org.junit.runner.JUnitCore::class.java,
-                org.robolectric.Robolectric::class.java,
-                org.robolectric.RobolectricTestRunner::class.java,
-                kotlin.Unit::class.java,
+                JUnitCore::class.java,
+                Robolectric::class.java,
+                RobolectricTestRunner::class.java,
+                Unit::class.java,
                 Function2::class.java,
             ).mapNotNull { clazz ->
                 clazz.protectionDomain.codeSource
@@ -99,7 +104,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             )
         if (output.isFile) return output
         output.parentFile.mkdirs()
-        java.util.zip.ZipFile(aar).use { zip ->
+        ZipFile(aar).use { zip ->
             val entry = zip.getEntry("classes.jar") ?: return null
             zip.getInputStream(entry).use { input ->
                 output.outputStream().use { outputStream -> input.copyTo(outputStream) }
