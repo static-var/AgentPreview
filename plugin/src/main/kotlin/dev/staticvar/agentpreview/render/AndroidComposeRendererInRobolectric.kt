@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import org.robolectric.Robolectric
 import java.io.File
 import java.io.OutputStream
+import java.util.Locale
 import kotlin.math.roundToInt
 
 object AndroidComposeRendererInRobolectric {
@@ -24,6 +25,11 @@ object AndroidComposeRendererInRobolectric {
         outputFile: File,
         semanticsOutputFile: File,
         includeUnmergedSemantics: Boolean = false,
+        locale: String? = null,
+        uiMode: Int? = null,
+        fontScale: Float? = null,
+        showBackground: Boolean = false,
+        backgroundColor: Long? = null,
     ) {
         outputFile.parentFile.mkdirs()
         semanticsOutputFile.parentFile.mkdirs()
@@ -35,21 +41,55 @@ object AndroidComposeRendererInRobolectric {
         val activity = controller.javaClass.getMethod("get").invoke(controller)
         setNoActionBarTheme(activity)
         controller.javaClass.getMethod("setup").invoke(controller)
-        setDensity(activity, density)
+        applyConfiguration(activity, density, fontScale ?: DEFAULT_FONT_SCALE, locale, uiMode)
         setContent(activity, className, methodName)
-        val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile)
+        val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile, showBackground, backgroundColor)
         writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
     }
 
-    private fun setDensity(
+    private fun applyConfiguration(
         activity: Any,
         density: Float,
+        fontScale: Float,
+        localeTag: String?,
+        uiMode: Int?,
     ) {
         val resources = activity.javaClass.getMethod("getResources").invoke(activity)
         val metrics = resources.javaClass.getMethod("getDisplayMetrics").invoke(resources)
         setField(metrics, "density", density)
-        setField(metrics, "scaledDensity", density)
+        setField(metrics, "scaledDensity", scaledDensity(density, fontScale))
         setField(metrics, "densityDpi", (density * DENSITY_DEFAULT).toInt().coerceAtLeast(1))
+        val configuration = resources.javaClass.getMethod("getConfiguration").invoke(resources)
+        setField(configuration, "fontScale", fontScale.coerceAtLeast(MIN_FONT_SCALE))
+        localeTag?.let { tag ->
+            val locale = Locale.forLanguageTag(tag.replace('_', '-'))
+            configuration.javaClass.getMethod("setLocale", Locale::class.java).invoke(configuration, locale)
+        }
+        applyNightMode(configuration, uiMode)
+        resources.javaClass
+            .getMethod(
+                "updateConfiguration",
+                configuration.javaClass,
+                metrics.javaClass,
+            ).invoke(resources, configuration, metrics)
+    }
+
+    internal fun scaledDensity(
+        density: Float,
+        fontScale: Float,
+    ): Float = density * fontScale.coerceAtLeast(MIN_FONT_SCALE)
+
+    internal fun applyNightMode(
+        configuration: Any,
+        uiMode: Int?,
+    ) {
+        val requestedNightMode = uiMode?.and(UI_MODE_NIGHT_MASK) ?: return
+        if (requestedNightMode != UI_MODE_NIGHT_YES && requestedNightMode != UI_MODE_NIGHT_NO) return
+        val currentUiMode = configuration.javaClass.getField("uiMode").getInt(configuration)
+        configuration.javaClass.getField("uiMode").setInt(
+            configuration,
+            currentUiMode.and(UI_MODE_NIGHT_MASK.inv()).or(requestedNightMode),
+        )
     }
 
     private fun setContent(
@@ -74,8 +114,15 @@ object AndroidComposeRendererInRobolectric {
         widthPx: Int,
         heightPx: Int,
         outputFile: File,
+        showBackground: Boolean,
+        backgroundColor: Long?,
     ): Any {
         val view = contentRoot(activity)
+        if (showBackground) {
+            view.javaClass
+                .getMethod("setBackgroundColor", Int::class.javaPrimitiveType)
+                .invoke(view, effectiveBackgroundColor(backgroundColor))
+        }
         val measureSpecClass = Class.forName("android.view.View\$MeasureSpec")
         val exactly = measureSpecClass.getField("EXACTLY").getInt(null)
         val makeMeasureSpec = measureSpecClass.getMethod("makeMeasureSpec", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
@@ -269,6 +316,13 @@ object AndroidComposeRendererInRobolectric {
         return activity.javaClass.getMethod("findViewById", Int::class.javaPrimitiveType).invoke(activity, contentId)
     }
 
+    internal fun effectiveBackgroundColor(backgroundColor: Long?): Int =
+        if (backgroundColor == null || backgroundColor == 0L) {
+            DEFAULT_BACKGROUND_COLOR
+        } else {
+            backgroundColor.toInt()
+        }
+
     private fun setField(
         target: Any,
         name: String,
@@ -280,4 +334,10 @@ object AndroidComposeRendererInRobolectric {
 
     private const val DENSITY_DEFAULT = 160
     private const val PNG_QUALITY = 100
+    private const val DEFAULT_FONT_SCALE = 1.0f
+    private const val MIN_FONT_SCALE = 0.01f
+    private const val UI_MODE_NIGHT_MASK = 0x30
+    private const val UI_MODE_NIGHT_NO = 0x10
+    private const val UI_MODE_NIGHT_YES = 0x20
+    private const val DEFAULT_BACKGROUND_COLOR = -0x1
 }

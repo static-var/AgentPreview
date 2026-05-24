@@ -22,4 +22,6 @@ data class PreviewDescriptor(
     val locale: String? = null,
     val uiMode: Int? = null,
     val fontScale: Float? = null,
+    val showBackground: Boolean = false,
+    val backgroundColor: Long? = null,
 )

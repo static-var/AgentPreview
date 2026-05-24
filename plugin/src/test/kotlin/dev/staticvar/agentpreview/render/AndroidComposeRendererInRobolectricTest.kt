@@ -10,6 +10,36 @@ import org.junit.jupiter.api.Test
 
 class AndroidComposeRendererInRobolectricTest {
     @Test
+    fun `scaled density multiplies viewport density by preview font scale`() {
+        val scaledDensity = AndroidComposeRendererInRobolectric.scaledDensity(density = 2.0f, fontScale = 1.3f)
+
+        assertEquals(2.6f, scaledDensity)
+    }
+
+    @Test
+    fun `night ui mode replaces only night bits`() {
+        val configuration = FakeConfiguration(uiMode = 0x03 or 0x10)
+
+        AndroidComposeRendererInRobolectric.applyNightMode(configuration, uiMode = 0x20)
+
+        assertEquals(0x03 or 0x20, configuration.uiMode)
+    }
+
+    @Test
+    fun `show background without explicit color uses white preview background`() {
+        val backgroundColor = AndroidComposeRendererInRobolectric.effectiveBackgroundColor(backgroundColor = 0L)
+
+        assertEquals(-0x1, backgroundColor)
+    }
+
+    @Test
+    fun `show background uses explicit ARGB preview color`() {
+        val backgroundColor = AndroidComposeRendererInRobolectric.effectiveBackgroundColor(backgroundColor = 0xFF112233)
+
+        assertEquals(0xFF112233.toInt(), backgroundColor)
+    }
+
+    @Test
     fun `default semantics mode omits replaced semantics children`() {
         val node = FakeSemanticsNode()
 
@@ -44,6 +74,11 @@ class AndroidComposeRendererInRobolectricTest {
 
         assertEquals("unmerged-root", root)
     }
+
+    class FakeConfiguration(
+        @JvmField
+        var uiMode: Int,
+    )
 
     private class FakeSemanticsOwner {
         private var calls = 0

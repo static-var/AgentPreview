@@ -40,6 +40,11 @@ class PreviewRendererImplTest {
                 fullyQualifiedFunctionName = "dev.example.LoginPreview",
                 fullyQualifiedClassName = "dev.example.LoginPreviewKt",
                 sourceFile = "LoginPreview.kt",
+                locale = "fr-rFR",
+                uiMode = 0x20,
+                fontScale = 1.3f,
+                showBackground = true,
+                backgroundColor = 0xFF112233,
             )
         val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
 
@@ -59,6 +64,11 @@ class PreviewRendererImplTest {
                 outputFile = result.screenshotFile,
                 semanticsOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.semantics.json"),
                 includeUnmergedSemantics = true,
+                locale = "fr-rFR",
+                uiMode = 0x20,
+                fontScale = 1.3f,
+                showBackground = true,
+                backgroundColor = 0xFF112233,
             ),
             processRunner.request,
         )

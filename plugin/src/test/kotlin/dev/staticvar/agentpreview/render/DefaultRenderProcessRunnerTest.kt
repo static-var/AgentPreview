@@ -41,7 +41,7 @@ class DefaultRenderProcessRunnerTest {
                   echo "Expected includeUnmergedSemantics arg true, got ${'$'}{12}" >&2
                   exit 1
                 fi
-                cat > "${'$'}{13}" <<'EOF'
+                cat > "${'$'}{18}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -53,12 +53,37 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `passes preview configuration fields to isolated harness`() {
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                if [ "${'$'}{13}" != "fr-rFR" ] || [ "${'$'}{14}" != "32" ] || [ "${'$'}{15}" != "1.3" ] || [ "${'$'}{16}" != "true" ] || [ "${'$'}{17}" != "4279312947" ]; then
+                  echo "Unexpected preview config args: ${'$'}{13} ${'$'}{14} ${'$'}{15} ${'$'}{16} ${'$'}{17}" >&2
+                  exit 1
+                fi
+                cat > "${'$'}{18}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                locale = "fr-rFR",
+                uiMode = 0x20,
+                fontScale = 1.3f,
+                showBackground = true,
+                backgroundColor = 0xFF112233,
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `structured resource loading gap result is classified as diagnostic fallback`() {
         val result =
             runWithFakeJava(
                 """
                 #!/bin/sh
-                cat > "${'$'}{13}" <<'EOF'
+                cat > "${'$'}{18}" <<'EOF'
                 status=failure
                 failureKind=ResourceLoadingGap
                 EOF
@@ -74,6 +99,11 @@ class DefaultRenderProcessRunnerTest {
     private fun runWithFakeJava(
         script: String,
         includeUnmergedSemantics: Boolean = false,
+        locale: String? = null,
+        uiMode: Int? = null,
+        fontScale: Float? = null,
+        showBackground: Boolean = false,
+        backgroundColor: Long? = null,
     ): RenderProcessResult {
         val originalJavaHome = System.getProperty("java.home")
         val javaHome = tempDir.resolve("fake-java-home")
@@ -95,6 +125,11 @@ class DefaultRenderProcessRunnerTest {
                         outputFile = tempDir.resolve("preview.png"),
                         semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
                         includeUnmergedSemantics = includeUnmergedSemantics,
+                        locale = locale,
+                        uiMode = uiMode,
+                        fontScale = fontScale,
+                        showBackground = showBackground,
+                        backgroundColor = backgroundColor,
                     ),
                 previewClasspath = emptyList(),
             )

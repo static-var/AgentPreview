@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview.sample
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +63,17 @@ fun LoginCard() {
     }
 }
 
-@Preview(name = "Login", group = "Auth", widthDp = 393, heightDp = 852, showBackground = true)
+@Preview(
+    name = "Login",
+    group = "Auth",
+    widthDp = 393,
+    heightDp = 852,
+    showBackground = true,
+    backgroundColor = 0xFFFFFBFE,
+    fontScale = 1.15f,
+    locale = "en-rUS",
+    uiMode = Configuration.UI_MODE_NIGHT_NO,
+)
 @Composable
 fun LoginPreview() {
     LoginCard()

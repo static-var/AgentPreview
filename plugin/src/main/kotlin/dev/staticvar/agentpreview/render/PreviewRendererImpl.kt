@@ -49,6 +49,11 @@ class PreviewRendererImpl(
                 outputFile = screenshot,
                 semanticsOutputFile = semanticsOutput,
                 includeUnmergedSemantics = includeUnmergedSemantics,
+                locale = preview.locale,
+                uiMode = preview.uiMode,
+                fontScale = preview.fontScale,
+                showBackground = preview.showBackground,
+                backgroundColor = preview.backgroundColor,
             )
         val renderMode =
             when (val result = processRunner.run(request, previewClasspath)) {

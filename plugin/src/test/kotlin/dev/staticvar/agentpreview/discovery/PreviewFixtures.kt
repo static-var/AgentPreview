@@ -26,6 +26,8 @@ annotation class DuplicateNamePreview
     locale = "en",
     uiMode = 33,
     fontScale = 1.2f,
+    showBackground = true,
+    backgroundColor = 0xFFFF_FFFFL,
 )
 fun loginPreview() = Unit
 
