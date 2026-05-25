@@ -1,24 +1,31 @@
-# Preview For Agents
+# AgentPreview
 
-Preview For Agents is a Gradle-first tool for capturing Compose previews into a lean bundle for coding agents:
+AgentPreview is a Gradle plugin that captures AndroidX Compose `@Preview` functions into files an AI agent can inspect:
 
 ```text
-build/agentPreviewSnapshots/<preview-id>/
+<module>/build/agentPreviewSnapshots/<preview-id>/<viewport>/
   screenshot.png
   snapshot.json
 ```
 
-## Phase 1 Status
+Use it when an agent is editing Compose UI and needs a quick screenshot plus structured preview data without driving the full app.
 
-Phase 1 provides the Gradle plugin scaffold, snapshot schema, JSON-index discovery stub, and fake-renderer capture pipeline.
+## Local setup
 
-Production preview rendering is not implemented yet. Normal `captureComposePreviews` fails with an explanatory message until a later phase adds a real renderer. For scaffold testing, pass:
+The plugin is not published yet. Add this checkout as an included build in the target project's `settings.gradle.kts`:
 
-```bash
-./gradlew :app:captureComposePreviews -PagentPreview.fakeRenderer=true
+```kotlin
+pluginManagement {
+    includeBuild("/Users/staticvar/Projects/PreviewForAgents")
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
 ```
 
-## Plugin Usage
+Apply the plugin to the Android app/library or Compose Multiplatform module that owns the previews:
 
 ```kotlin
 plugins {
@@ -26,62 +33,47 @@ plugins {
 }
 ```
 
-The phase-1 discovery stub reads preview descriptors from:
+## Basic commands
 
-```text
-build/agentPreview/discovered-previews.json
-```
-
-Example descriptor:
-
-```json
-[
-  {
-    "id": ":app:commonMain:LoginPreview",
-    "name": "Login",
-    "group": "Auth",
-    "sourceSet": "commonMain",
-    "fullyQualifiedFunctionName": "dev.staticvar.LoginPreviewKt.LoginPreview",
-    "sourceFile": "LoginPreview.kt",
-    "sourceLine": 12,
-    "widthDp": 393,
-    "heightDp": 852,
-    "locale": null,
-    "uiMode": null,
-    "fontScale": null
-  }
-]
-```
-
-List indexed previews:
+List previews first:
 
 ```bash
 ./gradlew :app:listComposePreviews
 ```
 
-Capture fake phase-1 bundles:
+Capture previews:
 
 ```bash
-./gradlew :app:captureComposePreviews -PagentPreview.fakeRenderer=true
+./gradlew :app:captureComposePreviews
 ```
 
-## License And Code Headers
-
-Preview For Agents is licensed under the MIT License. See `LICENSE`.
-
-Kotlin and Gradle Kotlin DSL files use Spotless with ktlint to apply formatting and license headers. Detekt provides conservative static analysis.
-
-Local quality gates:
+For a focused capture while iterating:
 
 ```bash
-./gradlew spotlessApply
-./gradlew spotlessCheck detekt :plugin:test
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.previewNameFilter=Login \
+  -PagentPreview.viewportFilter=phone \
+  -PagentPreview.maxCaptures=4
 ```
 
-Run `spotlessApply` before committing code changes. CI runs the same `spotlessCheck detekt :plugin:test` verification on pull requests and pushes to `main`.
+Outputs are written under:
 
-## Intended Production Scope
+- snapshots: `<module>/build/agentPreviewSnapshots/<preview-id>/<viewport>/`
+- capture report: `<module>/build/agentPreviewReports/capture-report.json`
 
-Later phases are expected to support existing AndroidX Compose previews that use `androidx.compose.ui.tooling.preview.Preview`, including AndroidX multipreview annotations and custom annotations meta-annotated with AndroidX `@Preview`.
+## More docs
 
-Out of scope for this project are emulator/device-only hierarchy extraction, IDE-only current-preview capture, UiAutomator, and generated Kotlin files in user source sets.
+- Detailed setup and agent workflow: [`docs/agent-usage.md`](docs/agent-usage.md)
+- `snapshot.json` schema: [`docs/snapshot-schema.md`](docs/snapshot-schema.md)
+
+## Current support and limitations
+
+- Supports Android app/library modules and Compose Multiplatform modules through an Android target.
+- Rendering is Android-backed; desktop and web Compose renderers are not separate targets yet.
+- `@PreviewParameter` is supported for one annotated user parameter.
+- Layout-tree source hints are experimental, best-effort, and sometimes missing.
+- Fake renderer mode (`-PagentPreview.fakeRenderer=true`) is for discovery/debug wiring only; do not judge UI from its placeholder outputs.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
