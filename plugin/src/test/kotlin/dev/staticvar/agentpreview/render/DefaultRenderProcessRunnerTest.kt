@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class DefaultRenderProcessRunnerTest {
     @TempDir
@@ -78,6 +80,71 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `materializes aar R classes and embedded jars for isolated harness classpath`() {
+        val classesJar =
+            tempDir.resolve("classes.jar").also { file ->
+                writeZip(
+                    file,
+                    "androidx/example/lib/UsesGeneratedR.class" to
+                        "constant pool reference to androidx/example/lib/R${'$'}id".toByteArray(),
+                )
+            }
+        val nestedJar = tempDir.resolve("nested.jar").also { file -> writeTextZip(file, "nested.txt" to "nested") }
+        val aar =
+            tempDir.resolve("example-${System.nanoTime()}.aar").also { file ->
+                ZipOutputStream(file.outputStream()).use { zip ->
+                    zip.putNextEntry(ZipEntry("classes.jar"))
+                    zip.write(classesJar.readBytes())
+                    zip.closeEntry()
+                    zip.putNextEntry(ZipEntry("R.txt"))
+                    zip.write("int id pooled_container_tag 0x0\nint string label 0x0\n".toByteArray())
+                    zip.closeEntry()
+                    zip.putNextEntry(ZipEntry("libs/nested.jar"))
+                    zip.write(nestedJar.readBytes())
+                    zip.closeEntry()
+                }
+            }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" python3 - <<'PY'
+                import os, sys, zipfile
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                has_generated_r = False
+                has_nested_jar = False
+                for entry in entries:
+                    if not zipfile.is_zipfile(entry):
+                        continue
+                    with zipfile.ZipFile(entry) as jar:
+                        names = set(jar.namelist())
+                        if 'androidx/example/lib/R${'$'}id.class' in names:
+                            r_class = jar.read('androidx/example/lib/R${'$'}id.class')
+                            has_generated_r = has_generated_r or b'\x7f\x01\x00\x00' in r_class
+                    has_nested_jar = has_nested_jar or 'nested.txt' in names
+                if not has_generated_r:
+                    print('missing generated androidx/example/lib/R${'$'}id.class', file=sys.stderr)
+                    sys.exit(1)
+                if not has_nested_jar:
+                    print('missing embedded libs/nested.jar on classpath', file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{19}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                previewClasspath = listOf(aar),
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `structured resource loading gap result is classified as diagnostic fallback`() {
         val result =
             runWithFakeJava(
@@ -104,6 +171,7 @@ class DefaultRenderProcessRunnerTest {
         fontScale: Float? = null,
         showBackground: Boolean = false,
         backgroundColor: Long? = null,
+        previewClasspath: List<File> = emptyList(),
     ): RenderProcessResult {
         val originalJavaHome = System.getProperty("java.home")
         val javaHome = tempDir.resolve("fake-java-home")
@@ -132,10 +200,32 @@ class DefaultRenderProcessRunnerTest {
                         showBackground = showBackground,
                         backgroundColor = backgroundColor,
                     ),
-                previewClasspath = emptyList(),
+                previewClasspath = previewClasspath,
             )
         } finally {
             System.setProperty("java.home", originalJavaHome)
+        }
+    }
+
+    private fun writeZip(
+        file: File,
+        vararg entries: Pair<String, ByteArray>,
+    ) {
+        ZipOutputStream(file.outputStream()).use { zip -> zip.writeZipBytes(*entries) }
+    }
+
+    private fun writeTextZip(
+        file: File,
+        vararg entries: Pair<String, String>,
+    ) {
+        writeZip(file, *entries.map { it.first to it.second.toByteArray() }.toTypedArray())
+    }
+
+    private fun ZipOutputStream.writeZipBytes(vararg entries: Pair<String, ByteArray>) {
+        entries.forEach { (name, bytes) ->
+            putNextEntry(ZipEntry(name))
+            write(bytes)
+            closeEntry()
         }
     }
 }
