@@ -8,7 +8,6 @@ package dev.staticvar.agentpreview.render
 import org.junit.runner.JUnitCore
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URLClassLoader
 import java.nio.file.AtomicMoveNotSupportedException
@@ -118,7 +117,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         }
 
     private fun materializeAarClasspath(aar: File): List<File> =
-        listOfNotNull(extractAarClassesJar(aar)) + extractAarEmbeddedJars(aar) + listOfNotNull(generateAarRJar(aar)) + aar
+        listOfNotNull(extractAarClassesJar(aar)) + extractAarEmbeddedJars(aar) + listOfNotNull(materializeAarRClassesJar(aar)) + aar
 
     private fun extractAarClassesJar(aar: File): File? = extractAarEntry(aar, "classes.jar", aarMaterializationFile(aar, "classes", "jar"))
 
@@ -166,7 +165,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         }
     }
 
-    private fun generateAarRJar(aar: File): File? {
+    private fun materializeAarRClassesJar(aar: File): File? {
         val output = aarMaterializationFile(aar, "r", "jar")
         if (output.isFile) return output
         val classesJar = extractAarClassesJar(aar) ?: return null
@@ -182,11 +181,8 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             sourceFile.parentFile.mkdirs()
             classesDir.mkdirs()
             sourceFile.writeText(source)
-            if (compileRJava(sourceFile, classesDir)) {
-                writeCompiledClassesJar(tempOutput, classesDir)
-            } else {
-                writeStubRJar(tempOutput, packageName, symbols)
-            }
+            if (!compileGeneratedRJava(sourceFile, classesDir)) return null
+            writeCompiledClassesJar(tempOutput, classesDir)
             moveAtomically(tempOutput, output)
             return output
         } finally {
@@ -195,14 +191,13 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         }
     }
 
-    private fun compileRJava(
+    private fun compileGeneratedRJava(
         sourceFile: File,
         classesDir: File,
     ): Boolean {
         val compiler = ToolProvider.getSystemJavaCompiler() ?: return false
-        val commonArgs = listOf("-d", classesDir.absolutePath)
-        if (runJavac(compiler, listOf("--release", "8") + commonArgs, sourceFile)) return true
-        return runJavac(compiler, listOf("-source", "8", "-target", "8", "-Xlint:-options") + commonArgs, sourceFile)
+        val args = listOf("--release", "8", "-d", classesDir.absolutePath)
+        return runJavac(compiler, args, sourceFile)
     }
 
     private fun runJavac(
@@ -224,7 +219,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             classesDir
                 .walkTopDown()
                 .filter { it.isFile }
-                .sortedBy { file -> file.relativeTo(classesDir).invariantSeparatorsPath }
+                .sortedBy { file -> jarEntrySortKey(file.relativeTo(classesDir).invariantSeparatorsPath) }
                 .forEach { file ->
                     val name = file.relativeTo(classesDir).invariantSeparatorsPath
                     jar.putNextEntry(JarEntry(name))
@@ -233,6 +228,8 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 }
         }
     }
+
+    private fun jarEntrySortKey(entryName: String): String = entryName.replace('$', '~')
 
     private fun inferRPackageName(classesJar: File): String? {
         val pattern = Regex("([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)*)/R\\$[A-Za-z_][A-Za-z0-9_]*")
@@ -264,89 +261,6 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         val parts = line.trim().split(Regex("\\s+"), limit = 4)
         if (parts.size < 3) return null
         return ResourceSymbol(valueType = parts[0], type = parts[1], name = parts[2])
-    }
-
-    private fun writeStubRJar(
-        output: File,
-        packageName: String,
-        symbols: Map<String, List<ResourceSymbol>>,
-    ) {
-        val packagePath = packageName.replace('.', '/')
-        val assignedInts = assignedIntSymbols(symbols)
-        JarOutputStream(output.outputStream()).use { jar ->
-            jar.putNextEntry(JarEntry("$packagePath/R.class"))
-            jar.write(classFileBytes("$packagePath/R", emptyList()))
-            jar.closeEntry()
-            symbols.toSortedMap().forEach { (type, _) ->
-                jar.putNextEntry(JarEntry("$packagePath/R${'$'}$type.class"))
-                jar.write(classFileBytes("$packagePath/R${'$'}$type", assignedInts.getValue(type)))
-                jar.closeEntry()
-            }
-        }
-    }
-
-    private fun classFileBytes(
-        internalName: String,
-        intFields: List<Pair<String, Int>>,
-    ): ByteArray {
-        val bytes = ByteArrayOutputStream()
-
-        fun writeU1(value: Int) = bytes.write(value)
-
-        fun writeU2(value: Int) {
-            bytes.write((value ushr 8) and 0xff)
-            bytes.write(value and 0xff)
-        }
-
-        fun writeU4(value: Int) {
-            bytes.write((value ushr 24) and 0xff)
-            bytes.write((value ushr 16) and 0xff)
-            bytes.write((value ushr 8) and 0xff)
-            bytes.write(value and 0xff)
-        }
-
-        fun writeUtf8(value: String) {
-            val encoded = value.toByteArray(Charsets.UTF_8)
-            writeU1(1)
-            writeU2(encoded.size)
-            bytes.write(encoded)
-        }
-        writeU4(0xcafebabe.toInt())
-        writeU2(0)
-        writeU2(52)
-        val integerValueStart = 7
-        val fieldNameStart = integerValueStart + intFields.size
-        writeU2(fieldNameStart + intFields.size)
-        writeUtf8(internalName)
-        writeU1(7)
-        writeU2(1)
-        writeUtf8("java/lang/Object")
-        writeU1(7)
-        writeU2(3)
-        writeUtf8("I")
-        writeUtf8("ConstantValue")
-        intFields.forEach { (_, value) ->
-            writeU1(3)
-            writeU4(value)
-        }
-        intFields.forEach { (name, _) -> writeUtf8(name) }
-        writeU2(0x0031)
-        writeU2(2)
-        writeU2(4)
-        writeU2(0)
-        writeU2(intFields.size)
-        intFields.forEachIndexed { index, (_, value) ->
-            writeU2(0x0019)
-            writeU2(fieldNameStart + index)
-            writeU2(5)
-            writeU2(1)
-            writeU2(6)
-            writeU4(2)
-            writeU2(integerValueStart + index)
-        }
-        writeU2(0)
-        writeU2(0)
-        return bytes.toByteArray()
     }
 
     private fun rJavaSource(
@@ -414,7 +328,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             .joinToString("") { byte -> "%02x".format(byte) }
 
     private companion object {
-        const val AAR_MATERIALIZATION_VERSION = 4
+        const val AAR_MATERIALIZATION_VERSION = 5
         const val SYNTHETIC_RESOURCE_ID_START = 0x7f010000
     }
 
@@ -437,5 +351,6 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             ?: emptyList()
     }
 
-    private fun javaExecutable(): String = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
+    private fun javaExecutable(): String =
+        System.getProperty("agentpreview.java.executable") ?: File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
 }
