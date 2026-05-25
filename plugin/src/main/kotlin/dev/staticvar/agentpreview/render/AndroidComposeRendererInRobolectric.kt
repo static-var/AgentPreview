@@ -292,7 +292,7 @@ object AndroidComposeRendererInRobolectric {
             LayoutTreeSourceHint(
                 sourceName = methodName,
                 sourceFile = "${className.substringAfterLast('$').substringAfterLast('.').removeSuffix("Kt")}.kt",
-                sourceLine = 1,
+                sourceLine = null,
                 sourceHintKind = "preview-entrypoint-fallback",
             )
     }
@@ -586,7 +586,7 @@ object AndroidComposeRendererInRobolectric {
             return buildMap {
                 store.filterNotNull().forEach { compositionData ->
                     val rootGroup = asTree.invoke(null, compositionData)
-                    collectGroupSourceHints(rootGroup, nearestHint = null, hints = this)
+                    collectGroupSourceHints(rootGroup, hints = this)
                 }
             }
         }
@@ -619,27 +619,109 @@ object AndroidComposeRendererInRobolectric {
         }
     }
 
-    private fun collectGroupSourceHints(
+    internal fun collectGroupSourceHints(
         group: Any,
-        nearestHint: LayoutTreeSourceHint?,
         hints: MutableMap<Int, LayoutTreeSourceHint>,
     ) {
+        val entries = mutableListOf<ToolingGroupEntry>()
+        collectToolingGroupEntries(group, parentPreorder = null, depth = 0, entries = entries)
+        val sourceEntries = entries.filter { it.hint != null }
+        entries.filter { it.node != null }.forEach { nodeEntry ->
+            val node = nodeEntry.node ?: return@forEach
+            val directHint = nodeEntry.hint?.copy(sourceHintKind = "tooling-node-identity")
+            val ancestorHint =
+                sourceEntries
+                    .asSequence()
+                    .filter { sourceEntry -> sourceEntry.preorder in nodeEntry.ancestorPreorders }
+                    .maxByOrNull { it.depth }
+                    ?.hint
+                    ?.copy(sourceHintKind = "tooling-ancestor-node-identity")
+            val siblingHint =
+                sourceEntries
+                    .asSequence()
+                    .filter { sourceEntry ->
+                        sourceEntry.preorder < nodeEntry.preorder &&
+                            sourceEntry.parentPreorder == nodeEntry.parentPreorder &&
+                            sourceEntry.box != null &&
+                            nodeEntry.box != null &&
+                            sourceEntry.box.contains(nodeEntry.box)
+                    }.maxByOrNull { it.preorder }
+                    ?.hint
+                    ?.copy(sourceHintKind = "tooling-sibling-preorder")
+            val hint = directHint ?: ancestorHint ?: siblingHint
+            if (hint != null) hints[System.identityHashCode(node)] = hint
+        }
+    }
+
+    private fun collectToolingGroupEntries(
+        group: Any,
+        parentPreorder: Int?,
+        depth: Int,
+        entries: MutableList<ToolingGroupEntry>,
+        ancestorPreorders: List<Int> = emptyList(),
+    ) {
+        val preorder = entries.size
         val ownName = method(group, "getName")?.invoke(group) as? String
         val ownLocation = method(group, "getLocation")?.invoke(group)
         val ownHint = sourceHint(ownName, ownLocation, "tooling-node-identity")
-        val currentHint = ownHint ?: nearestHint
         val node = method(group, "getNode")?.invoke(group)
-        if (node != null && currentHint != null) {
-            hints[System.identityHashCode(node)] =
-                if (ownHint != null) {
-                    currentHint
-                } else {
-                    currentHint.copy(sourceHintKind = "tooling-ancestor-node-identity")
-                }
-        }
+        entries +=
+            ToolingGroupEntry(
+                preorder = preorder,
+                parentPreorder = parentPreorder,
+                depth = depth,
+                ancestorPreorders = ancestorPreorders,
+                hint = ownHint,
+                node = node,
+                box = toolingGroupBox(method(group, "getBox")?.invoke(group)),
+            )
         @Suppress("UNCHECKED_CAST")
         val children = method(group, "getChildren")?.invoke(group) as? Iterable<*> ?: return
-        children.filterNotNull().forEach { child -> collectGroupSourceHints(child, currentHint, hints) }
+        children.filterNotNull().forEach { child ->
+            collectToolingGroupEntries(
+                group = child,
+                parentPreorder = preorder,
+                depth = depth + 1,
+                entries = entries,
+                ancestorPreorders = ancestorPreorders + preorder,
+            )
+        }
+    }
+
+    private data class ToolingGroupEntry(
+        val preorder: Int,
+        val parentPreorder: Int?,
+        val depth: Int,
+        val ancestorPreorders: List<Int>,
+        val hint: LayoutTreeSourceHint?,
+        val node: Any?,
+        val box: ToolingIntRect?,
+    )
+
+    private data class ToolingIntRect(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    ) {
+        fun contains(other: ToolingIntRect): Boolean =
+            left <= other.left && top <= other.top && right >= other.right && bottom >= other.bottom
+    }
+
+    private fun toolingGroupBox(box: Any?): ToolingIntRect? {
+        box ?: return null
+        val reflected =
+            ToolingIntRect(
+                left = method(box, "getLeft")?.invoke(box) as? Int ?: Int.MIN_VALUE,
+                top = method(box, "getTop")?.invoke(box) as? Int ?: Int.MIN_VALUE,
+                right = method(box, "getRight")?.invoke(box) as? Int ?: Int.MIN_VALUE,
+                bottom = method(box, "getBottom")?.invoke(box) as? Int ?: Int.MIN_VALUE,
+            ).takeIf { rect ->
+                rect.left != Int.MIN_VALUE && rect.top != Int.MIN_VALUE && rect.right != Int.MIN_VALUE && rect.bottom != Int.MIN_VALUE
+            }
+        if (reflected != null) return reflected
+        val values = INT_RECT_PATTERN.findAll(box.toString()).mapNotNull { it.value.toIntOrNull() }.toList()
+        return values.takeIf { it.size >= 4 }?.let { ToolingIntRect(it[0], it[1], it[2], it[3]) }
     }
 
     private fun sourceHint(
@@ -677,4 +759,5 @@ object AndroidComposeRendererInRobolectric {
     private const val UI_MODE_NIGHT_NO = 0x10
     private const val UI_MODE_NIGHT_YES = 0x20
     private const val DEFAULT_BACKGROUND_COLOR = -0x1
+    private val INT_RECT_PATTERN = Regex("-?\\d+")
 }

@@ -232,6 +232,60 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `correlates sibling source call group to following node group by preorder and bounds`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "LoginCard",
+                            location = FakeSourceLocation("LoginPreview.kt", 42),
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginCard", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(42, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `does not correlate sibling source call group when bounds disagree`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "UnrelatedHeader",
+                            location = FakeSourceLocation("LoginPreview.kt", 12),
+                            box = FakeIntRect(0, 0, 100, 40),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(16, 80, 304, 454),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        assertEquals(null, hints[System.identityHashCode(node)])
+    }
+
+    @Test
     fun `preview source fallback can enrich root layout node when tooling hints are absent`() {
         val outputFile = tempDir.resolve("layout-tree.json")
         val root =
@@ -257,7 +311,7 @@ class AndroidComposeRendererInRobolectricTest {
         val tree = outputFile.readText()
         assertTrue(tree.contains("\"sourceName\":\"LoginPreview\""), tree)
         assertTrue(tree.contains("\"sourceFile\":\"LoginPreview.kt\""), tree)
-        assertTrue(tree.contains("\"sourceLine\":1"), tree)
+        assertTrue(!tree.contains("\"sourceLine\""), tree)
         assertTrue(tree.contains("\"sourceHintKind\":\"preview-entrypoint-fallback\""), tree)
     }
 
@@ -421,6 +475,48 @@ class AndroidComposeRendererInRobolectricTest {
         private val name: String,
     ) {
         fun getName(): String = name
+    }
+
+    private class FakeToolingGroup(
+        private val name: String? = null,
+        private val location: FakeSourceLocation? = null,
+        private val node: Any? = null,
+        private val box: FakeIntRect? = null,
+        private val children: List<FakeToolingGroup> = emptyList(),
+    ) {
+        fun getName(): String? = name
+
+        fun getLocation(): FakeSourceLocation? = location
+
+        fun getNode(): Any? = node
+
+        fun getBox(): FakeIntRect? = box
+
+        fun getChildren(): List<FakeToolingGroup> = children
+    }
+
+    private class FakeSourceLocation(
+        private val sourceFile: String,
+        private val lineNumber: Int,
+    ) {
+        fun getSourceFile(): String = sourceFile
+
+        fun getLineNumber(): Int = lineNumber
+    }
+
+    private class FakeIntRect(
+        private val left: Int,
+        private val top: Int,
+        private val right: Int,
+        private val bottom: Int,
+    ) {
+        fun getLeft(): Int = left
+
+        fun getTop(): Int = top
+
+        fun getRight(): Int = right
+
+        fun getBottom(): Int = bottom
     }
 
     private class FakeSemanticsNode {
