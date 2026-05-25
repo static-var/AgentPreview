@@ -74,6 +74,7 @@ class AgentPreviewPlugin : Plugin<Project> {
             )
             it.projectPath.set(project.path)
             it.outputDirectory.set(extension.outputDirectory)
+            it.reportDirectory.set(project.layout.buildDirectory.dir("agentPreviewReports"))
             it.renderOutputDirectory.set(project.layout.buildDirectory.dir("agentPreview/render"))
             it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
             it.previewNameFilter.set(extension.previewNameFilter)
@@ -82,6 +83,16 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.viewportNameFilter.addAll(csvGradleProperty(project, "agentPreview.viewportFilter"))
             it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
+            it.maxCaptures.set(extension.maxCaptures)
+            it.cliMaxCaptures.set(project.providers.gradleProperty("agentPreview.maxCaptures"))
+            it.dryRun.set(
+                project.providers
+                    .gradleProperty("agentPreview.dryRun")
+                    .map(String::toBoolean)
+                    .orElse(false),
+            )
+            it.continueOnError.set(extension.continueOnError)
+            it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
             it.rendererRuntimeClasspath.from(rendererRuntimeClasspath)
