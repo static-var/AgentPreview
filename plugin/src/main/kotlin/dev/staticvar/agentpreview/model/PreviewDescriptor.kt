@@ -24,4 +24,5 @@ data class PreviewDescriptor(
     val fontScale: Float? = null,
     val showBackground: Boolean = false,
     val backgroundColor: Long? = null,
+    val previewParameter: PreviewParameterDescriptor? = null,
 )

@@ -7,10 +7,14 @@ package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.discovery.IsolatedPreviewParameterCountResolver
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
 import dev.staticvar.agentpreview.export.SnapshotExporter
+import dev.staticvar.agentpreview.model.CURRENT_SNAPSHOT_SCHEMA_VERSION
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
@@ -33,6 +37,8 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+
+private val PREVIEW_PARAMETER_ID_SUFFIX_REGEX = Regex(":previewParam-\\d+$")
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
@@ -74,10 +80,11 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
-        logDiagnostics(discoveryResult.diagnostics)
+        val expansionResult = expandPreviewParameters(discoveryResult.previews)
+        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
-            discoveryResult.previews
-                .filter { filters.isEmpty() || it.id in filters || it.name in filters }
+            expansionResult.previews
+                .filter { preview -> filters.isEmpty() || preview.matches(filters) }
         val outputRoot = outputDirectory.get().asFile
         if (outputRoot.exists()) {
             outputRoot.deleteRecursively()
@@ -100,8 +107,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val previewRenderer by lazy {
             PreviewRendererImpl(
                 robolectricSdk = robolectricSdk.get(),
-                previewClasspath =
-                    (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+                previewClasspath = previewClasspath(),
                 includeUnmergedSemantics = includeUnmergedSemantics.get(),
             )
         }
@@ -119,7 +125,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     }
                 val snapshot =
                     PreviewSnapshot(
-                        schemaVersion = 1,
+                        schemaVersion = CURRENT_SNAPSHOT_SCHEMA_VERSION,
                         preview =
                             PreviewMetadata(
                                 id = preview.id,
@@ -127,6 +133,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                                 group = preview.group,
                                 source = sourceLabel(preview),
                                 sourceSet = preview.sourceSet,
+                                previewParameter = preview.previewParameter,
                             ),
                         viewport = renderResult.viewport,
                         nodes =
@@ -174,6 +181,15 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             }
         }
 
+    private fun PreviewDescriptor.matches(filters: Set<String>): Boolean = id in filters || parentPreviewId() in filters || name in filters
+
+    private fun PreviewDescriptor.parentPreviewId(): String =
+        if (previewParameter?.index == null) {
+            id
+        } else {
+            id.replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
+        }
+
     private fun PreviewDescriptor.hasExplicitWidth(): Boolean = widthDp != null && widthDp > 0
 
     private fun PreviewDescriptor.hasExplicitHeight(): Boolean = heightDp != null && heightDp > 0
@@ -192,16 +208,30 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
+    private fun previewClasspath(): List<File> =
+        (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList()
+
+    private fun expandPreviewParameters(previews: List<PreviewDescriptor>) =
+        if (previewClassesDirs.files.isEmpty()) {
+            PreviewParameterExpansionResult(previews = previews)
+        } else {
+            PreviewParameterExpander(
+                IsolatedPreviewParameterCountResolver(previewClasspath()),
+            ).expand(previews)
+        }
+
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
         if (previewClassesDirs.files.isEmpty()) {
             emptySet()
         } else {
-            project.configurations
-                .detachedConfiguration(
-                    project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                    project.dependencies.create("androidx.test:core:1.7.0"),
-                    project.dependencies.create("androidx.test:monitor:1.8.0"),
-                ).resolve()
+            runCatching {
+                project.configurations
+                    .detachedConfiguration(
+                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                        project.dependencies.create("androidx.test:core:1.7.0"),
+                        project.dependencies.create("androidx.test:monitor:1.8.0"),
+                    ).resolve()
+            }.getOrDefault(emptySet())
         }
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
@@ -220,7 +250,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = previewRuntimeClasspath.files.toList(),
+                runtimeClasspath = (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

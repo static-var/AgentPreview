@@ -106,6 +106,18 @@ class BytecodePreviewScannerTest {
     }
 
     @Test
+    fun `discovers preview with single preview parameter`() {
+        val result = scanTestClasses()
+
+        val preview = result.previews.single { it.methodName == "parameterizedPreview" }
+        val parameter = requireNotNull(preview.previewParameter)
+        assertEquals("dev.staticvar.agentpreview.scanner.fixtures.NameProvider", parameter.providerClassName)
+        assertEquals(1, parameter.limit)
+        assertEquals(0, parameter.parameterIndex)
+        assertEquals("java.lang.String", parameter.parameterType)
+    }
+
+    @Test
     fun `reports diagnostic for preview methods with parameters`() {
         val result = scanTestClasses()
 

@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.discovery
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.BytecodePreviewScanner
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanInput
@@ -40,8 +41,9 @@ class PreviewDiscovery(
                     ),
                 )
 
+        val mapped = scanResult.previews.flatMap(::toPreviewDescriptors)
         return PreviewDiscoveryResult(
-            previews = scanResult.previews.flatMap(::toPreviewDescriptors),
+            previews = mapped,
             diagnostics = scanResult.diagnostics,
         )
     }
@@ -64,6 +66,14 @@ class PreviewDiscovery(
                 fontScale = annotation.fontScale,
                 showBackground = annotation.showBackground,
                 backgroundColor = annotation.backgroundColor,
+                previewParameter =
+                    scannedPreview.previewParameter?.let { parameter ->
+                        PreviewParameterDescriptor(
+                            providerClassName = parameter.providerClassName,
+                            parameterType = parameter.parameterType,
+                            limit = parameter.limit,
+                        )
+                    },
             )
         }
 

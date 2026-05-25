@@ -113,6 +113,28 @@ class PreviewDiscoveryTest {
     }
 
     @Test
+    fun `discovers preview parameter metadata without executing provider`() {
+        ProviderExecutionProbe.instantiationCount = 0
+        val discovery =
+            PreviewDiscovery(
+                projectPath = ":app",
+                sourceSetName = "test",
+                classesDirs = listOf(testClassesDir()),
+                runtimeClasspath = emptyList(),
+            )
+
+        val preview =
+            discovery
+                .discover()
+                .single { it.fullyQualifiedFunctionName.endsWith("discovery.parameterizedPreview") }
+
+        assertEquals(0, ProviderExecutionProbe.instantiationCount)
+        assertEquals(":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview", preview.id)
+        assertEquals(null, preview.previewParameter?.index)
+        assertEquals("dev.staticvar.agentpreview.discovery.StringProvider", preview.previewParameter?.providerClassName)
+    }
+
+    @Test
     fun `reports empty list when there are no class directories`() {
         val discovery =
             PreviewDiscovery(

@@ -52,6 +52,8 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 request.fontScale?.toString().orEmpty(),
                 request.showBackground.toString(),
                 request.backgroundColor?.toString().orEmpty(),
+                request.previewParameterProviderClassName.orEmpty(),
+                request.previewParameterIndex?.toString().orEmpty(),
                 harnessResultFile.absolutePath,
             )
         val process =

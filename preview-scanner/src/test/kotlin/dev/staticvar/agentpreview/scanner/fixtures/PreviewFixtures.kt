@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview.scanner.fixtures
 
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 
 @Preview(name = "Phone", group = "Auth", widthDp = 393, heightDp = 852, showBackground = true)
 annotation class PhonePreview
@@ -38,9 +40,20 @@ object ObjectPreviewFixtures {
     }
 }
 
+class NameProvider : PreviewParameterProvider<String> {
+    override val values: Sequence<String> = sequenceOf("Ada", "Grace")
+}
+
 class ClassPreviewFixtures {
     @MultiDevicePreview
     fun classPreview() = Unit
+
+    @Preview(name = "Parameterized")
+    fun parameterizedPreview(
+        @PreviewParameter(NameProvider::class, limit = 1) name: String,
+    ) {
+        check(name.isNotEmpty())
+    }
 
     @Preview(name = "Needs Args")
     fun unsupportedPreview(name: String) {

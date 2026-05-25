@@ -8,6 +8,7 @@ package dev.staticvar.agentpreview.render
 import dev.staticvar.agentpreview.model.Bounds
 import dev.staticvar.agentpreview.model.DpBounds
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.model.SnapshotLayoutNode
 import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
@@ -77,6 +78,36 @@ class PreviewRendererImplTest {
         )
         assertEquals(listOf(File("app/classes"), File("app/runtime.jar")), processRunner.previewClasspath)
         assertTrue(result.screenshotFile.parentFile.isDirectory)
+    }
+
+    @Test
+    fun `passes preview parameter metadata to isolated harness request`() {
+        val processRunner = RecordingRenderProcessRunner()
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = processRunner,
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.ParameterizedPreview:previewParam-1",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.ParameterizedPreview",
+                fullyQualifiedClassName = "dev.example.ParameterizedPreviewKt",
+                sourceFile = "ParameterizedPreview.kt",
+                previewParameter =
+                    PreviewParameterDescriptor(
+                        providerClassName = "dev.example.StringProvider",
+                        parameterType = "java.lang.String",
+                        index = 1,
+                    ),
+            )
+
+        renderer.render(preview, Viewport(platform = "android", name = "phone", width = 1, height = 1, density = 1.0f), tempDir)
+
+        assertEquals("dev.example.StringProvider", processRunner.request.previewParameterProviderClassName)
+        assertEquals(1, processRunner.request.previewParameterIndex)
     }
 
     @Test

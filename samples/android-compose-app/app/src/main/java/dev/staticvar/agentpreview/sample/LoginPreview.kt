@@ -26,10 +26,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun LoginCard() {
+fun LoginCard(email: String = "agent@example.com") {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -45,7 +47,7 @@ fun LoginCard() {
                             .background(Color(0xFFECE6D8))
                             .padding(16.dp),
                 ) {
-                    Text("agent@example.com")
+                    Text(email)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -83,4 +85,14 @@ fun LoginPreview() {
 @Composable
 fun ResponsiveLoginPreview() {
     LoginCard()
+}
+
+class LoginEmailProvider : PreviewParameterProvider<String> {
+    override val values: Sequence<String> = sequenceOf("agent@example.com", "designer@example.com")
+}
+
+@Preview(name = "Parameterized Login", group = "Auth", showBackground = true)
+@Composable
+fun ParameterizedLoginPreview(@PreviewParameter(LoginEmailProvider::class) email: String) {
+    LoginCard(email)
 }

@@ -9,6 +9,7 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
@@ -59,7 +60,8 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
         previews.forEach { preview ->
             val label = preview.name ?: preview.fullyQualifiedFunctionName
-            logger.lifecycle("${preview.id}  $label")
+            val parameterNote = previewParameterNote(preview.previewParameter)
+            logger.lifecycle("${preview.id}  $label$parameterNote")
         }
     }
 
@@ -71,6 +73,13 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
+    private fun previewParameterNote(parameter: PreviewParameterDescriptor?): String =
+        parameter
+            ?.let {
+                val limit = it.limit?.toString() ?: "default cap 50"
+                "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; capture ids append :previewParam-N]"
+            }.orEmpty()
+
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->
             val message = "AgentPreview scanner: ${diagnostic.message}"
@@ -81,13 +90,25 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         }
     }
 
+    private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
+        if (previewClassesDirs.files.isEmpty()) {
+            emptySet()
+        } else {
+            runCatching {
+                project.configurations
+                    .detachedConfiguration(
+                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                    ).resolve()
+            }.getOrDefault(emptySet())
+        }
+
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = previewRuntimeClasspath.files.toList(),
+                runtimeClasspath = (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked()).toList(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

@@ -14,4 +14,5 @@ data class PreviewMetadata(
     val group: String? = null,
     val source: String? = null,
     val sourceSet: String? = null,
+    val previewParameter: PreviewParameterDescriptor? = null,
 )

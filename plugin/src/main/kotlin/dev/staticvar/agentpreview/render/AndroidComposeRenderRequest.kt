@@ -23,4 +23,6 @@ data class AndroidComposeRenderRequest(
     val fontScale: Float? = null,
     val showBackground: Boolean = false,
     val backgroundColor: Long? = null,
+    val previewParameterProviderClassName: String? = null,
+    val previewParameterIndex: Int? = null,
 )

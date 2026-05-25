@@ -28,7 +28,9 @@ object AndroidComposeRenderHarness {
         System.setProperty("agentpreview.render.fontScale", args[12])
         System.setProperty("agentpreview.render.showBackground", args[13])
         System.setProperty("agentpreview.render.backgroundColor", args[14])
-        val resultFile = File(args[15])
+        System.setProperty("agentpreview.render.previewParameterProviderClassName", args[15])
+        System.setProperty("agentpreview.render.previewParameterIndex", args[16])
+        val resultFile = File(args[17])
 
         val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
@@ -53,6 +55,6 @@ object AndroidComposeRenderHarness {
         generateSequence(this) { throwable -> throwable.cause }
             .any { throwable -> throwable.javaClass.name == RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME }
 
-    private const val ARG_COUNT = 16
+    private const val ARG_COUNT = 18
     private const val RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME = "android.content.res.Resources\$NotFoundException"
 }
