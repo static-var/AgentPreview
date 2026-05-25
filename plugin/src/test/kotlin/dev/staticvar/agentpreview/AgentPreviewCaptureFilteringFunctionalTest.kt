@@ -318,6 +318,18 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `capture fails with actionable error for invalid dry run and does not render`() {
+        writeSettings()
+        writeBuildFile()
+        writeSinglePreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.dryRun=tru")
+
+        assertTrue(result.output.contains("agentPreview.dryRun must be true or false"), result.output)
+        assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png").exists())
+    }
+
+    @Test
     fun `capture fails with actionable error for invalid continue on error`() {
         writeSettings()
         writeBuildFile()

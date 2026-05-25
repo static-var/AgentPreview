@@ -89,6 +89,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     abstract val dryRun: Property<Boolean>
 
     @get:Input
+    @get:Optional
+    abstract val cliDryRun: Property<String>
+
+    @get:Input
     abstract val continueOnError: Property<Boolean>
 
     @get:Input
@@ -168,7 +172,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 (discoveryResult.previews.size - expansionCandidates.size) +
                     (expansionResult.previews.size - previews.size),
             skippedByViewportFilterCount = plannedCaptures.sumOf { it.skippedByViewportFilter },
-            dryRun = dryRun.get(),
+            dryRun = effectiveDryRun(),
             continueOnError = effectiveContinueOnError(),
             maxCaptures = effectiveMaxCaptures(),
             previewFilters = filters.toList().sorted(),
@@ -482,6 +486,13 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         return value
     }
 
+    private fun effectiveDryRun(): Boolean {
+        val raw = cliDryRun.orNull
+        val value = raw?.toBooleanStrictOrNull()
+        require(raw == null || value != null) { dryRunError() }
+        return value ?: dryRun.get()
+    }
+
     private fun effectiveContinueOnError(): Boolean {
         val raw = cliContinueOnError.orNull
         val value = raw?.toBooleanStrictOrNull()
@@ -496,6 +507,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun maxCapturesError(): String =
         "agentPreview.maxCaptures must be a non-negative integer. " +
             "Configure agentPreview { maxCaptures.set(n) } or pass -PagentPreview.maxCaptures=n."
+
+    private fun dryRunError(): String =
+        "agentPreview.dryRun must be true or false. " +
+            "Pass -PagentPreview.dryRun=true|false."
 
     private fun continueOnErrorError(): String =
         "agentPreview.continueOnError must be true or false. " +
