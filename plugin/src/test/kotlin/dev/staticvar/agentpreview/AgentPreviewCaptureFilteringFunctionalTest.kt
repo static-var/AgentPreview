@@ -81,6 +81,24 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `CLI preview name filter matches shorthand preview parameter id`() {
+        writeSettings()
+        writeBuildFile(
+            """
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val listedParentId = listedParameterizedPreviewId()
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.previewNameFilter=previewParam-1")
+
+        assertFalse(result.output.contains("$listedParentId:previewParam-0"), result.output)
+        assertTrue(result.output.contains("$listedParentId:previewParam-1"), result.output)
+    }
+
+    @Test
     fun `CLI preview name filter matches simple function name fragment`() {
         writeSettings()
         writeBuildFile(

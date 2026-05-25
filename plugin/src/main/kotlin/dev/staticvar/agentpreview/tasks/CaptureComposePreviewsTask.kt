@@ -40,6 +40,7 @@ import org.gradle.api.tasks.TaskAction
 import java.io.File
 
 private val PREVIEW_PARAMETER_ID_SUFFIX_REGEX = Regex(":previewParam-\\d+$")
+private val PREVIEW_PARAMETER_SHORTHAND_ID_REGEX = Regex("^previewParam-\\d+$")
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
@@ -228,21 +229,33 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     private fun PreviewDescriptor.matchesBeforeExpansion(filters: Set<String>): Boolean =
         filters.any { filter ->
-            val baseFilter = filter.withoutPreviewParameterSuffix()
-            id.matchesFilter(baseFilter) ||
-                name.matchesFilter(baseFilter) ||
-                fullyQualifiedFunctionName.matchesFilter(baseFilter)
+            if (filter.isPreviewParameterShorthand()) {
+                previewParameter != null
+            } else {
+                val baseFilter = filter.withoutPreviewParameterSuffix()
+                id.matchesFilter(baseFilter) ||
+                    name.matchesFilter(baseFilter) ||
+                    fullyQualifiedFunctionName.matchesFilter(baseFilter)
+            }
         }
 
     private fun PreviewDescriptor.matches(filters: Set<String>): Boolean =
         filters.any { filter ->
-            if (filter.hasPreviewParameterSuffix()) {
-                id == filter
-            } else {
-                id.matchesFilter(filter) ||
-                    parentPreviewId().matchesFilter(filter) ||
-                    name.matchesFilter(filter) ||
-                    fullyQualifiedFunctionName.matchesFilter(filter)
+            when {
+                filter.isPreviewParameterShorthand() -> {
+                    id.endsWith(":$filter")
+                }
+
+                filter.hasPreviewParameterSuffix() -> {
+                    id == filter
+                }
+
+                else -> {
+                    id.matchesFilter(filter) ||
+                        parentPreviewId().matchesFilter(filter) ||
+                        name.matchesFilter(filter) ||
+                        fullyQualifiedFunctionName.matchesFilter(filter)
+                }
             }
         }
 
@@ -253,6 +266,8 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         }
 
     private fun String.hasPreviewParameterSuffix(): Boolean = PREVIEW_PARAMETER_ID_SUFFIX_REGEX.containsMatchIn(this)
+
+    private fun String.isPreviewParameterShorthand(): Boolean = PREVIEW_PARAMETER_SHORTHAND_ID_REGEX.matches(this)
 
     private fun String.withoutPreviewParameterSuffix(): String = replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
 
