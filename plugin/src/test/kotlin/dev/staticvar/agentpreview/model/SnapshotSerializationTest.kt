@@ -21,7 +21,7 @@ class SnapshotSerializationTest {
     fun `snapshot serializes compact agent model`() {
         val snapshot =
             PreviewSnapshot(
-                schemaVersion = 1,
+                schemaVersion = 2,
                 preview =
                     PreviewMetadata(
                         id = ":app:commonMain:LoginPreview",
@@ -48,7 +48,7 @@ class SnapshotSerializationTest {
 
         val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
 
-        assertTrue(encoded.contains("\"schemaVersion\": 1"))
+        assertTrue(encoded.contains("\"schemaVersion\": 2"))
         assertTrue(encoded.contains("\"screenshot\"").not())
         assertTrue(encoded.contains("\"rawSemantics\"").not())
         assertTrue(encoded.contains("\"render\""))
@@ -60,8 +60,19 @@ class SnapshotSerializationTest {
     fun `snapshot serializes experimental layout tree when present`() {
         val snapshot =
             PreviewSnapshot(
-                schemaVersion = 1,
-                preview = PreviewMetadata(id = "Preview", name = "Preview", sourceSet = "main"),
+                schemaVersion = 2,
+                preview =
+                    PreviewMetadata(
+                        id = "Preview",
+                        name = "Preview",
+                        sourceSet = "main",
+                        previewParameter =
+                            PreviewParameterDescriptor(
+                                providerClassName = "dev.example.Provider",
+                                parameterType = "kotlin.String",
+                                index = 0,
+                            ),
+                    ),
                 viewport = Viewport(width = 100, height = 50, density = 2.0f),
                 nodes = emptyList(),
                 layoutTree =
@@ -87,6 +98,8 @@ class SnapshotSerializationTest {
 
         val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
 
+        assertTrue(encoded.contains("\"previewParameter\""))
+        assertTrue(encoded.contains("\"index\": 0"))
         assertTrue(encoded.contains("\"layoutTree\""))
         assertTrue(encoded.contains("\"boundsPx\""))
         assertTrue(encoded.contains("\"boundsDp\""))

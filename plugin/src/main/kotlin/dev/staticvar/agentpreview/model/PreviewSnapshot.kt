@@ -7,6 +7,8 @@ package dev.staticvar.agentpreview.model
 
 import kotlinx.serialization.Serializable
 
+const val CURRENT_SNAPSHOT_SCHEMA_VERSION = 2
+
 @Serializable
 data class PreviewSnapshot(
     val schemaVersion: Int,

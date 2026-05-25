@@ -54,9 +54,138 @@ class AgentPreviewPluginFunctionalTest {
                 .build()
 
         assertTrue(result.output.contains("parameterizedPreview  Parameterized"), result.output)
-        assertTrue(result.output.contains("values expand during capture"), result.output)
+        assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
         assertFalse(result.output.contains("parameterizedPreview:previewParam-0"), result.output)
         assertTrue(result.output.contains(":listComposePreviews"), result.output)
+    }
+
+    @Test
+    fun `capture filter accepts listed parent id for all preview parameter values`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val listResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews", "--warning-mode", "all")
+                .withPluginClasspath()
+                .build()
+        val listedParentId =
+            listResult.output
+                .lineSequence()
+                .first { it.contains("  Parameterized") }
+                .trim()
+                .substringBefore("  ")
+
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+                previewNameFilter.set(listOf("$listedParentId"))
+            }
+            """.trimIndent(),
+        )
+
+        val captureResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, captureResult.task(":captureComposePreviews")?.outcome)
+        assertTrue(captureResult.output.contains("$listedParentId:previewParam-0"), captureResult.output)
+        assertTrue(captureResult.output.contains("$listedParentId:previewParam-1"), captureResult.output)
+    }
+
+    @Test
+    fun `capture filter accepts expanded preview parameter id for one value`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val listedParentId =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews", "--warning-mode", "all")
+                .withPluginClasspath()
+                .build()
+                .output
+                .lineSequence()
+                .first { it.contains("  Parameterized") }
+                .trim()
+                .substringBefore("  ")
+        val expandedId = "$listedParentId:previewParam-1"
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+                previewNameFilter.set(listOf("$expandedId"))
+            }
+            """.trimIndent(),
+        )
+
+        val captureResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, captureResult.task(":captureComposePreviews")?.outcome)
+        assertFalse(captureResult.output.contains("$listedParentId:previewParam-0"), captureResult.output)
+        assertTrue(captureResult.output.contains(expandedId), captureResult.output)
     }
 
     @Test
@@ -258,6 +387,7 @@ class AgentPreviewPluginFunctionalTest {
                     "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
                 ).readText()
         assertTrue(snapshotJson.contains("\"Login\""))
+        assertTrue(snapshotJson.contains("\"schemaVersion\": 2"))
         assertTrue(snapshotJson.contains("\"render\""))
         assertTrue(snapshotJson.contains("\"mode\": \"fake\""))
     }

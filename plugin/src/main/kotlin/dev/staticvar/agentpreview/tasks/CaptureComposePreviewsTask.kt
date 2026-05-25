@@ -14,6 +14,7 @@ import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
 import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
 import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
 import dev.staticvar.agentpreview.export.SnapshotExporter
+import dev.staticvar.agentpreview.model.CURRENT_SNAPSHOT_SCHEMA_VERSION
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
 import dev.staticvar.agentpreview.model.PreviewSnapshot
@@ -36,6 +37,8 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+
+private val PREVIEW_PARAMETER_ID_SUFFIX_REGEX = Regex(":previewParam-\\d+$")
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
@@ -81,7 +84,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
             expansionResult.previews
-                .filter { filters.isEmpty() || it.id in filters || it.name in filters }
+                .filter { preview -> filters.isEmpty() || preview.matches(filters) }
         val outputRoot = outputDirectory.get().asFile
         if (outputRoot.exists()) {
             outputRoot.deleteRecursively()
@@ -122,7 +125,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     }
                 val snapshot =
                     PreviewSnapshot(
-                        schemaVersion = 1,
+                        schemaVersion = CURRENT_SNAPSHOT_SCHEMA_VERSION,
                         preview =
                             PreviewMetadata(
                                 id = preview.id,
@@ -176,6 +179,15 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                     density = configured.density,
                 )
             }
+        }
+
+    private fun PreviewDescriptor.matches(filters: Set<String>): Boolean = id in filters || parentPreviewId() in filters || name in filters
+
+    private fun PreviewDescriptor.parentPreviewId(): String =
+        if (previewParameter?.index == null) {
+            id
+        } else {
+            id.replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
         }
 
     private fun PreviewDescriptor.hasExplicitWidth(): Boolean = widthDp != null && widthDp > 0

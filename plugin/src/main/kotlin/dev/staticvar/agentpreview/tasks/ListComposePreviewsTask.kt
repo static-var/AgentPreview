@@ -77,7 +77,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         parameter
             ?.let {
                 val limit = it.limit?.toString() ?: "default cap 50"
-                "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; values expand during capture]"
+                "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; capture ids append :previewParam-N]"
             }.orEmpty()
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
