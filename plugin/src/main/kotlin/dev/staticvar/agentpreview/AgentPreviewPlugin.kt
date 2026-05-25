@@ -42,6 +42,9 @@ class AgentPreviewPlugin : Plugin<Project> {
                 },
             )
             it.previewNameFilter.set(extension.previewNameFilter)
+            it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
+            it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
+            it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
             it.robolectricSdk.set(extension.android.robolectricSdk)
@@ -66,6 +69,11 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.outputDirectory.set(extension.outputDirectory)
             it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
             it.previewNameFilter.set(extension.previewNameFilter)
+            it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
+            it.viewportNameFilter.set(extension.viewportNameFilter)
+            it.viewportNameFilter.addAll(csvGradleProperty(project, "agentPreview.viewportFilter"))
+            it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
+            it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
             it.androidViewportsJson.set(
@@ -92,4 +100,17 @@ class AgentPreviewPlugin : Plugin<Project> {
             .gradleProperty("agentPreview.javaMajorVersion")
             .map(String::toInt)
             .orElse(Runtime.version().feature())
+
+    private fun csvGradleProperty(
+        project: Project,
+        name: String,
+    ) = project.providers
+        .gradleProperty(name)
+        .map { raw -> raw.splitCsv() }
+        .orElse(emptyList())
+
+    private fun String.splitCsv(): List<String> =
+        split(',')
+            .map(String::trim)
+            .filter(String::isNotEmpty)
 }

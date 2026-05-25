@@ -41,6 +41,30 @@ class AgentPreviewViewportFunctionalTest {
     }
 
     @Test
+    fun `capture task filters configured viewports from CLI`() {
+        writeBasicSettings()
+        writeBuildFile()
+        writePreviewIndex(
+            id = ":app:main:ResponsivePreview",
+            name = "Responsive",
+            functionName = "dev.staticvar.ResponsivePreviewKt.ResponsivePreview",
+            sourceFile = "ResponsivePreview.kt",
+            widthDp = -1,
+            heightDp = -1,
+        )
+
+        GradleRunner
+            .create()
+            .withProjectDir(projectDir)
+            .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true", "-PagentPreview.viewportFilter=phone")
+            .withPluginClasspath()
+            .build()
+
+        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-main-ResponsivePreview/android-phone/snapshot.json").isFile)
+        assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-main-ResponsivePreview/android-tablet").exists())
+    }
+
+    @Test
     fun `capture task uses explicit preview dimensions instead of configured Android viewports`() {
         writeBasicSettings()
         writeBuildFile()
