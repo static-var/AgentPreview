@@ -192,15 +192,303 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `extracts layout tree source hints when tooling identity matches runtime node`() {
+        val child =
+            FakeLayoutNode(
+                semanticsId = 7,
+                coordinates = FakeCoordinates(width = 40, height = 20, rootX = 10.0f, rootY = 6.0f),
+                measurePolicy = FakeRowMeasurePolicy(),
+                modifier = FakeModifier("padding"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+            )
+        val root =
+            FakeLayoutNode(
+                semanticsId = 1,
+                coordinates = FakeCoordinates(width = 100, height = 50, rootX = 0.0f, rootY = 0.0f),
+                measurePolicy = FakeColumnMeasurePolicy(),
+                modifier = FakeModifier("fillMaxSize"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+                children = listOf(child),
+            )
+        val sourceHints =
+            mapOf(
+                System.identityHashCode(child) to
+                    AndroidComposeRendererInRobolectric.LayoutTreeSourceHint(
+                        sourceName = "LoginButton",
+                        sourceFile = "LoginPreview.kt",
+                        sourceLine = 42,
+                        sourceHintKind = "tooling-nearest-app-ancestor",
+                    ),
+            )
+
+        val tree = AndroidComposeRendererInRobolectric.extractLayoutTree(root, density = 2.0f, sourceHints = sourceHints)
+
+        val enriched = tree.children.single()
+        assertEquals("LoginButton", enriched.sourceName)
+        assertEquals("LoginPreview.kt", enriched.sourceFile)
+        assertEquals(42, enriched.sourceLine)
+        assertEquals("tooling-nearest-app-ancestor", enriched.sourceHintKind)
+        assertTrue(enriched.componentHint.orEmpty().contains("FakeRowMeasurePolicy"))
+    }
+
+    @Test
+    fun `accessible no arg reflection invokes public method on non-public implementation`() {
+        val record = FakePackagePrivateRecord(setOf("composition-data"))
+
+        val store = AndroidComposeRendererInRobolectric.accessibleNoArgMethod(record, "getStore")?.invoke(record)
+
+        assertEquals(setOf("composition-data"), store)
+    }
+
+    @Test
+    fun `correlates sibling source call group to following node group by preorder and bounds`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "LoginCard",
+                            location = FakeSourceLocation("LoginPreview.kt", 42),
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginCard", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(42, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `does not correlate sibling source call group when bounds disagree`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "UnrelatedHeader",
+                            location = FakeSourceLocation("LoginPreview.kt", 12),
+                            box = FakeIntRect(0, 0, 100, 40),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(16, 80, 304, 454),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        assertEquals(null, hints[System.identityHashCode(node)])
+    }
+
+    @Test
+    fun `app source in non preferred file beats nearer compose runtime ancestor`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                name = "LoginPreview",
+                location = FakeSourceLocation("LoginPreview.kt", 18),
+                box = FakeIntRect(0, 0, 393, 852),
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "OtherComposable",
+                            location = FakeSourceLocation("OtherComposable.kt", 24),
+                            box = FakeIntRect(0, 0, 393, 852),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        name = "ReusableComposeNode",
+                                        location = FakeSourceLocation("Layout.kt", 83),
+                                        box = FakeIntRect(0, 0, 393, 852),
+                                        children =
+                                            listOf(
+                                                FakeToolingGroup(
+                                                    node = node,
+                                                    box = FakeIntRect(0, 0, 393, 852),
+                                                ),
+                                            ),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("OtherComposable", hint.sourceName)
+        assertEquals("OtherComposable.kt", hint.sourceFile)
+        assertEquals(24, hint.sourceLine)
+        assertEquals("tooling-nearest-app-ancestor", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `preferred preview source breaks ties among app siblings`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "OtherComposable",
+                            location = FakeSourceLocation("OtherComposable.kt", 24),
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                        FakeToolingGroup(
+                            name = "LoginPreview",
+                            location = FakeSourceLocation("LoginPreview.kt", 18),
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginPreview", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(18, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `prefers app source ancestor over nearer compose runtime ancestor`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                name = "LoginPreview",
+                location = FakeSourceLocation("LoginPreview.kt", 18),
+                box = FakeIntRect(0, 0, 393, 852),
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "ReusableComposeNode",
+                            location = FakeSourceLocation("Layout.kt", 83),
+                            box = FakeIntRect(0, 0, 393, 852),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        node = node,
+                                        box = FakeIntRect(0, 0, 393, 852),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginPreview", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(18, hint.sourceLine)
+        assertEquals("tooling-nearest-app-ancestor", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `prefers app sibling over nearer compose runtime ancestor when bounds contain node`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "LoginCard",
+                            location = FakeSourceLocation("LoginPreview.kt", 42),
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                        FakeToolingGroup(
+                            name = "ReusableComposeNode",
+                            location = FakeSourceLocation("Layout.kt", 85),
+                            box = FakeIntRect(16, 16, 304, 454),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        node = node,
+                                        box = FakeIntRect(16, 16, 304, 454),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginCard", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(42, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `preview source fallback can enrich root layout node when tooling hints are absent`() {
+        val outputFile = tempDir.resolve("layout-tree.json")
+        val root =
+            FakeLayoutNode(
+                semanticsId = 1,
+                coordinates = FakeCoordinates(width = 100, height = 50, rootX = 0.0f, rootY = 0.0f),
+                measurePolicy = FakeColumnMeasurePolicy(),
+                modifier = FakeModifier("fillMaxSize"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+            )
+
+        AndroidComposeRendererInRobolectric.writeLayoutTreeFromComposeView(
+            ComposeRoot(root),
+            outputFile,
+            density = 2.0f,
+            previewSourceFallback =
+                AndroidComposeRendererInRobolectric.PreviewSourceFallback(
+                    className = "dev.example.LoginPreviewKt",
+                    methodName = "LoginPreview",
+                ),
+        )
+
+        val tree = outputFile.readText()
+        assertTrue(tree.contains("\"sourceName\":\"LoginPreview\""), tree)
+        assertTrue(tree.contains("\"sourceFile\":\"LoginPreview.kt\""), tree)
+        assertTrue(!tree.contains("\"sourceLine\""), tree)
+        assertTrue(tree.contains("\"sourceHintKind\":\"preview-entrypoint-fallback\""), tree)
+    }
+
+    @Test
     fun `missing compose root writes empty layout tree sidecar and warns`() {
         val outputFile = tempDir.resolve("layout-tree.json")
 
         val warning =
             captureStderr {
                 AndroidComposeRendererInRobolectric::class.java
-                    .getDeclaredMethod("writeLayoutTree", Any::class.java, File::class.java, Float::class.javaPrimitiveType)
-                    .apply { isAccessible = true }
-                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f)
+                    .getDeclaredMethod(
+                        "writeLayoutTree",
+                        Any::class.java,
+                        File::class.java,
+                        Float::class.javaPrimitiveType,
+                        AndroidComposeRendererInRobolectric.ToolingCompositionRecord::class.java,
+                        AndroidComposeRendererInRobolectric.PreviewSourceFallback::class.java,
+                    ).apply { isAccessible = true }
+                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f, null, null)
             }
 
         assertEquals("[]", outputFile.readText())
@@ -261,6 +549,12 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     private class ViewWithoutComposeRoot
+
+    private class ComposeRoot(
+        private val root: Any,
+    ) {
+        fun getRoot(): Any = root
+    }
 
     private class ComposeRootWithBrokenLayoutNode {
         fun getRoot(): Any = error("boom")
@@ -339,6 +633,54 @@ class AndroidComposeRendererInRobolectricTest {
         private val name: String,
     ) {
         fun getName(): String = name
+    }
+
+    private class FakePackagePrivateRecord(
+        private val store: Set<String>,
+    ) {
+        fun getStore(): Set<String> = store
+    }
+
+    private class FakeToolingGroup(
+        private val name: String? = null,
+        private val location: FakeSourceLocation? = null,
+        private val node: Any? = null,
+        private val box: FakeIntRect? = null,
+        private val children: List<FakeToolingGroup> = emptyList(),
+    ) {
+        fun getName(): String? = name
+
+        fun getLocation(): FakeSourceLocation? = location
+
+        fun getNode(): Any? = node
+
+        fun getBox(): FakeIntRect? = box
+
+        fun getChildren(): List<FakeToolingGroup> = children
+    }
+
+    private class FakeSourceLocation(
+        private val sourceFile: String,
+        private val lineNumber: Int,
+    ) {
+        fun getSourceFile(): String = sourceFile
+
+        fun getLineNumber(): Int = lineNumber
+    }
+
+    private class FakeIntRect(
+        private val left: Int,
+        private val top: Int,
+        private val right: Int,
+        private val bottom: Int,
+    ) {
+        fun getLeft(): Int = left
+
+        fun getTop(): Int = top
+
+        fun getRight(): Int = right
+
+        fun getBottom(): Int = bottom
     }
 
     private class FakeSemanticsNode {

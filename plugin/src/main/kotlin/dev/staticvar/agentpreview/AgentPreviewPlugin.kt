@@ -109,6 +109,7 @@ class AgentPreviewPlugin : Plugin<Project> {
             project,
             project.configurations.detachedConfiguration(
                 project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                project.dependencies.create("androidx.compose.ui:ui-tooling-data:1.11.2"),
             ),
         )
 
@@ -117,6 +118,7 @@ class AgentPreviewPlugin : Plugin<Project> {
             project,
             project.configurations.detachedConfiguration(
                 project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                project.dependencies.create("androidx.compose.ui:ui-tooling-data:1.11.2"),
                 project.dependencies.create("androidx.test:core:1.7.0"),
                 project.dependencies.create("androidx.test:monitor:1.8.0"),
             ),

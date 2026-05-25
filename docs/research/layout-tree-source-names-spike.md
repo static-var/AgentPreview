@@ -134,17 +134,17 @@ Avoid replacing existing `componentHint`. Add nullable, best-effort fields under
   "sourceLine": 42,
   "sourceColumn": null,
   "sourcePackageHash": 123456,
-  "sourceNameConfidence": "tooling-ancestor-node-identity"
+  "sourceHintKind": "tooling-nearest-app-ancestor"
 }
 ```
 
 Recommended semantics:
 
-- `sourceName`: nullable composable/tooling group name nearest to the layout node.
+- `sourceName`: nullable composable/tooling group name correlated to the layout node, preferring app/source-file groups over Compose runtime internals.
 - `sourceFile`, `sourceLine`, `sourceColumn`, `sourcePackageHash`: nullable source location parts from `SourceLocation`.
-- `sourceNameConfidence`: optional nullable diagnostic enum/string such as `tooling-node-identity`, `tooling-ancestor-node-identity`, `tooling-bounds-preorder`, or `absent`.
+- `sourceHintKind`: optional nullable diagnostic enum/string such as `tooling-node-identity`, `tooling-nearest-app-ancestor`, `tooling-sibling-preorder-app`, `tooling-useful-framework-ancestor`, `tooling-framework-ancestor`, or `preview-entrypoint-fallback`.
 
-Do not require these fields for consumers. Do not fail snapshot extraction when tooling data is unavailable.
+Do not require these fields for consumers. Tooling hints may still fall back to framework/internal groups when no app group can be correlated within ancestry/preorder/bounds constraints; CMP Android-target captures may remain preview-entrypoint-fallback-only when composition tooling data is unavailable. Do not fail snapshot extraction when tooling data is unavailable.
 
 ## Production recommendation
 
