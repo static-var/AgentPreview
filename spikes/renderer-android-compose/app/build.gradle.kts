@@ -43,6 +43,7 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("androidx.test.ext:junit:1.3.0")
     testImplementation("androidx.compose.ui:ui-test-junit4")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.63.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.63.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose-preview-scanner-support:1.63.0")

@@ -33,6 +33,11 @@ import androidx.compose.ui.tooling.data.asTree
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlin.test.assertTrue
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,8 +68,7 @@ class CmpCompositionToolingDataProbeTest {
         val rootLayoutNode = composeView.javaClass.methods.single { it.name == "getRoot" && it.parameterTypes.isEmpty() }.invoke(composeView)
         val layoutIdentities = layoutNodes(rootLayoutNode).map { System.identityHashCode(it) }.toSet()
         val groups = record.store.map { it.asTree().toCmpProbeGroup(layoutIdentities) }
-        val json = groups.joinToString(prefix = "[\n", separator = ",\n", postfix = "\n]") { it.toJson("  ") }
-        println(json)
+        println(prettyJson.encodeToString(buildJsonArray { groups.forEach { add(it.toJsonElement()) } }))
 
         val flat = groups.flatMap { it.flatten() }
         assertTrue(flat.any { it.name == "CmpSourceNamesProbeScreen" })
@@ -130,19 +134,15 @@ private data class CmpToolingProbeGroup(
 ) {
     fun flatten(): List<CmpToolingProbeGroup> = listOf(this) + children.flatMap { it.flatten() }
 
-    fun toJson(indent: String = ""): String = buildString {
-        append(indent).append("{\n")
-        append(indent).append("  \"name\": ").append(name.json()).append(",\n")
-        append(indent).append("  \"sourceFile\": ").append(sourceFile.json()).append(",\n")
-        append(indent).append("  \"lineNumber\": ").append(lineNumber).append(",\n")
-        append(indent).append("  \"box\": ").append(box.json()).append(",\n")
-        append(indent).append("  \"identity\": ").append(identity.json()).append(",\n")
-        append(indent).append("  \"layoutNodeIdentity\": ").append(layoutNodeIdentity?.toString() ?: "null").append(",\n")
-        append(indent).append("  \"nodeClass\": ").append(nodeClass.json()).append(",\n")
-        append(indent).append("  \"children\": [")
-        if (children.isNotEmpty()) append('\n').append(children.joinToString(",\n") { it.toJson("$indent    ") }).append('\n').append(indent).append("  ")
-        append("]\n")
-        append(indent).append("}")
+    fun toJsonElement(): JsonObject = buildJsonObject {
+        put("name", name)
+        put("sourceFile", sourceFile)
+        put("lineNumber", lineNumber)
+        put("box", box)
+        put("identity", identity)
+        put("layoutNodeIdentity", layoutNodeIdentity)
+        put("nodeClass", nodeClass)
+        put("children", buildJsonArray { children.forEach { add(it.toJsonElement()) } })
     }
 }
 
@@ -162,4 +162,4 @@ private fun Group.toCmpProbeGroup(layoutIdentities: Set<Int>): CmpToolingProbeGr
     )
 }
 
-private fun String?.json(): String = this?.replace("\\", "\\\\")?.replace("\"", "\\\"")?.let { "\"$it\"" } ?: "null"
+private val prettyJson = Json { prettyPrint = true }
