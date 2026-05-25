@@ -26,6 +26,7 @@ class CaptureReportSerializationTest {
                 dryRun = true,
                 continueOnError = true,
                 maxCaptures = 20,
+                maxParallelRenders = 4,
                 previewFilters = listOf("Login"),
                 viewportFilters = listOf("phone"),
                 failures =
@@ -45,5 +46,6 @@ class CaptureReportSerializationTest {
         assertTrue(json.contains("\"dryRun\": true"), json)
         assertTrue(json.contains("\"previewFilters\": ["), json)
         assertTrue(json.contains("\"failedViewportCaptureCount\": 1"), json)
+        assertTrue(json.contains("\"maxParallelRenders\": 4"), json)
     }
 }

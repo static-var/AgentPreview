@@ -85,6 +85,8 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.maxCaptures.set(extension.maxCaptures)
             it.cliMaxCaptures.set(project.providers.gradleProperty("agentPreview.maxCaptures"))
+            it.maxParallelRenders.set(extension.maxParallelRenders)
+            it.cliMaxParallelRenders.set(project.providers.gradleProperty("agentPreview.maxParallelRenders"))
             it.dryRun.set(false)
             it.cliDryRun.set(project.providers.gradleProperty("agentPreview.dryRun"))
             it.continueOnError.set(extension.continueOnError)

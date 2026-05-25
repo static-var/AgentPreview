@@ -400,6 +400,7 @@ class AgentPreviewCaptureFilteringFunctionalTest {
             """
             agentPreview {
                 maxCaptures.set(5)
+                maxParallelRenders.set(1)
                 continueOnError.set(false)
             }
             """.trimIndent(),
@@ -412,12 +413,14 @@ class AgentPreviewCaptureFilteringFunctionalTest {
                 "-PagentPreview.dryRun=true",
                 "-PagentPreview.continueOnError=true",
                 "-PagentPreview.maxCaptures=2",
+                "-PagentPreview.maxParallelRenders=3",
             )
 
         assertTrue(result.output.contains("dry run"), result.output)
         val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
         assertTrue(reportText.contains("\"continueOnError\": true"), reportText)
         assertTrue(reportText.contains("\"maxCaptures\": 2"), reportText)
+        assertTrue(reportText.contains("\"maxParallelRenders\": 3"), reportText)
     }
 
     @Test
@@ -429,6 +432,71 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxPreviewParameterValues=0")
 
         assertTrue(result.output.contains("agentPreview.maxPreviewParameterValues must be a positive integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for non numeric max parallel renders`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxParallelRenders=many")
+
+        assertTrue(result.output.contains("agentPreview.maxParallelRenders must be a positive integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for zero max parallel renders`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxParallelRenders=0")
+
+        assertTrue(result.output.contains("agentPreview.maxParallelRenders must be a positive integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for negative max parallel renders`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxParallelRenders=-1")
+
+        assertTrue(result.output.contains("agentPreview.maxParallelRenders must be a positive integer"), result.output)
+    }
+
+    @Test
+    fun `max parallel renders captures expected outputs in fake mode`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxParallelRenders=2")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertTrue(result.output.contains("parallel render workers: 2"), result.output)
+        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json").isFile)
+        assertTrue(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-SettingsPreview/android-preview/snapshot.json").isFile)
+        val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
+        assertTrue(reportText.contains("\"maxParallelRenders\": 2"), reportText)
+    }
+
+    @Test
+    fun `continue on error aggregates failures with parallel renders`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.continueOnError=true", "-PagentPreview.maxParallelRenders=2")
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+        assertTrue(result.output.contains("AgentPreview capture failed for 2 viewport(s)"), result.output)
+        val reportJson = Json.parseToJsonElement(projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()).jsonObject
+        assertEquals("2", reportJson.getValue("failedViewportCaptureCount").jsonPrimitive.content)
+        assertEquals("2", reportJson.getValue("maxParallelRenders").jsonPrimitive.content)
     }
 
     private fun writeSettings() {

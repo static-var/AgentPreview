@@ -20,6 +20,7 @@ data class CaptureReport(
     val dryRun: Boolean,
     val continueOnError: Boolean,
     val maxCaptures: Int? = null,
+    val maxParallelRenders: Int = 1,
     val previewFilters: List<String> = emptyList(),
     val viewportFilters: List<String> = emptyList(),
     val failures: List<CaptureFailure> = emptyList(),

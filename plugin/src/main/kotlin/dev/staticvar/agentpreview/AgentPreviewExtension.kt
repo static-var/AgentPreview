@@ -29,6 +29,7 @@ abstract class AgentPreviewExtension(
     abstract val viewportNameFilter: ListProperty<String>
     abstract val maxPreviewParameterValues: Property<Int>
     abstract val maxCaptures: Property<Int>
+    abstract val maxParallelRenders: Property<Int>
     abstract val continueOnError: Property<Boolean>
 
     init {
@@ -36,6 +37,7 @@ abstract class AgentPreviewExtension(
         previewNameFilter.convention(emptyList())
         viewportNameFilter.convention(emptyList())
         maxPreviewParameterValues.convention(50)
+        maxParallelRenders.convention(1)
         continueOnError.convention(false)
     }
 
