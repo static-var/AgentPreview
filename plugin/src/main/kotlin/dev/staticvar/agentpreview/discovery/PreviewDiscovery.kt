@@ -7,10 +7,16 @@ package dev.staticvar.agentpreview.discovery
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.BytecodePreviewScanner
+import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanInput
 import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import java.io.File
+
+data class PreviewDiscoveryResult(
+    val previews: List<PreviewDescriptor>,
+    val diagnostics: List<PreviewScanDiagnostic>,
+)
 
 class PreviewDiscovery(
     private val projectPath: String,
@@ -18,19 +24,26 @@ class PreviewDiscovery(
     private val classesDirs: List<File>,
     private val runtimeClasspath: List<File>,
 ) {
-    fun discover(): List<PreviewDescriptor> {
-        if (classesDirs.isEmpty()) return emptyList()
+    fun discover(): List<PreviewDescriptor> = discoverWithDiagnostics().previews
 
-        return BytecodePreviewScanner()
-            .scan(
-                PreviewScanInput(
-                    projectPath = projectPath,
-                    sourceSetName = sourceSetName,
-                    classesDirs = classesDirs,
-                    runtimeClasspath = runtimeClasspath,
-                ),
-            ).previews
-            .flatMap(::toPreviewDescriptors)
+    fun discoverWithDiagnostics(): PreviewDiscoveryResult {
+        if (classesDirs.isEmpty()) return PreviewDiscoveryResult(previews = emptyList(), diagnostics = emptyList())
+
+        val scanResult =
+            BytecodePreviewScanner()
+                .scan(
+                    PreviewScanInput(
+                        projectPath = projectPath,
+                        sourceSetName = sourceSetName,
+                        classesDirs = classesDirs,
+                        runtimeClasspath = runtimeClasspath,
+                    ),
+                )
+
+        return PreviewDiscoveryResult(
+            previews = scanResult.previews.flatMap(::toPreviewDescriptors),
+            diagnostics = scanResult.diagnostics,
+        )
     }
 
     private fun toPreviewDescriptors(scannedPreview: ScannedPreview): List<PreviewDescriptor> =

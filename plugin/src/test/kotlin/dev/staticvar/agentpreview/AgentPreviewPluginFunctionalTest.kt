@@ -21,6 +21,45 @@ class AgentPreviewPluginFunctionalTest {
     lateinit var projectDir: File
 
     @Test
+    fun `list task logs scanner diagnostics without failing when previews are skipped`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews", "--warning-mode", "all")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("Skipping preview"), result.output)
+        assertTrue(result.output.contains("parameterizedPreview"), result.output)
+        assertTrue(result.output.contains("preview methods with parameters are unsupported"), result.output)
+        assertTrue(result.output.contains(":listComposePreviews"), result.output)
+    }
+
+    @Test
     fun `plugin registers list and capture tasks`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
@@ -428,4 +467,9 @@ class AgentPreviewPluginFunctionalTest {
 
         assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-SettingsPreview").exists())
     }
+
+    private fun testClassesDir(): File =
+        javaClass.protectionDomain.codeSource.location
+            .toURI()
+            .let(::File)
 }

@@ -18,16 +18,28 @@ class AndroidPreviewAutoWiring(
 ) {
     fun configure() {
         project.afterEvaluate {
-            if (hasAndroidBackedVariant()) {
-                configureAndroidBackedVariant(extension.android.variant.get())
+            when {
+                hasAndroidBackedVariant() -> configureAndroidBackedVariant(extension.android.variant.get())
+                hasAndroidKmpLibraryShape() -> configureAndroidKmpLibrary()
             }
         }
     }
+
+    private fun hasAndroidKmpLibraryShape(): Boolean =
+        project.configurations.findByName(ANDROID_KMP_RUNTIME_CLASSPATH) != null ||
+            project.tasks.findByName(ANDROID_KMP_COMPILE_TASK_NAME) != null ||
+            androidKmpClassesDir().get().asFile.isDirectory
 
     private fun hasAndroidBackedVariant(): Boolean {
         val variantName = extension.android.variant.get()
         return ANDROID_PLUGIN_IDS.any(project.plugins::hasPlugin) ||
             project.configurations.findByName("${variantName}RuntimeClasspath") != null
+    }
+
+    private fun configureAndroidKmpLibrary() {
+        extension.previewClassesDirs.from(androidKmpClassesDir().map { it.asFile })
+        extension.previewRuntimeClasspath.from(androidKmpRuntimeClasspath())
+        project.tasks.findByName(ANDROID_KMP_COMPILE_TASK_NAME)?.let(::wireDiscoveryTasksTo)
     }
 
     private fun configureAndroidBackedVariant(variantName: String) {
@@ -53,10 +65,15 @@ class AndroidPreviewAutoWiring(
                 ).map { it.asFile },
         )
 
+    private fun androidKmpClassesDir() = project.layout.buildDirectory.dir(ANDROID_KMP_CLASSES_DIR)
+
     private fun runtimeClasspathFor(variantName: String): FileCollection =
         project.files(
             project.configurations.findByName("${variantName}RuntimeClasspath"),
         )
+
+    private fun androidKmpRuntimeClasspath(): FileCollection =
+        project.files(project.configurations.findByName(ANDROID_KMP_RUNTIME_CLASSPATH))
 
     private fun configureTaskDependencies(variantName: String) {
         compileTaskNames(variantName).forEach { taskName ->
@@ -82,6 +99,9 @@ class AndroidPreviewAutoWiring(
     }
 
     private companion object {
+        const val ANDROID_KMP_CLASSES_DIR = "classes/kotlin/android/main"
+        const val ANDROID_KMP_COMPILE_TASK_NAME = "compileAndroidMain"
+        const val ANDROID_KMP_RUNTIME_CLASSPATH = "androidRuntimeClasspath"
         val ANDROID_PLUGIN_IDS = setOf("com.android.application", "com.android.library")
         val AGENT_PREVIEW_TASK_NAMES = setOf("listComposePreviews", "captureComposePreviews")
     }

@@ -9,6 +9,7 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
+import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
@@ -17,6 +18,7 @@ import dev.staticvar.agentpreview.model.SnapshotRenderMetadata
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
+import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
 import dev.staticvar.agentpreview.semantics.RenderedSemanticsExtractor
 import kotlinx.serialization.builtins.ListSerializer
@@ -71,8 +73,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
+        val discoveryResult = discoverPreviews(indexFile)
+        logDiagnostics(discoveryResult.diagnostics)
         val previews =
-            discoverPreviews(indexFile)
+            discoveryResult.previews
                 .filter { filters.isEmpty() || it.id in filters || it.name in filters }
         val outputRoot = outputDirectory.get().asFile
         if (outputRoot.exists()) {
@@ -200,16 +204,29 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 ).resolve()
         }
 
-    private fun discoverPreviews(indexFile: File): List<PreviewDescriptor> =
+    private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
+        diagnostics.forEach { diagnostic ->
+            val message = "AgentPreview scanner: ${diagnostic.message}"
+            when (diagnostic.severity) {
+                PreviewScanDiagnostic.Severity.WARNING -> logger.warn(message)
+                PreviewScanDiagnostic.Severity.ERROR -> logger.error(message)
+            }
+        }
+    }
+
+    private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
                 runtimeClasspath = previewRuntimeClasspath.files.toList(),
-            ).discover()
+            ).discoverWithDiagnostics()
         } else {
-            JsonIndexPreviewDiscovery(indexFile).discover()
+            PreviewDiscoveryResult(
+                previews = JsonIndexPreviewDiscovery(indexFile).discover(),
+                diagnostics = emptyList(),
+            )
         }
 
     private fun sourceLabel(preview: PreviewDescriptor): String =
