@@ -99,7 +99,7 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
-    fun `list preview name filter matches shorthand preview parameter id`() {
+    fun `list preview name filter for classpath shorthand preview parameter id shows parent without concrete expansion`() {
         writeSettings()
         writeBuildFile(
             """
@@ -109,15 +109,17 @@ class AgentPreviewCaptureFilteringFunctionalTest {
             """.trimIndent(),
         )
 
+        val listedParentId = listedParameterizedPreviewId()
         val result = runList("-PagentPreview.previewNameFilter=previewParam-1")
 
-        assertTrue(result.output.contains("parameterizedPreview:previewParam-1  Parameterized"), result.output)
+        assertTrue(result.output.contains("$listedParentId  Parameterized"), result.output)
         assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
+        assertFalse(result.output.contains("$listedParentId:previewParam-1"), result.output)
         assertFalse(result.output.contains("No Compose previews discovered."), result.output)
     }
 
     @Test
-    fun `list preview name filter matches expanded preview parameter id`() {
+    fun `list preview name filter for classpath expanded preview parameter id shows parent without concrete expansion`() {
         writeSettings()
         writeBuildFile(
             """
@@ -130,10 +132,48 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         val listedParentId = listedParameterizedPreviewId()
         val result = runList("-PagentPreview.previewNameFilter=$listedParentId:previewParam-1")
 
-        assertTrue(result.output.contains("$listedParentId:previewParam-1  Parameterized"), result.output)
+        assertTrue(result.output.contains("$listedParentId  Parameterized"), result.output)
         assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
         assertFalse(result.output.contains("$listedParentId:previewParam-0"), result.output)
+        assertFalse(result.output.contains("$listedParentId:previewParam-1"), result.output)
         assertFalse(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
+    fun `list does not advertise unverified classpath preview parameter index`() {
+        writeSettings()
+        writeBuildFile(
+            """
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val listedParentId = listedParameterizedPreviewId()
+        val result = runList("-PagentPreview.previewNameFilter=previewParam-2")
+
+        assertTrue(result.output.contains("$listedParentId  Parameterized"), result.output)
+        assertFalse(result.output.contains("$listedParentId:previewParam-2"), result.output)
+        assertFalse(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
+    fun `capture preview name filter for out of range preview parameter index selects nothing`() {
+        writeSettings()
+        writeBuildFile(
+            """
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val listedParentId = listedParameterizedPreviewId()
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.previewNameFilter=previewParam-2")
+
+        assertTrue(result.output.contains("No Compose previews selected for capture."), result.output)
+        assertFalse(result.output.contains("$listedParentId:previewParam-2"), result.output)
     }
 
     @Test

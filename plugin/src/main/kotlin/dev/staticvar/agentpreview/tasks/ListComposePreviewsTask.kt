@@ -64,8 +64,9 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             discoveryResult.previews
                 .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
         val requestedPreviewParameterIndexes = filters.previewParameterFilterIndexes()
+        val classpathBacked = previewClassesDirs.files.isNotEmpty()
         val expansionResult =
-            if (requestedPreviewParameterIndexes.isEmpty()) {
+            if (requestedPreviewParameterIndexes.isEmpty() || classpathBacked) {
                 PreviewParameterExpansionResult(previews = expansionCandidates)
             } else {
                 PreviewParameterExpander(
@@ -76,7 +77,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
             expansionResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesAfterPreviewParameterExpansion(filters) }
+                .filter { preview -> filters.isEmpty() || preview.matchesListFilter(filters, classpathBacked) }
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")
@@ -97,6 +98,16 @@ abstract class ListComposePreviewsTask : DefaultTask() {
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
+
+    private fun PreviewDescriptor.matchesListFilter(
+        filters: Set<String>,
+        classpathBacked: Boolean,
+    ): Boolean =
+        if (classpathBacked && previewParameter?.index == null) {
+            matchesBeforePreviewParameterExpansion(filters)
+        } else {
+            matchesAfterPreviewParameterExpansion(filters)
+        }
 
     private fun previewParameterNote(
         parameter: PreviewParameterDescriptor?,
