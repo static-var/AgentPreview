@@ -59,7 +59,13 @@ class AgentPreviewConfigurationCacheFunctionalTest {
                 .build()
         assertTrue(listReuseResult.output.contains("Configuration cache entry reused"), listReuseResult.output)
 
-        val captureArguments = listOf("captureComposePreviews", "--configuration-cache", "-PagentPreview.fakeRenderer=true")
+        val captureArguments =
+            listOf(
+                "captureComposePreviews",
+                "--configuration-cache",
+                "-PagentPreview.fakeRenderer=true",
+                "-PagentPreview.maxParallelRenders=2",
+            )
         val captureResult =
             GradleRunner
                 .create()

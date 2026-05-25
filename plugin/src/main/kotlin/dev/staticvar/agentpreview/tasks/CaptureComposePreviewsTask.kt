@@ -41,6 +41,9 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import java.util.concurrent.CompletionService
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
 
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
@@ -84,6 +87,13 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
     @get:Optional
     abstract val cliMaxCaptures: Property<String>
+
+    @get:Input
+    abstract val maxParallelRenders: Property<Int>
+
+    @get:Input
+    @get:Optional
+    abstract val cliMaxParallelRenders: Property<String>
 
     @get:Input
     abstract val dryRun: Property<Boolean>
@@ -145,6 +155,12 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val result = renderCaptures(plan)
         writeReport(plan.report(result.capturedViewportCount, result.failures))
         logSummary(plan, result.capturedViewportCount, result.failures.size)
+        if (result.failures.isNotEmpty() && !plan.continueOnError && plan.maxParallelRenders > 1) {
+            logger.lifecycle(
+                "AgentPreview stopped scheduling new captures after the first parallel failure; " +
+                    "already-started captures were allowed to finish.",
+            )
+        }
         if (result.failures.isNotEmpty()) {
             error("AgentPreview capture failed for ${result.failures.size} viewport(s); see ${reportFile().absolutePath} for details.")
         }
@@ -175,6 +191,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             dryRun = effectiveDryRun(),
             continueOnError = effectiveContinueOnError(),
             maxCaptures = effectiveMaxCaptures(),
+            maxParallelRenders = effectiveMaxParallelRenders(),
             previewFilters = filters.toList().sorted(),
             viewportFilters = viewportFilters.toList().sorted(),
         )
@@ -202,58 +219,117 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     }
 
     private fun renderCaptures(plan: CapturePlan): CaptureResult {
-        val renderer = CaptureRenderer(fakeRenderer.get())
+        val renderSettings = renderSettings()
+        return if (plan.maxParallelRenders == 1) {
+            renderCapturesSequentially(plan, renderSettings)
+        } else {
+            renderCapturesInParallel(plan, renderSettings)
+        }
+    }
+
+    private fun renderCapturesSequentially(
+        plan: CapturePlan,
+        renderSettings: RenderSettings,
+    ): CaptureResult {
         val failures = mutableListOf<CaptureFailure>()
         var capturedViewportCount = 0
-        plan.plannedCaptures.forEach { plannedPreview ->
-            plannedPreview.viewports.forEach { viewport ->
-                val captured = renderCapture(plannedPreview.preview, viewport, renderer, failures, plan, capturedViewportCount)
-                if (captured) capturedViewportCount++
+        captureRequests(plan).forEach { request ->
+            val result = renderCapture(request, renderSettings)
+            if (recordCompletedCapture(result, failures)) capturedViewportCount++
+            if (result is SingleCaptureResult.Failed && !plan.continueOnError) {
+                return CaptureResult(capturedViewportCount, failures)
             }
         }
         return CaptureResult(capturedViewportCount, failures)
     }
 
-    @Suppress("TooGenericExceptionCaught")
-    private fun renderCapture(
-        preview: PreviewDescriptor,
-        viewport: Viewport,
-        renderer: CaptureRenderer,
-        failures: MutableList<CaptureFailure>,
+    private fun renderCapturesInParallel(
         plan: CapturePlan,
-        capturedViewportCount: Int,
-    ): Boolean =
-        try {
-            val renderResult = renderer.render(preview, viewport)
-            SnapshotExporter().export(
-                previewId = preview.id,
-                screenshotFile = renderResult.screenshotFile,
-                snapshot = snapshot(preview, renderResult, renderer.useFakeRenderer),
-                outputRoot = outputDirectory.get().asFile,
-                viewport = viewport,
-            )
-            logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name}) via ${renderResult.renderMode.logLabel}")
-            true
-        } catch (exception: Exception) {
-            recordFailure(preview, viewport, exception, failures, plan, capturedViewportCount)
+        renderSettings: RenderSettings,
+    ): CaptureResult {
+        logger.lifecycle("AgentPreview parallel render workers: ${plan.maxParallelRenders}")
+        val requests = captureRequests(plan)
+        val executor = Executors.newFixedThreadPool(plan.maxParallelRenders)
+        val completions: CompletionService<SingleCaptureResult> = ExecutorCompletionService(executor)
+        val failures = mutableListOf<CaptureFailure>()
+        var capturedViewportCount = 0
+        var submitted = 0
+        var completed = 0
+        var acceptingWork = true
+
+        fun submitNext() {
+            if (submitted < requests.size && acceptingWork) {
+                val request = requests[submitted++]
+                completions.submit { renderCapture(request, renderSettings) }
+            }
         }
 
-    private fun recordFailure(
-        preview: PreviewDescriptor,
-        viewport: Viewport,
-        exception: Exception,
-        failures: MutableList<CaptureFailure>,
-        plan: CapturePlan,
-        capturedViewportCount: Int,
-    ): Boolean {
-        val failure = CaptureFailure(preview.id, viewport.label(), exception.message ?: exception.javaClass.name)
-        failures += failure
-        logger.error("Failed ${failure.previewId} (${failure.viewport}): ${failure.message}")
-        if (!plan.continueOnError) {
-            writeReport(plan.report(capturedViewportCount, failures))
-            throw exception
+        try {
+            repeat(plan.maxParallelRenders.coerceAtMost(requests.size)) { submitNext() }
+            while (completed < submitted) {
+                val result = completions.take().get()
+                if (recordCompletedCapture(result, failures)) capturedViewportCount++
+                if (result is SingleCaptureResult.Failed && !plan.continueOnError) acceptingWork = false
+                completed++
+                submitNext()
+            }
+        } finally {
+            executor.shutdownNow()
         }
-        return false
+
+        return CaptureResult(capturedViewportCount, failures)
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun renderCapture(
+        request: CaptureRequest,
+        renderSettings: RenderSettings,
+    ): SingleCaptureResult =
+        try {
+            val renderer = CaptureRenderer(renderSettings)
+            val renderResult = renderer.render(request.preview, request.viewport)
+            SnapshotExporter().export(
+                previewId = request.preview.id,
+                screenshotFile = renderResult.screenshotFile,
+                snapshot = snapshot(request.preview, renderResult, renderSettings.useFakeRenderer),
+                outputRoot = renderSettings.outputRoot,
+                viewport = request.viewport,
+            )
+            SingleCaptureResult.Captured(request.preview.id, request.viewport, renderResult.renderMode.logLabel)
+        } catch (exception: Exception) {
+            SingleCaptureResult.Failed(
+                CaptureFailure(request.preview.id, request.viewport.label(), exception.message ?: exception.javaClass.name),
+            )
+        }
+
+    private fun captureRequests(plan: CapturePlan): List<CaptureRequest> =
+        plan.plannedCaptures.flatMap { plannedPreview ->
+            plannedPreview.viewports.map { viewport -> CaptureRequest(plannedPreview.preview, viewport) }
+        }
+
+    private fun recordCompletedCapture(
+        result: SingleCaptureResult,
+        failures: MutableList<CaptureFailure>,
+    ): Boolean =
+        when (result) {
+            is SingleCaptureResult.Captured -> {
+                logCaptured(result)
+                true
+            }
+
+            is SingleCaptureResult.Failed -> {
+                failures += result.failure
+                logFailure(result.failure)
+                false
+            }
+        }
+
+    private fun logCaptured(result: SingleCaptureResult.Captured) {
+        logger.lifecycle("Captured ${result.previewId} (${result.viewport.platform}-${result.viewport.name}) via ${result.renderModeLabel}")
+    }
+
+    private fun logFailure(failure: CaptureFailure) {
+        logger.error("Failed ${failure.previewId} (${failure.viewport}): ${failure.message}")
     }
 
     private fun snapshot(
@@ -343,6 +419,32 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val failures: List<CaptureFailure>,
     )
 
+    private data class CaptureRequest(
+        val preview: PreviewDescriptor,
+        val viewport: Viewport,
+    )
+
+    private data class RenderSettings(
+        val useFakeRenderer: Boolean,
+        val outputRoot: File,
+        val renderOutput: File,
+        val robolectricSdk: Int,
+        val previewClasspath: List<File>,
+        val includeUnmergedSemantics: Boolean,
+    )
+
+    private sealed interface SingleCaptureResult {
+        data class Captured(
+            val previewId: String,
+            val viewport: Viewport,
+            val renderModeLabel: String,
+        ) : SingleCaptureResult
+
+        data class Failed(
+            val failure: CaptureFailure,
+        ) : SingleCaptureResult
+    }
+
     private data class CapturePlan(
         val discoveredPreviewCount: Int,
         val expandedPreviewCount: Int,
@@ -353,6 +455,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val dryRun: Boolean,
         val continueOnError: Boolean,
         val maxCaptures: Int?,
+        val maxParallelRenders: Int,
         val previewFilters: List<String>,
         val viewportFilters: List<String>,
     ) {
@@ -373,22 +476,32 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             dryRun = dryRun,
             continueOnError = continueOnError,
             maxCaptures = maxCaptures,
+            maxParallelRenders = maxParallelRenders,
             previewFilters = previewFilters,
             viewportFilters = viewportFilters,
             failures = failures,
         )
     }
 
-    private inner class CaptureRenderer(
-        val useFakeRenderer: Boolean,
+    private fun renderSettings() =
+        RenderSettings(
+            useFakeRenderer = fakeRenderer.get(),
+            outputRoot = outputDirectory.get().asFile,
+            renderOutput = renderOutputDirectory.get().asFile,
+            robolectricSdk = robolectricSdk.get(),
+            previewClasspath = previewClasspath(),
+            includeUnmergedSemantics = includeUnmergedSemantics.get(),
+        )
+
+    private class CaptureRenderer(
+        private val settings: RenderSettings,
     ) {
-        private val renderOutput = renderOutputDirectory.get().asFile
         private val fakePreviewRenderer = FakePreviewRenderer()
         private val previewRenderer by lazy {
             PreviewRendererImpl(
-                robolectricSdk = robolectricSdk.get(),
-                previewClasspath = previewClasspath(),
-                includeUnmergedSemantics = includeUnmergedSemantics.get(),
+                robolectricSdk = settings.robolectricSdk,
+                previewClasspath = settings.previewClasspath,
+                includeUnmergedSemantics = settings.includeUnmergedSemantics,
             )
         }
 
@@ -396,10 +509,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             preview: PreviewDescriptor,
             viewport: Viewport,
         ): RenderResult =
-            if (useFakeRenderer) {
-                fakePreviewRenderer.render(preview, viewport, renderOutput)
+            if (settings.useFakeRenderer) {
+                fakePreviewRenderer.render(preview, viewport, settings.renderOutput)
             } else {
-                previewRenderer.render(preview, viewport, renderOutput)
+                previewRenderer.render(preview, viewport, settings.renderOutput)
             }
     }
 
@@ -486,6 +599,14 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         return value
     }
 
+    private fun effectiveMaxParallelRenders(): Int {
+        val raw = cliMaxParallelRenders.orNull
+        val value = raw?.toIntOrNull() ?: maxParallelRenders.get()
+        require(raw == null || raw.toIntOrNull() != null) { maxParallelRendersError() }
+        require(value > 0) { maxParallelRendersError() }
+        return value
+    }
+
     private fun effectiveDryRun(): Boolean {
         val raw = cliDryRun.orNull
         val value = raw?.toBooleanStrictOrNull()
@@ -507,6 +628,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun maxCapturesError(): String =
         "agentPreview.maxCaptures must be a non-negative integer. " +
             "Configure agentPreview { maxCaptures.set(n) } or pass -PagentPreview.maxCaptures=n."
+
+    private fun maxParallelRendersError(): String =
+        "agentPreview.maxParallelRenders must be a positive integer. " +
+            "Configure agentPreview { maxParallelRenders.set(n) } or pass -PagentPreview.maxParallelRenders=n."
 
     private fun dryRunError(): String =
         "agentPreview.dryRun must be true or false. " +
