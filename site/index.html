@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentPreview — Compose previews for coding agents</title>
+    <meta
+      name="description"
+      content="AgentPreview turns Android and Compose Multiplatform previews into screenshot and JSON artifacts that AI agents can read while iterating on UI."
+    />
+    <meta property="og:title" content="AgentPreview" />
+    <meta
+      property="og:description"
+      content="Compose preview screenshots, semantics, layout trees, and source hints packaged for AI agents."
+    />
+    <meta property="og:type" content="website" />
+    <link rel="canonical" href="https://ap.staticvar.dev/" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="AgentPreview home">
+        <span class="brand-mark">AP</span>
+        <span>AgentPreview</span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#artifacts">Artifacts</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#limits">Limits</a>
+        <a href="https://github.com/static-var/AgentPreview">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Gradle-first capture for Android and CMP UI loops</p>
+          <h1 id="hero-title">Give coding agents eyes for Compose previews.</h1>
+          <p class="hero-lede">
+            AgentPreview turns AndroidX <code>@Preview</code> functions into a small bundle of screenshot and JSON artifacts, so AI agents can inspect UI state without opening Android Studio.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#workflow">Run a capture</a>
+            <a class="button secondary" href="https://github.com/static-var/AgentPreview">View source</a>
+          </div>
+          <p class="honesty-note">
+            Early project: use local <code>includeBuild</code> or repository checkout setup until a plugin publication is available.
+          </p>
+        </div>
+
+        <div class="artifact-card" aria-label="Example AgentPreview artifact bundle">
+          <div class="terminal-bar">
+            <span></span><span></span><span></span>
+            <strong>build/agentPreviewSnapshots</strong>
+          </div>
+          <pre><code>LoginPreview/
+  screenshot.png
+  snapshot.json
+
+ProfileCard__previewParam-0/
+  screenshot.png
+  snapshot.json</code></pre>
+          <div class="preview-frame" aria-hidden="true">
+            <div class="phone-shell">
+              <div class="phone-card small"></div>
+              <div class="phone-card wide"></div>
+              <div class="phone-button"></div>
+            </div>
+            <div class="json-chip">semantics + layoutTree + source hints</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="strip" aria-label="Supported preview inputs">
+        <span>AndroidX <code>@Preview</code></span>
+        <span><code>PreviewParameter</code></span>
+        <span>Compose semantics</span>
+        <span>layoutTree hints</span>
+        <span>CMP via Android target</span>
+      </section>
+
+      <section class="section two-column" id="artifacts" aria-labelledby="artifacts-title">
+        <div>
+          <p class="eyebrow">What agents receive</p>
+          <h2 id="artifacts-title">A screenshot for vision. JSON for reasoning.</h2>
+          <p>
+            Each capture is designed to be small enough for automated review and specific enough for UI iteration: preview metadata, viewport details, semantics nodes, optional layout-tree data, and best-effort source hints.
+          </p>
+          <div class="feature-grid">
+            <article>
+              <h3>Preview-aware</h3>
+              <p>Discovers AndroidX previews, expands <code>@PreviewParameter</code> values, and keeps generated capture IDs filterable.</p>
+            </article>
+            <article>
+              <h3>Agent-readable</h3>
+              <p>Pairs <code>screenshot.png</code> with <code>snapshot.json</code> so an agent can compare pixels with structure.</p>
+            </article>
+            <article>
+              <h3>Source-oriented</h3>
+              <p>Includes source file, line, component, and modifier hints when Compose tooling data makes them available.</p>
+            </article>
+            <article>
+              <h3>Viewport controlled</h3>
+              <p>Capture focused Android phone, tablet, or custom viewports without running a full visual test suite.</p>
+            </article>
+          </div>
+        </div>
+        <div class="code-panel">
+          <div class="code-title">snapshot.json</div>
+          <pre><code>{
+  "schemaVersion": 2,
+  "preview": {
+    "id": ":app:main:LoginPreview:previewParam-0",
+    "name": "Login",
+    "group": "Auth",
+    "source": "LoginPreview.kt:12",
+    "previewParameter": {
+      "providerClassName": "dev.example.LoginStateProvider",
+      "index": 0
+    }
+  },
+  "viewport": {
+    "platform": "android",
+    "name": "phone",
+    "width": 393,
+    "height": 852,
+    "density": 1.0
+  },
+  "nodes": [{
+    "role": "button",
+    "text": "Continue",
+    "bounds": { "x": 48, "y": 720, "width": 297, "height": 56 },
+    "source": "LoginScreen.kt:84"
+  }],
+  "layoutTree": [{
+    "componentHint": "androidx.compose.foundation.layout.Column",
+    "sourceName": "LoginCard",
+    "sourceHintKind": "tooling-nearest-app-ancestor"
+  }],
+  "render": { "mode": "robolectric" }
+}</code></pre>
+        </div>
+      </section>
+
+      <section class="section workflow" id="workflow" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <p class="eyebrow">Focused by default</p>
+          <h2 id="workflow-title">Use Gradle commands agents already know how to run.</h2>
+          <p>
+            AgentPreview stays close to the build. List previews, dry-run a plan, narrow by preview or viewport, then capture only the UI states that matter for the current change.
+          </p>
+        </div>
+        <div class="steps">
+          <article>
+            <span class="step-number">01</span>
+            <h3>Wire the local plugin</h3>
+            <pre><code>// settings.gradle.kts
+pluginManagement {
+  includeBuild("../AgentPreview")
+}</code></pre>
+          </article>
+          <article>
+            <span class="step-number">02</span>
+            <h3>Apply and configure</h3>
+            <pre><code>plugins {
+  id("dev.staticvar.agentpreview")
+}
+
+agentPreview {
+  maxPreviewParameterValues.set(8)
+  android {
+    viewport("phone", 393, 852)
+  }
+}</code></pre>
+          </article>
+          <article>
+            <span class="step-number">03</span>
+            <h3>List and plan</h3>
+            <pre><code>./gradlew :app:listComposePreviews
+
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.dryRun=true \
+  -PagentPreview.previewNameFilter=Login</code></pre>
+          </article>
+          <article>
+            <span class="step-number">04</span>
+            <h3>Capture the target states</h3>
+            <pre><code>./gradlew :app:captureComposePreviews \
+  -PagentPreview.previewNameFilter=Login,ProfileCard:previewParam-0 \
+  -PagentPreview.viewportFilter=phone \
+  -PagentPreview.maxCaptures=4 \
+  -PagentPreview.maxParallelRenders=2</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="section split-panel" aria-labelledby="cmp-title">
+        <div>
+          <p class="eyebrow">Built for agent iteration</p>
+          <h2 id="cmp-title">Android apps first. CMP through the Android target.</h2>
+        </div>
+        <div>
+          <p>
+            The initial backend is Android-focused and uses the Android target for Compose Multiplatform projects. That keeps captures aligned with existing Gradle builds while leaving room for future platform-specific renderers.
+          </p>
+          <ul class="check-list">
+            <li>Works with AndroidX <code>@Preview</code> annotations and preview metadata.</li>
+            <li>Expands <code>PreviewParameter</code> providers with configurable caps.</li>
+            <li>Exports semantics nodes for accessible text, roles, actions, tags, and bounds.</li>
+            <li>Adds layout tree and source hints when render-time tooling data can be correlated.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="section limits" id="limits" aria-labelledby="limits-title">
+        <div class="section-heading">
+          <p class="eyebrow">Honest boundaries</p>
+          <h2 id="limits-title">What AgentPreview does not promise yet.</h2>
+        </div>
+        <div class="limit-grid">
+          <article>
+            <h3>Android backend first</h3>
+            <p>Current captures are designed around Android rendering. Desktop and web Compose renderers are future work.</p>
+          </article>
+          <article>
+            <h3>CMP via Android</h3>
+            <p>Compose Multiplatform support is routed through the Android target, not native desktop or web targets.</p>
+          </article>
+          <article>
+            <h3>Hints are best-effort</h3>
+            <p>Layout and source hints depend on Compose tooling data and may fall back to framework or preview-entrypoint information.</p>
+          </article>
+          <article>
+            <h3>Publication pending</h3>
+            <p>Until the plugin is published, examples should use a local checkout with <code>includeBuild</code> or equivalent repository wiring.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="cta" aria-labelledby="cta-title">
+        <h2 id="cta-title">Let agents inspect the UI they are changing.</h2>
+        <p>Start with a local checkout, capture one preview, and hand the screenshot plus JSON bundle to your coding agent.</p>
+        <a class="button primary" href="https://github.com/static-var/AgentPreview">Open AgentPreview on GitHub</a>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>AgentPreview</span>
+      <a href="https://github.com/static-var/AgentPreview/blob/main/docs/snapshot-schema.md">Snapshot schema</a>
+      <a href="https://github.com/static-var/AgentPreview/blob/main/LICENSE">MIT License</a>
+    </footer>
+  </body>
+</html>
