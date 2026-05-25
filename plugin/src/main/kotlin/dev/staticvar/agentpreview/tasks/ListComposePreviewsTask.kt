@@ -10,6 +10,7 @@ import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
 import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
@@ -62,11 +63,16 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         val expansionCandidates =
             discoveryResult.previews
                 .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
+        val requestedPreviewParameterIndexes = filters.previewParameterFilterIndexes()
         val expansionResult =
-            PreviewParameterExpander(
-                defaultCap = maxPreviewParameterValues,
-                requestedIndexes = filters.previewParameterFilterIndexes(),
-            ).expand(expansionCandidates)
+            if (requestedPreviewParameterIndexes.isEmpty()) {
+                PreviewParameterExpansionResult(previews = expansionCandidates)
+            } else {
+                PreviewParameterExpander(
+                    defaultCap = maxPreviewParameterValues,
+                    requestedIndexes = requestedPreviewParameterIndexes,
+                ).expand(expansionCandidates)
+            }
         logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
             expansionResult.previews

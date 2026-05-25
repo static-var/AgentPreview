@@ -153,6 +153,21 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `JSON index parameterized parent with limit is listed once when unfiltered`() {
+        writeSettings()
+        writeBuildFile()
+        val parentId = ":app:main:dev.example.Parameterized"
+        writeParameterizedIndex(id = parentId, limit = 2)
+
+        val result = runList()
+
+        assertTrue(result.output.contains("$parentId  Parameterized"), result.output)
+        assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
+        assertFalse(result.output.contains("$parentId:previewParam-0"), result.output)
+        assertFalse(result.output.contains("$parentId:previewParam-1"), result.output)
+    }
+
+    @Test
     fun `JSON index parameterized parent can synthesize requested shorthand preview parameter id for list and capture`() {
         writeSettings()
         writeBuildFile()
