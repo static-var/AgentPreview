@@ -266,7 +266,7 @@ class AndroidComposeRendererInRobolectricTest {
         assertEquals("LoginCard", hint.sourceName)
         assertEquals("LoginPreview.kt", hint.sourceFile)
         assertEquals(42, hint.sourceLine)
-        assertEquals("tooling-sibling-preorder", hint.sourceHintKind)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
     }
 
     @Test
@@ -292,6 +292,78 @@ class AndroidComposeRendererInRobolectricTest {
         AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
 
         assertEquals(null, hints[System.identityHashCode(node)])
+    }
+
+    @Test
+    fun `prefers app source ancestor over nearer compose runtime ancestor`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                name = "LoginPreview",
+                location = FakeSourceLocation("LoginPreview.kt", 18),
+                box = FakeIntRect(0, 0, 393, 852),
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "ReusableComposeNode",
+                            location = FakeSourceLocation("Layout.kt", 83),
+                            box = FakeIntRect(0, 0, 393, 852),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        node = node,
+                                        box = FakeIntRect(0, 0, 393, 852),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginPreview", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(18, hint.sourceLine)
+        assertEquals("tooling-nearest-app-ancestor", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `prefers app sibling over nearer compose runtime ancestor when bounds contain node`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "LoginCard",
+                            location = FakeSourceLocation("LoginPreview.kt", 42),
+                            box = FakeIntRect(16, 16, 304, 454),
+                        ),
+                        FakeToolingGroup(
+                            name = "ReusableComposeNode",
+                            location = FakeSourceLocation("Layout.kt", 85),
+                            box = FakeIntRect(16, 16, 304, 454),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        node = node,
+                                        box = FakeIntRect(16, 16, 304, 454),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginCard", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(42, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
     }
 
     @Test

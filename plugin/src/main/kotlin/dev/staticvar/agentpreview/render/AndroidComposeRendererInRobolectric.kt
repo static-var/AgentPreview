@@ -18,6 +18,7 @@ import java.io.OutputStream
 import java.util.Locale
 import kotlin.math.roundToInt
 
+@Suppress("LargeClass")
 object AndroidComposeRendererInRobolectric {
     fun render(
         className: String,
@@ -245,10 +246,11 @@ object AndroidComposeRendererInRobolectric {
                     }
                     ?: error("Compose root view ${composeView.javaClass.name} does not expose getRoot().")
             val rootLayoutNode = getRoot.invoke(composeView)
-            val sourceHints = toolingRecord?.sourceHintsOrEmpty().orEmpty()
+            val fallbackSourceHint = previewSourceFallback?.toLayoutTreeSourceHint()
+            val sourceHints = toolingRecord?.sourceHintsOrEmpty(preferredAppSourceFile = fallbackSourceHint?.sourceFile).orEmpty()
             val fallbackHints =
-                if (sourceHints.isEmpty() && previewSourceFallback != null) {
-                    mapOf(System.identityHashCode(rootLayoutNode) to previewSourceFallback.toLayoutTreeSourceHint())
+                if (sourceHints.isEmpty() && fallbackSourceHint != null) {
+                    mapOf(System.identityHashCode(rootLayoutNode) to fallbackSourceHint)
                 } else {
                     emptyMap()
                 }
@@ -580,20 +582,20 @@ object AndroidComposeRendererInRobolectric {
                 }
             }
 
-        fun sourceHintsOrEmpty(): Map<Int, LayoutTreeSourceHint> =
-            runCatching { sourceHints() }.getOrElse { throwable ->
+        fun sourceHintsOrEmpty(preferredAppSourceFile: String? = null): Map<Int, LayoutTreeSourceHint> =
+            runCatching { sourceHints(preferredAppSourceFile) }.getOrElse { throwable ->
                 warnSourceHintsDisabled("failed to read Compose tooling composition data", throwable)
                 emptyMap()
             }
 
-        private fun sourceHints(): Map<Int, LayoutTreeSourceHint> {
+        private fun sourceHints(preferredAppSourceFile: String?): Map<Int, LayoutTreeSourceHint> {
             @Suppress("UNCHECKED_CAST")
             val store = method(record, "getStore")?.invoke(record) as? Iterable<*> ?: return emptyMap()
             val asTree = Class.forName("androidx.compose.ui.tooling.data.SlotTreeKt").getMethod("asTree", compositionDataClass())
             return buildMap {
                 store.filterNotNull().forEach { compositionData ->
                     val rootGroup = asTree.invoke(null, compositionData)
-                    collectGroupSourceHints(rootGroup, hints = this)
+                    collectGroupSourceHints(rootGroup, hints = this, preferredAppSourceFile = preferredAppSourceFile)
                 }
             }
         }
@@ -626,39 +628,79 @@ object AndroidComposeRendererInRobolectric {
         }
     }
 
+    @Suppress("CyclomaticComplexMethod")
     internal fun collectGroupSourceHints(
         group: Any,
         hints: MutableMap<Int, LayoutTreeSourceHint>,
+        preferredAppSourceFile: String? = null,
     ) {
         val entries = mutableListOf<ToolingGroupEntry>()
         collectToolingGroupEntries(group, parentPreorder = null, depth = 0, entries = entries)
         val sourceEntries = entries.filter { it.hint != null }
         entries.filter { it.node != null }.forEach { nodeEntry ->
             val node = nodeEntry.node ?: return@forEach
-            val directHint = nodeEntry.hint?.copy(sourceHintKind = "tooling-node-identity")
-            val ancestorHint =
+            val ancestorEntries =
                 sourceEntries
-                    .asSequence()
                     .filter { sourceEntry -> sourceEntry.preorder in nodeEntry.ancestorPreorders }
-                    .maxByOrNull { it.depth }
-                    ?.hint
-                    ?.copy(sourceHintKind = "tooling-ancestor-node-identity")
-            val siblingHint =
+            val siblingParentPreorders =
+                (nodeEntry.ancestorPreorders + nodeEntry.preorder)
+                    .mapNotNull { preorder -> entries.getOrNull(preorder)?.parentPreorder }
+                    .toSet()
+            val siblingEntries =
                 sourceEntries
-                    .asSequence()
                     .filter { sourceEntry ->
                         sourceEntry.preorder < nodeEntry.preorder &&
-                            sourceEntry.parentPreorder == nodeEntry.parentPreorder &&
+                            sourceEntry.parentPreorder in siblingParentPreorders &&
                             sourceEntry.box != null &&
                             nodeEntry.box != null &&
                             sourceEntry.box.contains(nodeEntry.box)
-                    }.maxByOrNull { it.preorder }
-                    ?.hint
-                    ?.copy(sourceHintKind = "tooling-sibling-preorder")
-            val hint = directHint ?: ancestorHint ?: siblingHint
+                    }
+            val hint =
+                nodeEntry.hint?.takeIf { it.isAppSourceHint(preferredAppSourceFile) }?.copy(sourceHintKind = "tooling-node-identity")
+                    ?: ancestorEntries.nearestAppSourceHint("tooling-nearest-app-ancestor", preferredAppSourceFile)
+                    ?: siblingEntries.nearestAppSourceHint("tooling-sibling-preorder-app", preferredAppSourceFile)
+                    ?: nodeEntry.hint?.takeIf { it.isUsefulFrameworkSourceHint() }?.copy(sourceHintKind = "tooling-framework-node-identity")
+                    ?: ancestorEntries.nearestUsefulFrameworkSourceHint("tooling-useful-framework-ancestor")
+                    ?: siblingEntries.nearestUsefulFrameworkSourceHint("tooling-sibling-preorder-framework")
+                    ?: nodeEntry.hint?.copy(sourceHintKind = "tooling-framework-node-identity")
+                    ?: ancestorEntries.nearestSourceHint("tooling-framework-ancestor")
+                    ?: siblingEntries.nearestSourceHint("tooling-sibling-preorder-framework")
             if (hint != null) hints[System.identityHashCode(node)] = hint
         }
     }
+
+    private fun List<ToolingGroupEntry>.nearestAppSourceHint(
+        sourceHintKind: String,
+        preferredAppSourceFile: String?,
+    ): LayoutTreeSourceHint? =
+        filter { it.hint?.isAppSourceHint(preferredAppSourceFile) == true }
+            .maxWithOrNull(compareBy<ToolingGroupEntry> { it.depth }.thenBy { it.preorder })
+            ?.hint
+            ?.copy(sourceHintKind = sourceHintKind)
+
+    private fun List<ToolingGroupEntry>.nearestUsefulFrameworkSourceHint(sourceHintKind: String): LayoutTreeSourceHint? =
+        filter { it.hint?.isUsefulFrameworkSourceHint() == true }
+            .maxWithOrNull(compareBy<ToolingGroupEntry> { it.depth }.thenBy { it.preorder })
+            ?.hint
+            ?.copy(sourceHintKind = sourceHintKind)
+
+    private fun List<ToolingGroupEntry>.nearestSourceHint(sourceHintKind: String): LayoutTreeSourceHint? =
+        maxWithOrNull(compareBy<ToolingGroupEntry> { it.depth }.thenBy { it.preorder })
+            ?.hint
+            ?.copy(sourceHintKind = sourceHintKind)
+
+    private fun LayoutTreeSourceHint.isAppSourceHint(preferredAppSourceFile: String?): Boolean {
+        val file = sourceFile.orEmpty()
+        val name = sourceName.orEmpty()
+        val knownFrameworkSourceFile = file in COMPOSE_INTERNAL_SOURCE_FILES || file in COMPOSE_PUBLIC_SOURCE_FILES
+        val internalSourceName = name in COMPOSE_INTERNAL_SOURCE_NAMES || name.startsWith("androidx.compose")
+        val matchesPreferredAppFile = preferredAppSourceFile != null && file == preferredAppSourceFile
+        return (matchesPreferredAppFile || (preferredAppSourceFile == null && (sourceFile != null || sourceName != null))) &&
+            !knownFrameworkSourceFile &&
+            !internalSourceName
+    }
+
+    private fun LayoutTreeSourceHint.isUsefulFrameworkSourceHint(): Boolean = sourceName in USEFUL_COMPOSE_SOURCE_NAMES
 
     private fun collectToolingGroupEntries(
         group: Any,
@@ -767,4 +809,48 @@ object AndroidComposeRendererInRobolectric {
     private const val UI_MODE_NIGHT_YES = 0x20
     private const val DEFAULT_BACKGROUND_COLOR = -0x1
     private val INT_RECT_PATTERN = Regex("-?\\d+")
+    private val COMPOSE_INTERNAL_SOURCE_FILES =
+        setOf(
+            "Layout.kt",
+            "Composer.kt",
+            "Composables.kt",
+            "Effects.kt",
+            "Updater.kt",
+        )
+    private val COMPOSE_PUBLIC_SOURCE_FILES =
+        setOf(
+            "BasicText.kt",
+            "Box.kt",
+            "Button.kt",
+            "Card.kt",
+            "Column.kt",
+            "Row.kt",
+            "Spacer.kt",
+            "Surface.kt",
+            "Text.kt",
+            "ProvideContentColorTextStyle.kt",
+        )
+    private val COMPOSE_INTERNAL_SOURCE_NAMES =
+        setOf(
+            "ReusableComposeNode",
+            "ComposeNode",
+            "ReusableNode",
+            "Layout",
+            "CompositionLocalProvider",
+            "startRestartGroup",
+            "startReplaceableGroup",
+            "startReusableGroup",
+            "Updater",
+        )
+    private val USEFUL_COMPOSE_SOURCE_NAMES =
+        setOf(
+            "BasicText",
+            "Box",
+            "Button",
+            "Card",
+            "Column",
+            "Row",
+            "Spacer",
+            "Text",
+        )
 }

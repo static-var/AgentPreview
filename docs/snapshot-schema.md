@@ -65,7 +65,7 @@ Version 2 adds preview parameter metadata, optional layout tree data, and option
       "sourceName": "LoginCard",
       "sourceFile": "LoginPreview.kt",
       "sourceLine": 24,
-      "sourceHintKind": "tooling-ancestor-node-identity",
+      "sourceHintKind": "tooling-nearest-app-ancestor",
       "modifierHint": "androidx.compose.ui.Modifier",
       "classHint": "androidx.compose.ui.node.LayoutNode",
       "semanticsId": "7",
@@ -99,4 +99,6 @@ Future desktop and web renderers should use separate platform-specific viewport 
 
 Fake renderer snapshots emit an empty `nodes` list because no real Compose semantics tree is available. Production renderer snapshots populate `nodes` from Compose semantics when available and may include `layoutTree` entries derived from the rendered Compose layout hierarchy.
 
-`layoutTree` entries always keep `componentHint` as the implementation-level fallback. Production Android rendering may also add nullable best-effort source hints from Compose tooling data: `sourceName`, `sourceFile`, `sourceLine`, and `sourceHintKind`. These fields are optional, depend on Compose tooling/source information being available at render time, and are omitted if enrichment fails. `sourceLine` is emitted only when an actual positive source line is available; preview-entrypoint fallback hints may include `sourceName` and `sourceFile` with `sourceLine` omitted.
+`layoutTree` entries always keep `componentHint` as the implementation-level fallback. Production Android rendering may also add nullable best-effort source hints from Compose tooling data: `sourceName`, `sourceFile`, `sourceLine`, and `sourceHintKind`. The correlation prefers app/preview source files over Compose runtime internals such as `ReusableComposeNode`, `Layout.kt`, `Composer.kt`, and `Composables.kt`; if no app group can be correlated within ancestry/preorder/bounds constraints, the hint may be a useful framework composable or a framework/internal fallback. Current hint kinds include `tooling-node-identity`, `tooling-nearest-app-ancestor`, `tooling-sibling-preorder-app`, `tooling-useful-framework-ancestor`, `tooling-framework-node-identity`, `tooling-framework-ancestor`, `tooling-sibling-preorder-framework`, and `preview-entrypoint-fallback`.
+
+These fields are optional, depend on Compose tooling/source information being available at render time, and are omitted if enrichment fails. `sourceLine` is emitted only when an actual positive source line is available; preview-entrypoint fallback hints may include `sourceName` and `sourceFile` with `sourceLine` omitted. Compose Multiplatform Android-target captures may currently emit only `preview-entrypoint-fallback` layout source hints when tooling composition data is unavailable for the rendered common source.
