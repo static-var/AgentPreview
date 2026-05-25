@@ -5,6 +5,9 @@
  */
 package dev.staticvar.agentpreview
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -241,6 +244,183 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `dry run prints plan report and does not create snapshots`() {
+        writeSettings()
+        writeBuildFile()
+        writeSinglePreviewIndex()
+
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.dryRun=true")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertTrue(result.output.contains("planned 1 viewport(s)"), result.output)
+        assertFalse(result.output.contains("Captured :app:commonMain:LoginPreview"), result.output)
+        assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png").exists())
+        val report = projectDir.resolve("build/agentPreviewReports/capture-report.json")
+        assertTrue(report.isFile)
+        val reportJson = Json.parseToJsonElement(report.readText()).jsonObject
+        assertEquals("true", reportJson.getValue("dryRun").jsonPrimitive.content)
+        assertEquals("1", reportJson.getValue("plannedViewportCaptureCount").jsonPrimitive.content)
+        assertEquals("0", reportJson.getValue("capturedViewportCaptureCount").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `max captures fails before rendering`() {
+        writeSettings()
+        writeBuildFile()
+        writeSinglePreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=0")
+
+        assertTrue(
+            result.output.contains("agentPreview.maxCaptures planned 1 capture(s), which exceeds the configured limit of 0"),
+            result.output,
+        )
+        assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png").exists())
+        val report = projectDir.resolve("build/agentPreviewReports/capture-report.json")
+        assertTrue(report.isFile)
+        val reportJson = Json.parseToJsonElement(report.readText()).jsonObject
+        assertEquals("1", reportJson.getValue("plannedViewportCaptureCount").jsonPrimitive.content)
+        assertEquals("0", reportJson.getValue("capturedViewportCaptureCount").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `max captures zero permits an empty capture plan`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=0")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertTrue(result.output.contains("planned 0 viewport(s)"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for non numeric max captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=many")
+
+        assertTrue(result.output.contains("agentPreview.maxCaptures must be a non-negative integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for negative max captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=-1")
+
+        assertTrue(result.output.contains("agentPreview.maxCaptures must be a non-negative integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for invalid dry run and does not render`() {
+        writeSettings()
+        writeBuildFile()
+        writeSinglePreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.dryRun=tru")
+
+        assertTrue(result.output.contains("agentPreview.dryRun must be true or false"), result.output)
+        assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png").exists())
+    }
+
+    @Test
+    fun `capture fails with actionable error for invalid continue on error`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.continueOnError=tru")
+
+        assertTrue(result.output.contains("agentPreview.continueOnError must be true or false"), result.output)
+    }
+
+    @Test
+    fun `default rendering fails fast on first failure`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+
+        val result = runCaptureAndFail()
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertFalse(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+    }
+
+    @Test
+    fun `continue on error attempts remaining captures and reports failures`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.continueOnError=true")
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+        assertTrue(result.output.contains("AgentPreview capture failed for 2 viewport(s)"), result.output)
+        val report = projectDir.resolve("build/agentPreviewReports/capture-report.json")
+        assertTrue(report.isFile)
+        val reportText = report.readText()
+        assertTrue(reportText.contains("\":app:commonMain:LoginPreview\""), reportText)
+        assertTrue(reportText.contains("\":app:commonMain:SettingsPreview\""), reportText)
+        val reportJson = Json.parseToJsonElement(reportText).jsonObject
+        assertEquals("true", reportJson.getValue("continueOnError").jsonPrimitive.content)
+        assertEquals("2", reportJson.getValue("failedViewportCaptureCount").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `continue on error records checked exceptions from individual fake captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+        projectDir.resolve("build/agentPreview/render").apply {
+            parentFile.mkdirs()
+            writeText("not a directory")
+        }
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.continueOnError=true")
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+        assertTrue(result.output.contains("AgentPreview capture failed for 2 viewport(s)"), result.output)
+        val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
+        assertTrue(reportText.contains("\":app:commonMain:LoginPreview\""), reportText)
+        assertTrue(reportText.contains("\":app:commonMain:SettingsPreview\""), reportText)
+    }
+
+    @Test
+    fun `CLI capture controls are wired to task inputs`() {
+        writeSettings()
+        writeBuildFile(
+            """
+            agentPreview {
+                maxCaptures.set(5)
+                continueOnError.set(false)
+            }
+            """.trimIndent(),
+        )
+        writeSinglePreviewIndex()
+
+        val result =
+            runCapture(
+                "-PagentPreview.fakeRenderer=true",
+                "-PagentPreview.dryRun=true",
+                "-PagentPreview.continueOnError=true",
+                "-PagentPreview.maxCaptures=2",
+            )
+
+        assertTrue(result.output.contains("dry run"), result.output)
+        val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
+        assertTrue(reportText.contains("\"continueOnError\": true"), reportText)
+        assertTrue(reportText.contains("\"maxCaptures\": 2"), reportText)
+    }
+
+    @Test
     fun `capture fails with actionable error for invalid CLI max preview parameter values`() {
         writeSettings()
         writeBuildFile()
@@ -294,6 +474,59 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
             parentFile.mkdirs()
             writeText("[]")
+        }
+    }
+
+    private fun writeSinglePreviewIndex() {
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                [
+                  {
+                    "id": ":app:commonMain:LoginPreview",
+                    "name": "Login",
+                    "group": "Auth",
+                    "sourceSet": "commonMain",
+                    "fullyQualifiedFunctionName": "dev.staticvar.LoginPreviewKt.LoginPreview",
+                    "sourceFile": "LoginPreview.kt",
+                    "sourceLine": 12,
+                    "widthDp": 393,
+                    "heightDp": 852
+                  }
+                ]
+                """.trimIndent(),
+            )
+        }
+    }
+
+    private fun writeTwoPreviewIndex() {
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                [
+                  {
+                    "id": ":app:commonMain:LoginPreview",
+                    "name": "Login",
+                    "sourceSet": "commonMain",
+                    "fullyQualifiedFunctionName": "dev.staticvar.LoginPreviewKt.LoginPreview",
+                    "sourceFile": "LoginPreview.kt",
+                    "widthDp": 393,
+                    "heightDp": 852
+                  },
+                  {
+                    "id": ":app:commonMain:SettingsPreview",
+                    "name": "Settings",
+                    "sourceSet": "commonMain",
+                    "fullyQualifiedFunctionName": "dev.staticvar.SettingsPreviewKt.SettingsPreview",
+                    "sourceFile": "SettingsPreview.kt",
+                    "widthDp": 393,
+                    "heightDp": 852
+                  }
+                ]
+                """.trimIndent(),
+            )
         }
     }
 

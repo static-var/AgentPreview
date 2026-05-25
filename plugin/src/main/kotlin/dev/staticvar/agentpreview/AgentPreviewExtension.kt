@@ -28,12 +28,15 @@ abstract class AgentPreviewExtension(
     abstract val previewNameFilter: ListProperty<String>
     abstract val viewportNameFilter: ListProperty<String>
     abstract val maxPreviewParameterValues: Property<Int>
+    abstract val maxCaptures: Property<Int>
+    abstract val continueOnError: Property<Boolean>
 
     init {
         includeUnmergedSemantics.convention(false)
         previewNameFilter.convention(emptyList())
         viewportNameFilter.convention(emptyList())
         maxPreviewParameterValues.convention(50)
+        continueOnError.convention(false)
     }
 
     fun android(action: Action<AndroidPreviewConfig>) {
