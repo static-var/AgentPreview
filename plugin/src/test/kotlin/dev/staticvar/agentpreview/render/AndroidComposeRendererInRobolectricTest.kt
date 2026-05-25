@@ -232,6 +232,15 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `accessible no arg reflection invokes public method on non-public implementation`() {
+        val record = FakePackagePrivateRecord(setOf("composition-data"))
+
+        val store = AndroidComposeRendererInRobolectric.accessibleNoArgMethod(record, "getStore")?.invoke(record)
+
+        assertEquals(setOf("composition-data"), store)
+    }
+
+    @Test
     fun `correlates sibling source call group to following node group by preorder and bounds`() {
         val node = Any()
         val rootGroup =
@@ -475,6 +484,12 @@ class AndroidComposeRendererInRobolectricTest {
         private val name: String,
     ) {
         fun getName(): String = name
+    }
+
+    private class FakePackagePrivateRecord(
+        private val store: Set<String>,
+    ) {
+        fun getStore(): Set<String> = store
     }
 
     private class FakeToolingGroup(

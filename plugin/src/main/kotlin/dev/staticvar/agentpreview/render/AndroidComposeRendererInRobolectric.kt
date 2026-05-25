@@ -440,10 +440,17 @@ object AndroidComposeRendererInRobolectric {
         }
     }
 
+    internal fun accessibleNoArgMethod(
+        target: Any,
+        name: String,
+    ) = target.javaClass.methods
+        .firstOrNull { it.name == name && it.parameterTypes.isEmpty() }
+        ?.apply { isAccessible = true }
+
     private fun method(
         target: Any,
         name: String,
-    ) = target.javaClass.methods.firstOrNull { it.name == name && it.parameterTypes.isEmpty() }
+    ) = accessibleNoArgMethod(target, name)
 
     private fun semanticsProperties(config: Any?): Map<String, Any?> {
         val nonNullConfig = config ?: return emptyMap()
