@@ -9,6 +9,7 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
@@ -58,10 +59,18 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
-        logDiagnostics(discoveryResult.diagnostics)
-        val previews =
+        val expansionCandidates =
             discoveryResult.previews
                 .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
+        val expansionResult =
+            PreviewParameterExpander(
+                defaultCap = maxPreviewParameterValues,
+                requestedIndexes = filters.previewParameterFilterIndexes(),
+            ).expand(expansionCandidates)
+        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
+        val previews =
+            expansionResult.previews
+                .filter { preview -> filters.isEmpty() || preview.matchesAfterPreviewParameterExpansion(filters) }
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")

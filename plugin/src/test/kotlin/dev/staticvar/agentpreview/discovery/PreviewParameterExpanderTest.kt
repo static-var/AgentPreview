@@ -38,6 +38,35 @@ class PreviewParameterExpanderTest {
     }
 
     @Test
+    fun `expands already indexed previews without resolving provider count`() {
+        val preview = parameterizedPreview().let { it.copy(previewParameter = it.previewParameter?.copy(index = 1)) }
+        val expander = PreviewParameterExpander()
+
+        val result = expander.expand(listOf(preview))
+
+        assertEquals(listOf(preview), result.previews)
+    }
+
+    @Test
+    fun `synthesizes requested preview parameter index from descriptor metadata without resolver`() {
+        val expander = PreviewParameterExpander(defaultCap = 50, requestedIndexes = setOf(1))
+
+        val result = expander.expand(listOf(parameterizedPreview()))
+
+        assertEquals(listOf(1), result.previews.map { it.previewParameter?.index })
+        assertEquals(listOf(":app:main:example.Parameterized:previewParam-1"), result.previews.map { it.id })
+    }
+
+    @Test
+    fun `does not synthesize requested preview parameter index beyond descriptor limit`() {
+        val expander = PreviewParameterExpander(defaultCap = 50, requestedIndexes = setOf(2))
+
+        val result = expander.expand(listOf(parameterizedPreview(limit = 2)))
+
+        assertEquals(emptyList<PreviewDescriptor>(), result.previews)
+    }
+
+    @Test
     fun `skips empty providers with diagnostic`() {
         val expander = PreviewParameterExpander(resolver = StubResolver(PreviewParameterCount(count = 0, diagnostics = listOf("empty"))))
 
@@ -47,7 +76,7 @@ class PreviewParameterExpanderTest {
         assertEquals(listOf("empty"), result.diagnostics.map { it.message })
     }
 
-    private fun parameterizedPreview(): PreviewDescriptor =
+    private fun parameterizedPreview(limit: Int? = null): PreviewDescriptor =
         PreviewDescriptor(
             id = ":app:main:example.Parameterized",
             name = "Parameterized",
@@ -61,7 +90,7 @@ class PreviewParameterExpanderTest {
                 PreviewParameterDescriptor(
                     providerClassName = "example.Provider",
                     parameterType = "kotlin.String",
-                    limit = null,
+                    limit = limit,
                 ),
         )
 

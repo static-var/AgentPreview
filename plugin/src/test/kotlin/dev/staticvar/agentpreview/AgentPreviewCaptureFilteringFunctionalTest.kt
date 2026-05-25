@@ -111,7 +111,7 @@ class AgentPreviewCaptureFilteringFunctionalTest {
 
         val result = runList("-PagentPreview.previewNameFilter=previewParam-1")
 
-        assertTrue(result.output.contains("parameterizedPreview  Parameterized"), result.output)
+        assertTrue(result.output.contains("parameterizedPreview:previewParam-1  Parameterized"), result.output)
         assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
         assertFalse(result.output.contains("No Compose previews discovered."), result.output)
     }
@@ -130,10 +130,42 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         val listedParentId = listedParameterizedPreviewId()
         val result = runList("-PagentPreview.previewNameFilter=$listedParentId:previewParam-1")
 
-        assertTrue(result.output.contains("$listedParentId  Parameterized"), result.output)
+        assertTrue(result.output.contains("$listedParentId:previewParam-1  Parameterized"), result.output)
         assertTrue(result.output.contains("capture ids append :previewParam-N"), result.output)
-        assertFalse(result.output.contains("$listedParentId:previewParam-1"), result.output)
+        assertFalse(result.output.contains("$listedParentId:previewParam-0"), result.output)
         assertFalse(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
+    fun `JSON index already expanded preview parameter id can be listed and captured by exact expanded filter`() {
+        writeSettings()
+        writeBuildFile()
+        val expandedId = ":app:main:dev.example.Parameterized:previewParam-1"
+        writeParameterizedIndex(id = expandedId, index = 1)
+
+        val listResult = runList("-PagentPreview.previewNameFilter=$expandedId")
+        assertTrue(listResult.output.contains(expandedId), listResult.output)
+        assertFalse(listResult.output.contains(":app:main:dev.example.Parameterized:previewParam-10"), listResult.output)
+
+        val captureResult = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.previewNameFilter=$expandedId")
+        assertTrue(captureResult.output.contains("Captured $expandedId"), captureResult.output)
+        assertFalse(captureResult.output.contains("No Compose previews selected for capture."), captureResult.output)
+    }
+
+    @Test
+    fun `JSON index parameterized parent can synthesize requested shorthand preview parameter id for list and capture`() {
+        writeSettings()
+        writeBuildFile()
+        val parentId = ":app:main:dev.example.Parameterized"
+        writeParameterizedIndex(id = parentId, limit = 3)
+
+        val listResult = runList("-PagentPreview.previewNameFilter=previewParam-1")
+        assertTrue(listResult.output.contains("$parentId:previewParam-1"), listResult.output)
+        assertFalse(listResult.output.contains("$parentId:previewParam-0"), listResult.output)
+
+        val captureResult = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.previewNameFilter=previewParam-1")
+        assertTrue(captureResult.output.contains("Captured $parentId:previewParam-1"), captureResult.output)
+        assertFalse(captureResult.output.contains("Captured $parentId:previewParam-0"), captureResult.output)
     }
 
     @Test
@@ -207,6 +239,41 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
             parentFile.mkdirs()
             writeText("[]")
+        }
+    }
+
+    private fun writeParameterizedIndex(
+        id: String,
+        limit: Int? = null,
+        index: Int? = null,
+    ) {
+        val parameterFields =
+            listOfNotNull(
+                "\"providerClassName\": \"dev.example.Provider\"",
+                "\"parameterType\": \"kotlin.String\"",
+                limit?.let { "\"limit\": $it" },
+                index?.let { "\"index\": $it" },
+            ).joinToString(",\n                      ")
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText(
+                """
+                [
+                  {
+                    "id": "$id",
+                    "name": "Parameterized",
+                    "sourceSet": "main",
+                    "fullyQualifiedFunctionName": "dev.example.Parameterized",
+                    "sourceFile": "Parameterized.kt",
+                    "widthDp": 393,
+                    "heightDp": 852,
+                    "previewParameter": {
+                      $parameterFields
+                    }
+                  }
+                ]
+                """.trimIndent(),
+            )
         }
     }
 

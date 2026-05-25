@@ -12,7 +12,6 @@ import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
 import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
-import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.CURRENT_SNAPSHOT_SCHEMA_VERSION
 import dev.staticvar.agentpreview.model.PreviewDescriptor
@@ -254,16 +253,19 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun expandPreviewParameters(
         previews: List<PreviewDescriptor>,
         maxPreviewParameterValues: Int,
-    ) = if (previewClassesDirs.files.isEmpty()) {
-        PreviewParameterExpansionResult(previews = previews)
-    } else {
-        PreviewParameterExpander(
-            IsolatedPreviewParameterCountResolver(
-                previewClasspath = previewClasspath(),
-                defaultCap = maxPreviewParameterValues,
-            ),
-        ).expand(previews)
-    }
+    ) = PreviewParameterExpander(
+        resolver =
+            if (previewClassesDirs.files.isEmpty()) {
+                null
+            } else {
+                IsolatedPreviewParameterCountResolver(
+                    previewClasspath = previewClasspath(),
+                    defaultCap = maxPreviewParameterValues,
+                )
+            },
+        defaultCap = maxPreviewParameterValues,
+        requestedIndexes = previewNameFilter.get().toSet().previewParameterFilterIndexes(),
+    ).expand(previews)
 
     private fun effectiveMaxPreviewParameterValues(): Int {
         val raw = cliMaxPreviewParameterValues.orNull

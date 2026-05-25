@@ -26,6 +26,35 @@ class PreviewFilterMatchingTest {
     }
 
     @Test
+    fun `full expanded preview parameter filter matches already expanded preview before expansion`() {
+        val expanded =
+            preview(
+                id = ":app:main:com.example.Foo:previewParam-1",
+                previewParameter =
+                    PreviewParameterDescriptor(
+                        providerClassName = "com.example.Provider",
+                        parameterType = "kotlin.String",
+                        index = 1,
+                    ),
+            )
+        val sibling =
+            preview(
+                id = ":app:main:com.example.Foo:previewParam-10",
+                previewParameter =
+                    PreviewParameterDescriptor(
+                        providerClassName = "com.example.Provider",
+                        parameterType = "kotlin.String",
+                        index = 10,
+                    ),
+            )
+
+        val filters = setOf(":app:main:com.example.Foo:previewParam-1")
+
+        assertTrue(expanded.matchesBeforePreviewParameterExpansion(filters))
+        assertFalse(sibling.matchesBeforePreviewParameterExpansion(filters))
+    }
+
+    @Test
     fun `shorthand preview parameter filter matches all parameterized previews before expansion`() {
         val foo = preview(id = ":app:main:com.example.Foo")
         val fooBar = preview(id = ":app:main:com.example.FooBar")

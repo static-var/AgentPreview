@@ -18,7 +18,7 @@ internal fun PreviewDescriptor.matchesBeforePreviewParameterExpansion(filters: S
             }
 
             filter.hasPreviewParameterSuffix() -> {
-                previewParameter != null && id == filter.withoutPreviewParameterSuffix()
+                previewParameter != null && (id == filter.withoutPreviewParameterSuffix() || id == filter)
             }
 
             else -> {
@@ -54,6 +54,15 @@ internal fun String.hasPreviewParameterSuffix(): Boolean = PREVIEW_PARAMETER_ID_
 internal fun String.isPreviewParameterShorthand(): Boolean = PREVIEW_PARAMETER_SHORTHAND_ID_REGEX.matches(this)
 
 internal fun String.withoutPreviewParameterSuffix(): String = replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
+
+internal fun Set<String>.previewParameterFilterIndexes(): Set<Int> =
+    mapNotNull { filter ->
+        when {
+            filter.isPreviewParameterShorthand() -> filter.substringAfter("previewParam-").toIntOrNull()
+            filter.hasPreviewParameterSuffix() -> filter.substringAfterLast(":previewParam-").toIntOrNull()
+            else -> null
+        }
+    }.toSet()
 
 internal fun String?.matchesPreviewFilter(filter: String): Boolean = this == filter || this?.contains(filter) == true
 
