@@ -13,6 +13,7 @@ import java.io.File
 import java.lang.reflect.Method
 import java.util.jar.JarFile
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 class DefaultRenderProcessRunnerTest {
@@ -147,6 +148,15 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `generated aar R jar uses Java 8 compatible bytecode`() {
+        val aar = aarWithRSymbols("androidx.example.lib", "int id pooled_container_tag 0x0\n")
+
+        val output = generateAarRJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
+
+        assertEquals(52, classMajorVersion(output, "androidx/example/lib/R${'$'}id.class"))
+    }
+
+    @Test
     fun `stub R jar entries are written in deterministic sorted order`() {
         val output = tempDir.resolve("r.jar")
         val symbols =
@@ -238,6 +248,11 @@ class DefaultRenderProcessRunnerTest {
         }
     }
 
+    private fun generateAarRJarMethod(): Method =
+        DefaultRenderProcessRunner::class.java
+            .getDeclaredMethod("generateAarRJar", File::class.java)
+            .apply { isAccessible = true }
+
     private fun writeStubRJarMethod(): Method =
         DefaultRenderProcessRunner::class.java
             .getDeclaredMethod(
@@ -246,6 +261,40 @@ class DefaultRenderProcessRunnerTest {
                 String::class.java,
                 Map::class.java,
             ).apply { isAccessible = true }
+
+    private fun aarWithRSymbols(
+        packageName: String,
+        rTxt: String,
+    ): File {
+        val packagePath = packageName.replace('.', '/')
+        val classesJar =
+            tempDir.resolve("$packageName-${System.nanoTime()}-classes.jar").also { file ->
+                writeZip(
+                    file,
+                    "$packagePath/UsesGeneratedR.class" to
+                        "constant pool reference to $packagePath/R${'$'}id".toByteArray(),
+                )
+            }
+        return tempDir.resolve("$packageName-${System.nanoTime()}.aar").also { file ->
+            ZipOutputStream(file.outputStream()).use { zip ->
+                zip.putNextEntry(ZipEntry("classes.jar"))
+                zip.write(classesJar.readBytes())
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry("R.txt"))
+                zip.write(rTxt.toByteArray())
+                zip.closeEntry()
+            }
+        }
+    }
+
+    private fun classMajorVersion(
+        jarFile: File,
+        entryName: String,
+    ): Int =
+        ZipFile(jarFile).use { zip ->
+            val bytes = zip.getInputStream(zip.getEntry(entryName)).use { it.readBytes() }
+            ((bytes[6].toInt() and 0xff) shl 8) or (bytes[7].toInt() and 0xff)
+        }
 
     private fun resourceSymbol(
         valueType: String,

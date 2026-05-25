@@ -20,6 +20,7 @@ import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import javax.tools.JavaCompiler
 import javax.tools.ToolProvider
 
 class DefaultRenderProcessRunner : RenderProcessRunner {
@@ -179,9 +180,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             sourceFile.parentFile.mkdirs()
             classesDir.mkdirs()
             sourceFile.writeText(source)
-            val compiler = ToolProvider.getSystemJavaCompiler()
-            val result = compiler?.run(null, null, null, "-d", classesDir.absolutePath, sourceFile.absolutePath)
-            if (result == 0) {
+            if (compileRJava(sourceFile, classesDir)) {
                 writeCompiledClassesJar(tempOutput, classesDir)
             } else {
                 writeStubRJar(tempOutput, packageName, symbols)
@@ -193,6 +192,27 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             workDir.deleteRecursively()
         }
     }
+
+    private fun compileRJava(
+        sourceFile: File,
+        classesDir: File,
+    ): Boolean {
+        val compiler = ToolProvider.getSystemJavaCompiler() ?: return false
+        val commonArgs = listOf("-d", classesDir.absolutePath)
+        if (runJavac(compiler, listOf("--release", "8") + commonArgs, sourceFile)) return true
+        return runJavac(compiler, listOf("-source", "8", "-target", "8", "-Xlint:-options") + commonArgs, sourceFile)
+    }
+
+    private fun runJavac(
+        compiler: JavaCompiler,
+        args: List<String>,
+        sourceFile: File,
+    ): Boolean =
+        runCatching {
+            compiler.getStandardFileManager(null, null, null).use { fileManager ->
+                compiler.getTask(null, fileManager, null, args, null, fileManager.getJavaFileObjects(sourceFile)).call()
+            }
+        }.getOrDefault(false)
 
     private fun writeCompiledClassesJar(
         output: File,
@@ -392,7 +412,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             .joinToString("") { byte -> "%02x".format(byte) }
 
     private companion object {
-        const val AAR_MATERIALIZATION_VERSION = 3
+        const val AAR_MATERIALIZATION_VERSION = 4
         const val SYNTHETIC_RESOURCE_ID_START = 0x7f010000
     }
 
