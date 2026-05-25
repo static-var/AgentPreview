@@ -11,9 +11,14 @@ import org.robolectric.RobolectricTestRunner
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.URLClassLoader
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.tools.ToolProvider
 
@@ -122,6 +127,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 .entries()
                 .asSequence()
                 .filter { entry -> !entry.isDirectory && entry.name.startsWith("libs/") && entry.name.endsWith(".jar") }
+                .sortedBy { entry -> entry.name }
                 .mapNotNull { entry -> extractAarEntry(aar, entry.name, File(outputDir, File(entry.name).name)) }
                 .toList()
         }
@@ -134,13 +140,27 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
     ): File? {
         if (output.isFile) return output
         output.parentFile.mkdirs()
-        ZipFile(aar).use { zip ->
-            val entry = zip.getEntry(entryName) ?: return null
-            zip.getInputStream(entry).use { input ->
-                output.outputStream().use { outputStream -> input.copyTo(outputStream) }
+        val tempOutput = Files.createTempFile(output.parentFile.toPath(), "${output.name}.", ".tmp").toFile()
+        try {
+            ZipFile(aar).use { zip ->
+                val entry = zip.getEntry(entryName) ?: return null
+                copyZipEntry(zip, entry, tempOutput)
             }
+            moveAtomically(tempOutput, output)
+            return output
+        } finally {
+            tempOutput.delete()
         }
-        return output
+    }
+
+    private fun copyZipEntry(
+        zip: ZipFile,
+        entry: ZipEntry,
+        output: File,
+    ) {
+        zip.getInputStream(entry).use { input ->
+            output.outputStream().use { outputStream -> input.copyTo(outputStream) }
+        }
     }
 
     private fun generateAarRJar(aar: File): File? {
@@ -150,21 +170,28 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         val packageName = inferRPackageName(classesJar) ?: return null
         val symbols = readAarSymbols(aar).takeIf { it.isNotEmpty() } ?: return null
         val source = rJavaSource(packageName, symbols)
-        val workDir = aarMaterializationFile(aar, "r-work", "dir")
-        val sourceFile = File(workDir, packageName.replace('.', '/') + "/R.java")
-        val classesDir = File(workDir, "classes")
-        sourceFile.parentFile.mkdirs()
-        classesDir.mkdirs()
-        sourceFile.writeText(source)
-        val compiler = ToolProvider.getSystemJavaCompiler()
-        val result = compiler?.run(null, null, null, "-d", classesDir.absolutePath, sourceFile.absolutePath)
         output.parentFile.mkdirs()
-        if (result == 0) {
-            writeCompiledClassesJar(output, classesDir)
-        } else {
-            writeStubRJar(output, packageName, symbols)
+        val workDir = Files.createTempDirectory(output.parentFile.toPath(), "${output.name}.work.").toFile()
+        val tempOutput = Files.createTempFile(output.parentFile.toPath(), "${output.name}.", ".tmp").toFile()
+        try {
+            val sourceFile = File(workDir, packageName.replace('.', '/') + "/R.java")
+            val classesDir = File(workDir, "classes")
+            sourceFile.parentFile.mkdirs()
+            classesDir.mkdirs()
+            sourceFile.writeText(source)
+            val compiler = ToolProvider.getSystemJavaCompiler()
+            val result = compiler?.run(null, null, null, "-d", classesDir.absolutePath, sourceFile.absolutePath)
+            if (result == 0) {
+                writeCompiledClassesJar(tempOutput, classesDir)
+            } else {
+                writeStubRJar(tempOutput, packageName, symbols)
+            }
+            moveAtomically(tempOutput, output)
+            return output
+        } finally {
+            tempOutput.delete()
+            workDir.deleteRecursively()
         }
-        return output
     }
 
     private fun writeCompiledClassesJar(
@@ -175,6 +202,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             classesDir
                 .walkTopDown()
                 .filter { it.isFile }
+                .sortedBy { file -> file.relativeTo(classesDir).invariantSeparatorsPath }
                 .forEach { file ->
                     val name = file.relativeTo(classesDir).invariantSeparatorsPath
                     jar.putNextEntry(JarEntry(name))
@@ -227,7 +255,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             jar.putNextEntry(JarEntry("$packagePath/R.class"))
             jar.write(classFileBytes("$packagePath/R", emptyList()))
             jar.closeEntry()
-            symbols.forEach { (type, typeSymbols) ->
+            symbols.toSortedMap().forEach { (type, _) ->
                 jar.putNextEntry(JarEntry("$packagePath/R${'$'}$type.class"))
                 jar.write(classFileBytes("$packagePath/R${'$'}$type", assignedInts.getValue(type)))
                 jar.closeEntry()
@@ -346,6 +374,17 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         )
     }
 
+    private fun moveAtomically(
+        source: File,
+        target: File,
+    ) {
+        try {
+            Files.move(source.toPath(), target.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(source.toPath(), target.toPath(), REPLACE_EXISTING)
+        }
+    }
+
     private fun sha256(value: String): String =
         MessageDigest
             .getInstance("SHA-256")
@@ -353,7 +392,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
             .joinToString("") { byte -> "%02x".format(byte) }
 
     private companion object {
-        const val AAR_MATERIALIZATION_VERSION = 2
+        const val AAR_MATERIALIZATION_VERSION = 3
         const val SYNTHETIC_RESOURCE_ID_START = 0x7f010000
     }
 

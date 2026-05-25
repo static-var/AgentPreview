@@ -19,8 +19,8 @@ class AndroidPreviewAutoWiring(
     fun configure() {
         project.afterEvaluate {
             when {
-                hasAndroidKmpLibraryShape() -> configureAndroidKmpLibrary()
                 hasAndroidBackedVariant() -> configureAndroidBackedVariant(extension.android.variant.get())
+                hasAndroidKmpLibraryShape() -> configureAndroidKmpLibrary()
             }
         }
     }

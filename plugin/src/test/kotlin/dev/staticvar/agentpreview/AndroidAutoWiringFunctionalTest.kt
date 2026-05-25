@@ -144,6 +144,57 @@ class AndroidAutoWiringFunctionalTest {
         assertTrue(result.output.contains("No Compose previews discovered."), result.output)
     }
 
+    @Test
+    fun `normal Android variant auto wiring wins when KMP-shaped signals also exist`() {
+        writeFakeAndroidPlugin()
+        writeSettings()
+        projectDir.resolve("android-runtime.jar").writeText("kmp-runtime")
+        projectDir.resolve("debug-runtime.jar").writeText("debug-runtime")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+
+            plugins {
+                id("com.android.library")
+                id("dev.staticvar.agentpreview")
+            }
+
+            configurations.create("androidRuntimeClasspath")
+            dependencies.add("androidRuntimeClasspath", files("android-runtime.jar"))
+            dependencies.add("debugRuntimeClasspath", files("debug-runtime.jar"))
+
+            tasks.register("compileAndroidMain") {
+                doLast {
+                    layout.buildDirectory.dir("classes/kotlin/android/main").get().asFile.mkdirs()
+                }
+            }
+
+            tasks.named<ListComposePreviewsTask>("listComposePreviews") {
+                doFirst {
+                    println("previewClassesDirs=" + previewClassesDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                    println("previewRuntimeClasspath=" + previewRuntimeClasspath.files.joinToString("|") { it.name })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains(":compileDebugKotlin"), result.output)
+        assertTrue(!result.output.contains(":compileAndroidMain"), result.output)
+        assertTrue(result.output.contains("build/tmp/kotlin-classes/debug"), result.output)
+        assertTrue(result.output.contains("debug-runtime.jar"), result.output)
+        assertTrue(!result.output.contains("build/classes/kotlin/android/main"), result.output)
+        assertTrue(!result.output.contains("android-runtime.jar"), result.output)
+    }
+
     private fun writeSettings() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """

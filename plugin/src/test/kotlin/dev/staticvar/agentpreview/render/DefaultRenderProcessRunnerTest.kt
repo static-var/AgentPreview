@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.lang.reflect.Method
+import java.util.jar.JarFile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -145,6 +147,35 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `stub R jar entries are written in deterministic sorted order`() {
+        val output = tempDir.resolve("r.jar")
+        val symbols =
+            linkedMapOf(
+                "style" to listOf(resourceSymbol("int", "style", "AppTheme")),
+                "id" to listOf(resourceSymbol("int", "id", "button")),
+            )
+
+        writeStubRJarMethod().invoke(DefaultRenderProcessRunner(), output, "androidx.example.lib", symbols)
+
+        val entries =
+            JarFile(output).use { jar ->
+                jar
+                    .entries()
+                    .asSequence()
+                    .map { it.name }
+                    .toList()
+            }
+        assertEquals(
+            listOf(
+                "androidx/example/lib/R.class",
+                "androidx/example/lib/R${'$'}id.class",
+                "androidx/example/lib/R${'$'}style.class",
+            ),
+            entries,
+        )
+    }
+
+    @Test
     fun `structured resource loading gap result is classified as diagnostic fallback`() {
         val result =
             runWithFakeJava(
@@ -205,6 +236,29 @@ class DefaultRenderProcessRunnerTest {
         } finally {
             System.setProperty("java.home", originalJavaHome)
         }
+    }
+
+    private fun writeStubRJarMethod(): Method =
+        DefaultRenderProcessRunner::class.java
+            .getDeclaredMethod(
+                "writeStubRJar",
+                File::class.java,
+                String::class.java,
+                Map::class.java,
+            ).apply { isAccessible = true }
+
+    private fun resourceSymbol(
+        valueType: String,
+        type: String,
+        name: String,
+    ): Any {
+        val resourceSymbolClass =
+            DefaultRenderProcessRunner::class.java.declaredClasses.single { nestedClass -> nestedClass.simpleName == "ResourceSymbol" }
+        return resourceSymbolClass
+            .declaredConstructors
+            .single()
+            .apply { isAccessible = true }
+            .newInstance(valueType, type, name)
     }
 
     private fun writeZip(
