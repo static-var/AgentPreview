@@ -81,13 +81,25 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         }
     }
 
+    private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
+        if (previewClassesDirs.files.isEmpty()) {
+            emptySet()
+        } else {
+            runCatching {
+                project.configurations
+                    .detachedConfiguration(
+                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                    ).resolve()
+            }.getOrDefault(emptySet())
+        }
+
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = previewRuntimeClasspath.files.toList(),
+                runtimeClasspath = (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked()).toList(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

@@ -21,7 +21,7 @@ class AgentPreviewPluginFunctionalTest {
     lateinit var projectDir: File
 
     @Test
-    fun `list task logs scanner diagnostics without failing when previews are skipped`() {
+    fun `list task expands preview parameter variants without failing`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
             pluginManagement {
@@ -53,9 +53,8 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .build()
 
-        assertTrue(result.output.contains("Skipping preview"), result.output)
-        assertTrue(result.output.contains("parameterizedPreview"), result.output)
-        assertTrue(result.output.contains("preview methods with parameters are unsupported"), result.output)
+        assertTrue(result.output.contains("parameterizedPreview:previewParam-0"), result.output)
+        assertTrue(result.output.contains("parameterizedPreview:previewParam-1"), result.output)
         assertTrue(result.output.contains(":listComposePreviews"), result.output)
     }
 

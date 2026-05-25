@@ -16,4 +16,5 @@ data class ScannedPreview(
     val fullyQualifiedClassName: String,
     val fullyQualifiedFunctionName: String,
     val annotations: List<PreviewAnnotation>,
+    val previewParameter: PreviewParameter? = null,
 )

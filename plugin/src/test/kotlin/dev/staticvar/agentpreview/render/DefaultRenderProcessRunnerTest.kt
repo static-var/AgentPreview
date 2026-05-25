@@ -46,7 +46,7 @@ class DefaultRenderProcessRunnerTest {
                   echo "Expected includeUnmergedSemantics arg true, got ${'$'}{13}" >&2
                   exit 1
                 fi
-                cat > "${'$'}{19}" <<'EOF'
+                cat > "${'$'}{21}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -67,7 +67,7 @@ class DefaultRenderProcessRunnerTest {
                   echo "Unexpected preview config args: ${'$'}{14} ${'$'}{15} ${'$'}{16} ${'$'}{17} ${'$'}{18}" >&2
                   exit 1
                 fi
-                cat > "${'$'}{19}" <<'EOF'
+                cat > "${'$'}{21}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -136,7 +136,7 @@ class DefaultRenderProcessRunnerTest {
                 if [ "${'$'}?" -ne 0 ]; then
                   exit 1
                 fi
-                cat > "${'$'}{19}" <<'EOF'
+                cat > "${'$'}{21}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -191,7 +191,7 @@ class DefaultRenderProcessRunnerTest {
             runWithFakeJava(
                 """
                 #!/bin/sh
-                cat > "${'$'}{19}" <<'EOF'
+                cat > "${'$'}{21}" <<'EOF'
                 status=failure
                 failureKind=ResourceLoadingGap
                 EOF

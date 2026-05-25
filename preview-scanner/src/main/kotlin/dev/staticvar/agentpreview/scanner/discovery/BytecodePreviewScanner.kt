@@ -13,6 +13,7 @@ import dev.staticvar.agentpreview.scanner.model.DiscoveryDiagnostic
 import dev.staticvar.agentpreview.scanner.model.ParsedClass
 import dev.staticvar.agentpreview.scanner.model.ParsedMethod
 import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
+import dev.staticvar.agentpreview.scanner.model.PreviewParameter
 import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import org.objectweb.asm.ClassReader
 import java.io.File
@@ -83,10 +84,8 @@ class BytecodePreviewScanner : PreviewScanner {
                     null
                 }
 
-                method.hasUnsupportedParameters() -> {
-                    DiscoveryDiagnostic(
-                        unsupportedParametersDiagnostic(className = name, methodName = method.name),
-                    )
+                method.parameterDiagnostic(name) != null -> {
+                    DiscoveryDiagnostic(requireNotNull(method.parameterDiagnostic(name)))
                 }
 
                 else -> {
@@ -97,6 +96,7 @@ class BytecodePreviewScanner : PreviewScanner {
                             sourceFile = sourceFile,
                             methodName = method.name,
                             annotations = annotations,
+                            previewParameter = method.previewParameters.singleOrNull(),
                         ),
                     )
                 }
@@ -109,10 +109,31 @@ class BytecodePreviewScanner : PreviewScanner {
                 annotationPreviews[annotationName].orEmpty()
             }
 
-    private fun ParsedMethod.hasUnsupportedParameters(): Boolean = argumentTypes.isNotEmpty() && !hasOnlyComposeSyntheticParameters()
+    private fun ParsedMethod.parameterDiagnostic(className: String): PreviewScanDiagnostic? {
+        val userParameterCount = userArgumentTypes().size
+        if (userParameterCount == 0) return null
+        if (previewParameters.size > 1) {
+            return unsupportedParametersDiagnostic(className, name, "multiple @PreviewParameter parameters are unsupported")
+        }
+        if (userParameterCount > 1) return unsupportedParametersDiagnostic(className, name, "multiple user parameters are unsupported")
+        if (previewParameters.isEmpty()) {
+            return unsupportedParametersDiagnostic(
+                className,
+                name,
+                "the user parameter is missing @PreviewParameter",
+            )
+        }
+        val previewParameter = previewParameters.single()
+        if (previewParameter.parameterIndex != 0) {
+            return unsupportedParametersDiagnostic(className, name, "@PreviewParameter must annotate the single user parameter")
+        }
+        return null
+    }
 
-    private fun ParsedMethod.hasOnlyComposeSyntheticParameters(): Boolean =
-        argumentTypes.firstOrNull() == COMPOSER_TYPE && argumentTypes.drop(1).all { type -> type == INT_TYPE }
+    private fun ParsedMethod.userArgumentTypes(): List<String> {
+        val composerIndex = argumentTypes.indexOf(COMPOSER_TYPE)
+        return if (composerIndex >= 0) argumentTypes.take(composerIndex) else argumentTypes
+    }
 
     private fun scannedPreview(
         input: PreviewScanInput,
@@ -120,6 +141,7 @@ class BytecodePreviewScanner : PreviewScanner {
         sourceFile: String?,
         methodName: String,
         annotations: List<PreviewAnnotation>,
+        previewParameter: PreviewParameter?,
     ): ScannedPreview {
         val functionName = sourceQualifiedFunctionName(className, sourceFile, methodName)
         return ScannedPreview(
@@ -133,6 +155,7 @@ class BytecodePreviewScanner : PreviewScanner {
             fullyQualifiedClassName = className,
             fullyQualifiedFunctionName = functionName,
             annotations = annotations,
+            previewParameter = previewParameter,
         )
     }
 
@@ -158,10 +181,11 @@ class BytecodePreviewScanner : PreviewScanner {
     private fun unsupportedParametersDiagnostic(
         className: String,
         methodName: String,
+        reason: String,
     ): PreviewScanDiagnostic =
         PreviewScanDiagnostic(
             severity = PreviewScanDiagnostic.Severity.WARNING,
-            message = "Skipping preview $className.$methodName because preview methods with parameters are unsupported.",
+            message = "Skipping preview $className.$methodName because preview parameters are unsupported here: $reason.",
             className = className,
             methodName = methodName,
         )

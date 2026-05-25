@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview.discovery
 
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 
 @Preview(name = "Phone", group = "Auth", widthDp = 393, heightDp = 852)
 annotation class PhonePreview
@@ -31,8 +33,14 @@ annotation class DuplicateNamePreview
 )
 fun loginPreview() = Unit
 
+class StringProvider : PreviewParameterProvider<String> {
+    override val values: Sequence<String> = sequenceOf("first", "second")
+}
+
 @Preview(name = "Parameterized")
-fun parameterizedPreview(name: String) {
+fun parameterizedPreview(
+    @PreviewParameter(StringProvider::class) name: String,
+) {
     check(name.isNotEmpty())
 }
 

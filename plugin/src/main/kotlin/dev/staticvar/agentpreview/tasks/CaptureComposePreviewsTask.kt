@@ -127,6 +127,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                                 group = preview.group,
                                 source = sourceLabel(preview),
                                 sourceSet = preview.sourceSet,
+                                previewParameter = preview.previewParameter,
                             ),
                         viewport = renderResult.viewport,
                         nodes =
@@ -196,12 +197,14 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         if (previewClassesDirs.files.isEmpty()) {
             emptySet()
         } else {
-            project.configurations
-                .detachedConfiguration(
-                    project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                    project.dependencies.create("androidx.test:core:1.7.0"),
-                    project.dependencies.create("androidx.test:monitor:1.8.0"),
-                ).resolve()
+            runCatching {
+                project.configurations
+                    .detachedConfiguration(
+                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                        project.dependencies.create("androidx.test:core:1.7.0"),
+                        project.dependencies.create("androidx.test:monitor:1.8.0"),
+                    ).resolve()
+            }.getOrDefault(emptySet())
         }
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
@@ -220,7 +223,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = previewRuntimeClasspath.files.toList(),
+                runtimeClasspath = (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

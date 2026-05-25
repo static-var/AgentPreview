@@ -34,6 +34,8 @@ object AndroidComposeRendererInRobolectric {
         fontScale: Float? = null,
         showBackground: Boolean = false,
         backgroundColor: Long? = null,
+        previewParameterProviderClassName: String? = null,
+        previewParameterIndex: Int? = null,
     ) {
         outputFile.parentFile.mkdirs()
         semanticsOutputFile.parentFile.mkdirs()
@@ -47,7 +49,7 @@ object AndroidComposeRendererInRobolectric {
         setNoActionBarTheme(activity)
         controller.javaClass.getMethod("setup").invoke(controller)
         applyConfiguration(activity, density, fontScale ?: DEFAULT_FONT_SCALE, locale, uiMode)
-        setContent(activity, className, methodName)
+        setContent(activity, className, methodName, previewParameterProviderClassName, previewParameterIndex)
         val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile, showBackground, backgroundColor)
         writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
         writeLayoutTree(view, layoutTreeOutputFile, density)
@@ -122,8 +124,10 @@ object AndroidComposeRendererInRobolectric {
         activity: Any,
         className: String,
         methodName: String,
+        previewParameterProviderClassName: String?,
+        previewParameterIndex: Int?,
     ) {
-        val content = PreviewComposable(className, methodName)
+        val content = PreviewComposable(className, methodName, previewParameterProviderClassName, previewParameterIndex)
         val ownerClass = Class.forName("androidx.activity.ComponentActivity")
         val setContent =
             Class

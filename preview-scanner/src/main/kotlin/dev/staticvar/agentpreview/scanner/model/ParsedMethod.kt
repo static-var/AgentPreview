@@ -12,4 +12,5 @@ internal data class ParsedMethod(
     val argumentTypes: List<String>,
     val previewAnnotations: List<PreviewAnnotation>,
     val metaAnnotationNames: List<String>,
+    val previewParameters: List<PreviewParameter> = emptyList(),
 )

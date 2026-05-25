@@ -113,6 +113,33 @@ class PreviewDiscoveryTest {
     }
 
     @Test
+    fun `expands preview parameter provider values with stable ids`() {
+        val discovery =
+            PreviewDiscovery(
+                projectPath = ":app",
+                sourceSetName = "test",
+                classesDirs = listOf(testClassesDir()),
+                runtimeClasspath = emptyList(),
+            )
+
+        val previews =
+            discovery
+                .discover()
+                .filter { it.fullyQualifiedFunctionName.endsWith("discovery.parameterizedPreview") }
+                .sortedBy { it.previewParameter?.index }
+
+        assertEquals(listOf(0, 1), previews.map { it.previewParameter?.index })
+        assertEquals(
+            listOf(
+                ":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview:previewParam-0",
+                ":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview:previewParam-1",
+            ),
+            previews.map { it.id },
+        )
+        assertEquals("dev.staticvar.agentpreview.discovery.StringProvider", previews.first().previewParameter?.providerClassName)
+    }
+
+    @Test
     fun `reports empty list when there are no class directories`() {
         val discovery =
             PreviewDiscovery(

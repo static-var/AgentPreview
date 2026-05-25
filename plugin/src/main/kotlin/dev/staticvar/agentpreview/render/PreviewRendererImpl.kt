@@ -57,6 +57,8 @@ class PreviewRendererImpl(
                 fontScale = preview.fontScale,
                 showBackground = preview.showBackground,
                 backgroundColor = preview.backgroundColor,
+                previewParameterProviderClassName = preview.previewParameter?.providerClassName,
+                previewParameterIndex = preview.previewParameter?.index,
             )
         val renderMode =
             when (val result = processRunner.run(request, previewClasspath)) {
