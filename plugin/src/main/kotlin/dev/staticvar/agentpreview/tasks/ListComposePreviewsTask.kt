@@ -8,6 +8,8 @@ package dev.staticvar.agentpreview.tasks
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
+import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.provider.ListProperty
@@ -44,8 +46,10 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
+        val discoveryResult = discoverPreviews(indexFile)
+        logDiagnostics(discoveryResult.diagnostics)
         val previews =
-            discoverPreviews(indexFile)
+            discoveryResult.previews
                 .filter { filters.isEmpty() || it.id in filters || it.name in filters }
 
         if (previews.isEmpty()) {
@@ -67,15 +71,28 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun discoverPreviews(indexFile: File) =
+    private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
+        diagnostics.forEach { diagnostic ->
+            val message = "AgentPreview scanner: ${diagnostic.message}"
+            when (diagnostic.severity) {
+                PreviewScanDiagnostic.Severity.WARNING -> logger.warn(message)
+                PreviewScanDiagnostic.Severity.ERROR -> logger.error(message)
+            }
+        }
+    }
+
+    private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = project.path,
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
                 runtimeClasspath = previewRuntimeClasspath.files.toList(),
-            ).discover()
+            ).discoverWithDiagnostics()
         } else {
-            JsonIndexPreviewDiscovery(indexFile).discover()
+            PreviewDiscoveryResult(
+                previews = JsonIndexPreviewDiscovery(indexFile).discover(),
+                diagnostics = emptyList(),
+            )
         }
 }

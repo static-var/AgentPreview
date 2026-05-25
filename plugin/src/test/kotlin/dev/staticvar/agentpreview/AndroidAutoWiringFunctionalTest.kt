@@ -16,6 +16,51 @@ class AndroidAutoWiringFunctionalTest {
     lateinit var projectDir: File
 
     @Test
+    fun `wires Android KMP library compile classes and runtime classpath into preview tasks`() {
+        writeSettings()
+        projectDir.resolve("android-runtime.jar").writeText("runtime")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            configurations.create("androidRuntimeClasspath")
+            dependencies.add("androidRuntimeClasspath", files("android-runtime.jar"))
+
+            tasks.register("compileAndroidMain") {
+                doLast {
+                    layout.buildDirectory.dir("classes/kotlin/android/main").get().asFile.mkdirs()
+                }
+            }
+
+            tasks.named<ListComposePreviewsTask>("listComposePreviews") {
+                doFirst {
+                    println("previewClassesDirs=" + previewClassesDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                    println("previewRuntimeClasspath=" + previewRuntimeClasspath.files.joinToString("|") { it.name })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains(":compileAndroidMain"), result.output)
+        assertTrue(result.output.contains("build/classes/kotlin/android/main"), result.output)
+        assertTrue(result.output.contains("android-runtime.jar"), result.output)
+        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
     fun `wires Android library debug compile task into preview task graph`() {
         writeFakeAndroidPlugin()
         writeSettings()

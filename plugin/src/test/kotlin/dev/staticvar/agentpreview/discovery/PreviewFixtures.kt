@@ -31,6 +31,11 @@ annotation class DuplicateNamePreview
 )
 fun loginPreview() = Unit
 
+@Preview(name = "Parameterized")
+fun parameterizedPreview(name: String) {
+    check(name.isNotEmpty())
+}
+
 object PreviewFixtureObject {
     @PhonePreview
     fun objectPreview() = Unit
