@@ -151,21 +151,16 @@ class DefaultRenderProcessRunnerTest {
     fun `generated aar R jar uses Java 8 compatible bytecode`() {
         val aar = aarWithRSymbols("androidx.example.lib", "int id pooled_container_tag 0x0\n")
 
-        val output = generateAarRJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
+        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
 
         assertEquals(52, classMajorVersion(output, "androidx/example/lib/R${'$'}id.class"))
     }
 
     @Test
-    fun `stub R jar entries are written in deterministic sorted order`() {
-        val output = tempDir.resolve("r.jar")
-        val symbols =
-            linkedMapOf(
-                "style" to listOf(resourceSymbol("int", "style", "AppTheme")),
-                "id" to listOf(resourceSymbol("int", "id", "button")),
-            )
+    fun `generated aar R jar entries are written in deterministic sorted order`() {
+        val aar = aarWithRSymbols("androidx.example.lib", "int style AppTheme 0x0\nint id button 0x0\n")
 
-        writeStubRJarMethod().invoke(DefaultRenderProcessRunner(), output, "androidx.example.lib", symbols)
+        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
 
         val entries =
             JarFile(output).use { jar ->
@@ -183,6 +178,15 @@ class DefaultRenderProcessRunnerTest {
             ),
             entries,
         )
+    }
+
+    @Test
+    fun `aar R jar materialization returns null when generated source cannot compile`() {
+        val aar = aarWithRSymbols("androidx.example.lib", "int id invalid-name 0x0\n")
+
+        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar)
+
+        assertEquals(null, output)
     }
 
     @Test
@@ -214,14 +218,13 @@ class DefaultRenderProcessRunnerTest {
         backgroundColor: Long? = null,
         previewClasspath: List<File> = emptyList(),
     ): RenderProcessResult {
-        val originalJavaHome = System.getProperty("java.home")
-        val javaHome = tempDir.resolve("fake-java-home")
-        val javaExecutable = javaHome.resolve("bin/java")
+        val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
+        val javaExecutable = tempDir.resolve("fake-java-home/bin/java")
         javaExecutable.parentFile.mkdirs()
         javaExecutable.writeText(script)
         javaExecutable.setExecutable(true)
         return try {
-            System.setProperty("java.home", javaHome.absolutePath)
+            System.setProperty("agentpreview.java.executable", javaExecutable.absolutePath)
             DefaultRenderProcessRunner().run(
                 request =
                     AndroidComposeRenderRequest(
@@ -244,23 +247,18 @@ class DefaultRenderProcessRunnerTest {
                 previewClasspath = previewClasspath,
             )
         } finally {
-            System.setProperty("java.home", originalJavaHome)
+            if (originalJavaExecutable == null) {
+                System.clearProperty("agentpreview.java.executable")
+            } else {
+                System.setProperty("agentpreview.java.executable", originalJavaExecutable)
+            }
         }
     }
 
-    private fun generateAarRJarMethod(): Method =
+    private fun materializeAarRClassesJarMethod(): Method =
         DefaultRenderProcessRunner::class.java
-            .getDeclaredMethod("generateAarRJar", File::class.java)
+            .getDeclaredMethod("materializeAarRClassesJar", File::class.java)
             .apply { isAccessible = true }
-
-    private fun writeStubRJarMethod(): Method =
-        DefaultRenderProcessRunner::class.java
-            .getDeclaredMethod(
-                "writeStubRJar",
-                File::class.java,
-                String::class.java,
-                Map::class.java,
-            ).apply { isAccessible = true }
 
     private fun aarWithRSymbols(
         packageName: String,
@@ -295,20 +293,6 @@ class DefaultRenderProcessRunnerTest {
             val bytes = zip.getInputStream(zip.getEntry(entryName)).use { it.readBytes() }
             ((bytes[6].toInt() and 0xff) shl 8) or (bytes[7].toInt() and 0xff)
         }
-
-    private fun resourceSymbol(
-        valueType: String,
-        type: String,
-        name: String,
-    ): Any {
-        val resourceSymbolClass =
-            DefaultRenderProcessRunner::class.java.declaredClasses.single { nestedClass -> nestedClass.simpleName == "ResourceSymbol" }
-        return resourceSymbolClass
-            .declaredConstructors
-            .single()
-            .apply { isAccessible = true }
-            .newInstance(valueType, type, name)
-    }
 
     private fun writeZip(
         file: File,
