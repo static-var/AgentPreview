@@ -12,13 +12,20 @@ private val PREVIEW_PARAMETER_SHORTHAND_ID_REGEX = Regex("^previewParam-\\d+$")
 
 internal fun PreviewDescriptor.matchesBeforePreviewParameterExpansion(filters: Set<String>): Boolean =
     filters.any { filter ->
-        if (filter.isPreviewParameterShorthand()) {
-            previewParameter != null
-        } else {
-            val baseFilter = filter.withoutPreviewParameterSuffix()
-            id.matchesPreviewFilter(baseFilter) ||
-                name.matchesPreviewFilter(baseFilter) ||
-                fullyQualifiedFunctionName.matchesPreviewFilter(baseFilter)
+        when {
+            filter.isPreviewParameterShorthand() -> {
+                previewParameter != null
+            }
+
+            filter.hasPreviewParameterSuffix() -> {
+                previewParameter != null && id == filter.withoutPreviewParameterSuffix()
+            }
+
+            else -> {
+                id.matchesPreviewFilter(filter) ||
+                    name.matchesPreviewFilter(filter) ||
+                    fullyQualifiedFunctionName.matchesPreviewFilter(filter)
+            }
         }
     }
 
