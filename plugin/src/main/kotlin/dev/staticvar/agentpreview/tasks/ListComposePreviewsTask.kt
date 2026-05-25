@@ -32,6 +32,9 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     abstract val previewIndexContent: Property<String>
 
     @get:Input
+    abstract val projectPath: Property<String>
+
+    @get:Input
     abstract val previewNameFilter: ListProperty<String>
 
     @get:Input
@@ -46,6 +49,9 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
+
+    @get:Classpath
+    abstract val previewSupportClasspath: ConfigurableFileCollection
 
     @get:Input
     abstract val robolectricSdk: Property<Int>
@@ -142,21 +148,12 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     }
 
     private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
-        if (previewClassesDirs.files.isEmpty()) {
-            emptySet()
-        } else {
-            runCatching {
-                project.configurations
-                    .detachedConfiguration(
-                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                    ).resolve()
-            }.getOrDefault(emptySet())
-        }
+        if (previewClassesDirs.files.isEmpty()) emptySet() else previewSupportClasspath.files
 
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
-                projectPath = project.path,
+                projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
                 runtimeClasspath = (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked()).toList(),

@@ -33,6 +33,7 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.LocalState
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
@@ -45,8 +46,14 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
     abstract val previewIndexContent: Property<String>
 
+    @get:Input
+    abstract val projectPath: Property<String>
+
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
+
+    @get:LocalState
+    abstract val renderOutputDirectory: DirectoryProperty
 
     @get:Input
     abstract val includeUnmergedSemantics: Property<Boolean>
@@ -72,6 +79,9 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
+
+    @get:Classpath
+    abstract val rendererRuntimeClasspath: ConfigurableFileCollection
 
     @get:Input
     abstract val androidViewportsJson: Property<String>
@@ -124,11 +134,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         outputRoot.mkdirs()
 
         val useFakeRenderer = fakeRenderer.get()
-        val renderOutput =
-            project.layout.buildDirectory
-                .dir("agentPreview/render")
-                .get()
-                .asFile
+        val renderOutput = renderOutputDirectory.get().asFile
         val fakePreviewRenderer = FakePreviewRenderer()
         val previewRenderer by lazy {
             PreviewRendererImpl(
@@ -292,18 +298,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             "viewport filters $viewportFilterSkipped."
 
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
-        if (previewClassesDirs.files.isEmpty()) {
-            emptySet()
-        } else {
-            runCatching {
-                project.configurations
-                    .detachedConfiguration(
-                        project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                        project.dependencies.create("androidx.test:core:1.7.0"),
-                        project.dependencies.create("androidx.test:monitor:1.8.0"),
-                    ).resolve()
-            }.getOrDefault(emptySet())
-        }
+        if (previewClassesDirs.files.isEmpty()) emptySet() else rendererRuntimeClasspath.files
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->
@@ -318,7 +313,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
-                projectPath = project.path,
+                projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
                 runtimeClasspath = (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),

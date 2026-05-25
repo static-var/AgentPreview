@@ -13,6 +13,8 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Configuration
+import java.io.File
 
 class AgentPreviewPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -25,6 +27,8 @@ class AgentPreviewPlugin : Plugin<Project> {
 
         AndroidPreviewAutoWiring(project, extension).configure()
         val previewIndexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json")
+        val previewSupportClasspath = previewSupportClasspath(project)
+        val rendererRuntimeClasspath = rendererRuntimeClasspath(project)
 
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"
@@ -41,12 +45,14 @@ class AgentPreviewPlugin : Plugin<Project> {
                         .orEmpty()
                 },
             )
+            it.projectPath.set(project.path)
             it.previewNameFilter.set(extension.previewNameFilter)
             it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
             it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+            it.previewSupportClasspath.from(previewSupportClasspath)
             it.robolectricSdk.set(extension.android.robolectricSdk)
             it.javaMajorVersion.set(javaMajorVersion(project))
         }
@@ -66,7 +72,9 @@ class AgentPreviewPlugin : Plugin<Project> {
                         .orEmpty()
                 },
             )
+            it.projectPath.set(project.path)
             it.outputDirectory.set(extension.outputDirectory)
+            it.renderOutputDirectory.set(project.layout.buildDirectory.dir("agentPreview/render"))
             it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
             it.previewNameFilter.set(extension.previewNameFilter)
             it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
@@ -76,6 +84,7 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+            it.rendererRuntimeClasspath.from(rendererRuntimeClasspath)
             it.androidViewportsJson.set(
                 project.provider {
                     Json.encodeToString(
@@ -94,6 +103,35 @@ class AgentPreviewPlugin : Plugin<Project> {
             )
         }
     }
+
+    private fun previewSupportClasspath(project: Project) =
+        lenientFiles(
+            project,
+            project.configurations.detachedConfiguration(
+                project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+            ),
+        )
+
+    private fun rendererRuntimeClasspath(project: Project) =
+        lenientFiles(
+            project,
+            project.configurations.detachedConfiguration(
+                project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
+                project.dependencies.create("androidx.test:core:1.7.0"),
+                project.dependencies.create("androidx.test:monitor:1.8.0"),
+            ),
+        )
+
+    private fun lenientFiles(
+        project: Project,
+        configuration: Configuration,
+    ) = project.files(
+        project.provider<Set<File>> {
+            configuration.resolvedConfiguration.lenientConfiguration.artifacts
+                .map { artifact -> artifact.file }
+                .toSet()
+        },
+    )
 
     private fun javaMajorVersion(project: Project) =
         project.providers
