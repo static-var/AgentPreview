@@ -284,6 +284,51 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `max captures zero permits an empty capture plan`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCapture("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=0")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertTrue(result.output.contains("planned 0 viewport(s)"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for non numeric max captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=many")
+
+        assertTrue(result.output.contains("agentPreview.maxCaptures must be a non-negative integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for negative max captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.maxCaptures=-1")
+
+        assertTrue(result.output.contains("agentPreview.maxCaptures must be a non-negative integer"), result.output)
+    }
+
+    @Test
+    fun `capture fails with actionable error for invalid continue on error`() {
+        writeSettings()
+        writeBuildFile()
+        writeEmptyIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.continueOnError=tru")
+
+        assertTrue(result.output.contains("agentPreview.continueOnError must be true or false"), result.output)
+    }
+
+    @Test
     fun `default rendering fails fast on first failure`() {
         writeSettings()
         writeBuildFile()
@@ -314,6 +359,26 @@ class AgentPreviewCaptureFilteringFunctionalTest {
         val reportJson = Json.parseToJsonElement(reportText).jsonObject
         assertEquals("true", reportJson.getValue("continueOnError").jsonPrimitive.content)
         assertEquals("2", reportJson.getValue("failedViewportCaptureCount").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `continue on error records checked exceptions from individual fake captures`() {
+        writeSettings()
+        writeBuildFile()
+        writeTwoPreviewIndex()
+        projectDir.resolve("build/agentPreview/render").apply {
+            parentFile.mkdirs()
+            writeText("not a directory")
+        }
+
+        val result = runCaptureAndFail("-PagentPreview.fakeRenderer=true", "-PagentPreview.continueOnError=true")
+
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+        assertTrue(result.output.contains("AgentPreview capture failed for 2 viewport(s)"), result.output)
+        val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
+        assertTrue(reportText.contains("\":app:commonMain:LoginPreview\""), reportText)
+        assertTrue(reportText.contains("\":app:commonMain:SettingsPreview\""), reportText)
     }
 
     @Test

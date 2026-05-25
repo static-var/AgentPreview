@@ -210,6 +210,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         return CaptureResult(capturedViewportCount, failures)
     }
 
+    @Suppress("TooGenericExceptionCaught")
     private fun renderCapture(
         preview: PreviewDescriptor,
         viewport: Viewport,
@@ -229,16 +230,14 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             )
             logger.lifecycle("Captured ${preview.id} (${viewport.platform}-${viewport.name}) via ${renderResult.renderMode.logLabel}")
             true
-        } catch (exception: IllegalArgumentException) {
-            recordFailure(preview, viewport, exception, failures, plan, capturedViewportCount)
-        } catch (exception: IllegalStateException) {
+        } catch (exception: Exception) {
             recordFailure(preview, viewport, exception, failures, plan, capturedViewportCount)
         }
 
     private fun recordFailure(
         preview: PreviewDescriptor,
         viewport: Viewport,
-        exception: RuntimeException,
+        exception: Exception,
         failures: MutableList<CaptureFailure>,
         plan: CapturePlan,
         capturedViewportCount: Int,
@@ -485,7 +484,9 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
 
     private fun effectiveContinueOnError(): Boolean {
         val raw = cliContinueOnError.orNull
-        return raw?.toBooleanStrictOrNull() ?: continueOnError.get()
+        val value = raw?.toBooleanStrictOrNull()
+        require(raw == null || value != null) { continueOnErrorError() }
+        return value ?: continueOnError.get()
     }
 
     private fun maxPreviewParameterValuesError(): String =
@@ -495,6 +496,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun maxCapturesError(): String =
         "agentPreview.maxCaptures must be a non-negative integer. " +
             "Configure agentPreview { maxCaptures.set(n) } or pass -PagentPreview.maxCaptures=n."
+
+    private fun continueOnErrorError(): String =
+        "agentPreview.continueOnError must be true or false. " +
+            "Configure agentPreview { continueOnError.set(true|false) } or pass -PagentPreview.continueOnError=true|false."
 
     private fun captureSummary(
         discoveredCount: Int,
