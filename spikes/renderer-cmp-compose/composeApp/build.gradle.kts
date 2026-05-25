@@ -32,6 +32,8 @@ kotlin {
             implementation("org.robolectric:robolectric:4.16.1")
             implementation("androidx.test.ext:junit:1.3.0")
             implementation("androidx.compose.ui:ui-test-junit4")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+            implementation("androidx.compose.ui:ui-tooling:1.11.2")
             implementation("io.github.takahirom.roborazzi:roborazzi:1.63.0")
             implementation("io.github.takahirom.roborazzi:roborazzi-compose:1.63.0")
             implementation("io.github.takahirom.roborazzi:roborazzi-compose-preview-scanner-support:1.63.0")
