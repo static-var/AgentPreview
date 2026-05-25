@@ -18,7 +18,7 @@ The plugin is not published yet. Add this checkout as an included build in the t
 
 ```kotlin
 pluginManagement {
-    includeBuild("/Users/staticvar/Projects/PreviewForAgents")
+    includeBuild("/path/to/AgentPreview")
     repositories {
         google()
         mavenCentral()
