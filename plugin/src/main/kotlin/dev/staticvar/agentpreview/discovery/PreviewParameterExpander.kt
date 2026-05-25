@@ -24,7 +24,9 @@ interface PreviewParameterCountResolver {
 }
 
 class PreviewParameterExpander(
-    private val resolver: PreviewParameterCountResolver,
+    private val resolver: PreviewParameterCountResolver? = null,
+    private val defaultCap: Int = Int.MAX_VALUE,
+    private val requestedIndexes: Set<Int> = emptySet(),
 ) {
     fun expand(previews: List<PreviewDescriptor>): PreviewParameterExpansionResult {
         val expanded = previews.map(::expand)
@@ -38,13 +40,17 @@ class PreviewParameterExpander(
         val parameter = preview.previewParameter ?: return PreviewParameterExpansionResult(listOf(preview))
         if (parameter.index != null) return PreviewParameterExpansionResult(listOf(preview))
 
-        val count = resolver.count(parameter)
-        val diagnostics = count.diagnostics.map { message -> warning(message) }
-        if (count.count <= 0) return PreviewParameterExpansionResult(previews = emptyList(), diagnostics = diagnostics)
+        val resolvedCount = resolver?.count(parameter)
+        if (resolvedCount == null && parameter.limit == null && requestedIndexes.isEmpty()) {
+            return PreviewParameterExpansionResult(listOf(preview))
+        }
+        val diagnostics = resolvedCount?.diagnostics.orEmpty().map { message -> warning(message) }
+        val indexes = indexesToExpand(parameter, resolvedCount?.count)
+        if (indexes.isEmpty()) return PreviewParameterExpansionResult(previews = emptyList(), diagnostics = diagnostics)
 
         return PreviewParameterExpansionResult(
             previews =
-                (0 until count.count).map { index ->
+                indexes.map { index ->
                     preview.copy(
                         id = "${preview.id}:previewParam-$index",
                         previewParameter = parameter.copy(index = index),
@@ -52,6 +58,25 @@ class PreviewParameterExpander(
                 },
             diagnostics = diagnostics,
         )
+    }
+
+    private fun indexesToExpand(
+        parameter: PreviewParameterDescriptor,
+        resolvedCount: Int?,
+    ): List<Int> {
+        val effectiveCount =
+            when {
+                resolvedCount != null -> resolvedCount
+                parameter.limit != null -> parameter.limit.coerceAtMost(defaultCap)
+                requestedIndexes.isNotEmpty() -> defaultCap
+                else -> 0
+            }
+        if (effectiveCount <= 0) return emptyList()
+
+        if (requestedIndexes.isNotEmpty()) {
+            return requestedIndexes.filter { index -> index in 0 until effectiveCount }.sorted()
+        }
+        return (0 until effectiveCount).toList()
     }
 
     private fun warning(message: String): PreviewScanDiagnostic =

@@ -9,6 +9,9 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
+import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
@@ -17,6 +20,7 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 
@@ -29,6 +33,13 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @get:Input
     abstract val previewNameFilter: ListProperty<String>
+
+    @get:Input
+    abstract val maxPreviewParameterValues: Property<Int>
+
+    @get:Input
+    @get:Optional
+    abstract val cliMaxPreviewParameterValues: Property<String>
 
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
@@ -46,12 +57,27 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     fun list() {
         val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
+        val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
-        logDiagnostics(discoveryResult.diagnostics)
-        val previews =
+        val expansionCandidates =
             discoveryResult.previews
-                .filter { filters.isEmpty() || it.id in filters || it.name in filters }
+                .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
+        val requestedPreviewParameterIndexes = filters.previewParameterFilterIndexes()
+        val classpathBacked = previewClassesDirs.files.isNotEmpty()
+        val expansionResult =
+            if (requestedPreviewParameterIndexes.isEmpty() || classpathBacked) {
+                PreviewParameterExpansionResult(previews = expansionCandidates)
+            } else {
+                PreviewParameterExpander(
+                    defaultCap = maxPreviewParameterValues,
+                    requestedIndexes = requestedPreviewParameterIndexes,
+                ).expand(expansionCandidates)
+            }
+        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
+        val previews =
+            expansionResult.previews
+                .filter { preview -> filters.isEmpty() || preview.matchesListFilter(filters, classpathBacked) }
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")
@@ -60,7 +86,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
         previews.forEach { preview ->
             val label = preview.name ?: preview.fullyQualifiedFunctionName
-            val parameterNote = previewParameterNote(preview.previewParameter)
+            val parameterNote = previewParameterNote(preview.previewParameter, maxPreviewParameterValues)
             logger.lifecycle("${preview.id}  $label$parameterNote")
         }
     }
@@ -73,12 +99,37 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             )?.let { warning -> logger.warn(warning) }
     }
 
-    private fun previewParameterNote(parameter: PreviewParameterDescriptor?): String =
+    private fun PreviewDescriptor.matchesListFilter(
+        filters: Set<String>,
+        classpathBacked: Boolean,
+    ): Boolean =
+        if (classpathBacked && previewParameter?.index == null) {
+            matchesBeforePreviewParameterExpansion(filters)
+        } else {
+            matchesAfterPreviewParameterExpansion(filters)
+        }
+
+    private fun previewParameterNote(
+        parameter: PreviewParameterDescriptor?,
+        maxPreviewParameterValues: Int,
+    ): String =
         parameter
             ?.let {
-                val limit = it.limit?.toString() ?: "default cap 50"
+                val limit = it.limit?.toString() ?: "default cap $maxPreviewParameterValues"
                 "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; capture ids append :previewParam-N]"
             }.orEmpty()
+
+    private fun effectiveMaxPreviewParameterValues(): Int {
+        val raw = cliMaxPreviewParameterValues.orNull
+        val value = raw?.toIntOrNull() ?: maxPreviewParameterValues.get()
+        require(raw == null || raw.toIntOrNull() != null) { maxPreviewParameterValuesError() }
+        require(value > 0) { maxPreviewParameterValuesError() }
+        return value
+    }
+
+    private fun maxPreviewParameterValuesError(): String =
+        "agentPreview.maxPreviewParameterValues must be a positive integer. " +
+            "Configure agentPreview { maxPreviewParameterValues.set(n) } or pass -PagentPreview.maxPreviewParameterValues=n."
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->

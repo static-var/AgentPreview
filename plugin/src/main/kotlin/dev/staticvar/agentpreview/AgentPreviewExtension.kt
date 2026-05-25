@@ -26,10 +26,14 @@ abstract class AgentPreviewExtension(
 
     abstract val includeUnmergedSemantics: Property<Boolean>
     abstract val previewNameFilter: ListProperty<String>
+    abstract val viewportNameFilter: ListProperty<String>
+    abstract val maxPreviewParameterValues: Property<Int>
 
     init {
         includeUnmergedSemantics.convention(false)
         previewNameFilter.convention(emptyList())
+        viewportNameFilter.convention(emptyList())
+        maxPreviewParameterValues.convention(50)
     }
 
     fun android(action: Action<AndroidPreviewConfig>) {
