@@ -39,9 +39,6 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 
-private val PREVIEW_PARAMETER_ID_SUFFIX_REGEX = Regex(":previewParam-\\d+$")
-private val PREVIEW_PARAMETER_SHORTHAND_ID_REGEX = Regex("^previewParam-\\d+$")
-
 abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
     abstract val previewIndexFilePath: Property<String>
@@ -96,12 +93,12 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val discoveryResult = discoverPreviews(indexFile)
         val expansionCandidates =
             discoveryResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesBeforeExpansion(filters) }
+                .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
         val expansionResult = expandPreviewParameters(expansionCandidates, maxPreviewParameterValues)
         logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
             expansionResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matches(filters) }
+                .filter { preview -> filters.isEmpty() || preview.matchesAfterPreviewParameterExpansion(filters) }
         val previewFilterSkipped =
             (discoveryResult.previews.size - expansionCandidates.size) +
                 (expansionResult.previews.size - previews.size)
@@ -227,57 +224,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             }
         }
 
-    private fun PreviewDescriptor.matchesBeforeExpansion(filters: Set<String>): Boolean =
-        filters.any { filter ->
-            if (filter.isPreviewParameterShorthand()) {
-                previewParameter != null
-            } else {
-                val baseFilter = filter.withoutPreviewParameterSuffix()
-                id.matchesFilter(baseFilter) ||
-                    name.matchesFilter(baseFilter) ||
-                    fullyQualifiedFunctionName.matchesFilter(baseFilter)
-            }
-        }
-
-    private fun PreviewDescriptor.matches(filters: Set<String>): Boolean =
-        filters.any { filter ->
-            when {
-                filter.isPreviewParameterShorthand() -> {
-                    id.endsWith(":$filter")
-                }
-
-                filter.hasPreviewParameterSuffix() -> {
-                    id == filter
-                }
-
-                else -> {
-                    id.matchesFilter(filter) ||
-                        parentPreviewId().matchesFilter(filter) ||
-                        name.matchesFilter(filter) ||
-                        fullyQualifiedFunctionName.matchesFilter(filter)
-                }
-            }
-        }
-
     private fun Viewport.matches(filters: Set<String>): Boolean =
         filters.any { filter ->
-            name.matchesFilter(filter) ||
+            name.matchesPreviewFilter(filter) ||
                 "$platform-$name" == filter
-        }
-
-    private fun String.hasPreviewParameterSuffix(): Boolean = PREVIEW_PARAMETER_ID_SUFFIX_REGEX.containsMatchIn(this)
-
-    private fun String.isPreviewParameterShorthand(): Boolean = PREVIEW_PARAMETER_SHORTHAND_ID_REGEX.matches(this)
-
-    private fun String.withoutPreviewParameterSuffix(): String = replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
-
-    private fun String?.matchesFilter(filter: String): Boolean = this == filter || this?.contains(filter) == true
-
-    private fun PreviewDescriptor.parentPreviewId(): String =
-        if (previewParameter?.index == null) {
-            id
-        } else {
-            id.replace(PREVIEW_PARAMETER_ID_SUFFIX_REGEX, "")
         }
 
     private fun PreviewDescriptor.hasExplicitWidth(): Boolean = widthDp != null && widthDp > 0

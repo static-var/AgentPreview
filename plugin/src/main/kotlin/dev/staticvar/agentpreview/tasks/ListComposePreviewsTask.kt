@@ -61,7 +61,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         logDiagnostics(discoveryResult.diagnostics)
         val previews =
             discoveryResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matches(filters) }
+                .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")
@@ -82,15 +82,6 @@ abstract class ListComposePreviewsTask : DefaultTask() {
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
-
-    private fun PreviewDescriptor.matches(filters: Set<String>): Boolean =
-        filters.any { filter ->
-            id.matchesFilter(filter) ||
-                name.matchesFilter(filter) ||
-                fullyQualifiedFunctionName.matchesFilter(filter)
-        }
-
-    private fun String?.matchesFilter(filter: String): Boolean = this == filter || this?.contains(filter) == true
 
     private fun previewParameterNote(
         parameter: PreviewParameterDescriptor?,
