@@ -656,7 +656,7 @@ object AndroidComposeRendererInRobolectric {
                             sourceEntry.box.contains(nodeEntry.box)
                     }
             val hint =
-                nodeEntry.hint?.takeIf { it.isAppSourceHint(preferredAppSourceFile) }?.copy(sourceHintKind = "tooling-node-identity")
+                nodeEntry.hint?.takeIf { it.isAppSourceHint() }?.copy(sourceHintKind = "tooling-node-identity")
                     ?: ancestorEntries.nearestAppSourceHint("tooling-nearest-app-ancestor", preferredAppSourceFile)
                     ?: siblingEntries.nearestAppSourceHint("tooling-sibling-preorder-app", preferredAppSourceFile)
                     ?: nodeEntry.hint?.takeIf { it.isUsefulFrameworkSourceHint() }?.copy(sourceHintKind = "tooling-framework-node-identity")
@@ -673,9 +673,12 @@ object AndroidComposeRendererInRobolectric {
         sourceHintKind: String,
         preferredAppSourceFile: String?,
     ): LayoutTreeSourceHint? =
-        filter { it.hint?.isAppSourceHint(preferredAppSourceFile) == true }
-            .maxWithOrNull(compareBy<ToolingGroupEntry> { it.depth }.thenBy { it.preorder })
-            ?.hint
+        filter { it.hint?.isAppSourceHint() == true }
+            .maxWithOrNull(
+                compareBy<ToolingGroupEntry> { it.depth }
+                    .thenBy { entry -> entry.hint?.preferredAppSourceScore(preferredAppSourceFile) ?: 0 }
+                    .thenBy { it.preorder },
+            )?.hint
             ?.copy(sourceHintKind = sourceHintKind)
 
     private fun List<ToolingGroupEntry>.nearestUsefulFrameworkSourceHint(sourceHintKind: String): LayoutTreeSourceHint? =
@@ -689,16 +692,30 @@ object AndroidComposeRendererInRobolectric {
             ?.hint
             ?.copy(sourceHintKind = sourceHintKind)
 
-    private fun LayoutTreeSourceHint.isAppSourceHint(preferredAppSourceFile: String?): Boolean {
+    private fun LayoutTreeSourceHint.isAppSourceHint(): Boolean {
         val file = sourceFile.orEmpty()
         val name = sourceName.orEmpty()
-        val knownFrameworkSourceFile = file in COMPOSE_INTERNAL_SOURCE_FILES || file in COMPOSE_PUBLIC_SOURCE_FILES
-        val internalSourceName = name in COMPOSE_INTERNAL_SOURCE_NAMES || name.startsWith("androidx.compose")
-        val matchesPreferredAppFile = preferredAppSourceFile != null && file == preferredAppSourceFile
-        return (matchesPreferredAppFile || (preferredAppSourceFile == null && (sourceFile != null || sourceName != null))) &&
-            !knownFrameworkSourceFile &&
-            !internalSourceName
+        return (sourceFile != null || sourceName != null) &&
+            !file.isFrameworkSourceFile() &&
+            !file.isGeneratedSourceFile() &&
+            !name.isFrameworkSourceName()
     }
+
+    private fun LayoutTreeSourceHint.preferredAppSourceScore(preferredAppSourceFile: String?): Int =
+        if (preferredAppSourceFile != null && sourceFile == preferredAppSourceFile) 1 else 0
+
+    private fun String.isFrameworkSourceFile(): Boolean = this in COMPOSE_INTERNAL_SOURCE_FILES || this in COMPOSE_PUBLIC_SOURCE_FILES
+
+    private fun String.isGeneratedSourceFile(): Boolean =
+        this in GENERATED_SOURCE_FILES ||
+            endsWith(".generated.kt") ||
+            endsWith(".Generated.kt") ||
+            contains("/build/generated/") ||
+            contains("\\build\\generated\\")
+
+    private fun String.isFrameworkSourceName(): Boolean =
+        this in COMPOSE_INTERNAL_SOURCE_NAMES ||
+            FRAMEWORK_SOURCE_NAME_PREFIXES.any { startsWith(it) }
 
     private fun LayoutTreeSourceHint.isUsefulFrameworkSourceHint(): Boolean = sourceName in USEFUL_COMPOSE_SOURCE_NAMES
 
@@ -841,6 +858,22 @@ object AndroidComposeRendererInRobolectric {
             "startReplaceableGroup",
             "startReusableGroup",
             "Updater",
+        )
+    private val GENERATED_SOURCE_FILES =
+        setOf(
+            "R.kt",
+            "BuildConfig.kt",
+        )
+    private val FRAMEWORK_SOURCE_NAME_PREFIXES =
+        listOf(
+            "android.",
+            "androidx.",
+            "com.android.",
+            "java.",
+            "javax.",
+            "kotlin.",
+            "kotlinx.",
+            "org.jetbrains.compose.",
         )
     private val USEFUL_COMPOSE_SOURCE_NAMES =
         setOf(

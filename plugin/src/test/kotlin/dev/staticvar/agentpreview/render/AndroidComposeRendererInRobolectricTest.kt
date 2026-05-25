@@ -217,7 +217,7 @@ class AndroidComposeRendererInRobolectricTest {
                         sourceName = "LoginButton",
                         sourceFile = "LoginPreview.kt",
                         sourceLine = 42,
-                        sourceHintKind = "tooling-ancestor-node-identity",
+                        sourceHintKind = "tooling-nearest-app-ancestor",
                     ),
             )
 
@@ -227,7 +227,7 @@ class AndroidComposeRendererInRobolectricTest {
         assertEquals("LoginButton", enriched.sourceName)
         assertEquals("LoginPreview.kt", enriched.sourceFile)
         assertEquals(42, enriched.sourceLine)
-        assertEquals("tooling-ancestor-node-identity", enriched.sourceHintKind)
+        assertEquals("tooling-nearest-app-ancestor", enriched.sourceHintKind)
         assertTrue(enriched.componentHint.orEmpty().contains("FakeRowMeasurePolicy"))
     }
 
@@ -292,6 +292,83 @@ class AndroidComposeRendererInRobolectricTest {
         AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
 
         assertEquals(null, hints[System.identityHashCode(node)])
+    }
+
+    @Test
+    fun `app source in non preferred file beats nearer compose runtime ancestor`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                name = "LoginPreview",
+                location = FakeSourceLocation("LoginPreview.kt", 18),
+                box = FakeIntRect(0, 0, 393, 852),
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "OtherComposable",
+                            location = FakeSourceLocation("OtherComposable.kt", 24),
+                            box = FakeIntRect(0, 0, 393, 852),
+                            children =
+                                listOf(
+                                    FakeToolingGroup(
+                                        name = "ReusableComposeNode",
+                                        location = FakeSourceLocation("Layout.kt", 83),
+                                        box = FakeIntRect(0, 0, 393, 852),
+                                        children =
+                                            listOf(
+                                                FakeToolingGroup(
+                                                    node = node,
+                                                    box = FakeIntRect(0, 0, 393, 852),
+                                                ),
+                                            ),
+                                    ),
+                                ),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("OtherComposable", hint.sourceName)
+        assertEquals("OtherComposable.kt", hint.sourceFile)
+        assertEquals(24, hint.sourceLine)
+        assertEquals("tooling-nearest-app-ancestor", hint.sourceHintKind)
+    }
+
+    @Test
+    fun `preferred preview source breaks ties among app siblings`() {
+        val node = Any()
+        val rootGroup =
+            FakeToolingGroup(
+                children =
+                    listOf(
+                        FakeToolingGroup(
+                            name = "OtherComposable",
+                            location = FakeSourceLocation("OtherComposable.kt", 24),
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                        FakeToolingGroup(
+                            name = "LoginPreview",
+                            location = FakeSourceLocation("LoginPreview.kt", 18),
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                        FakeToolingGroup(
+                            node = node,
+                            box = FakeIntRect(0, 0, 393, 852),
+                        ),
+                    ),
+            )
+        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+
+        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+
+        val hint = hints.getValue(System.identityHashCode(node))
+        assertEquals("LoginPreview", hint.sourceName)
+        assertEquals("LoginPreview.kt", hint.sourceFile)
+        assertEquals(18, hint.sourceLine)
+        assertEquals("tooling-sibling-preorder-app", hint.sourceHintKind)
     }
 
     @Test

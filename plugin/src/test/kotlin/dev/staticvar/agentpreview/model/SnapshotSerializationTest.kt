@@ -85,7 +85,7 @@ class SnapshotSerializationTest {
                             sourceName = "LoginButton",
                             sourceFile = "LoginPreview.kt",
                             sourceLine = 42,
-                            sourceHintKind = "tooling-ancestor-node-identity",
+                            sourceHintKind = "tooling-nearest-app-ancestor",
                             modifierHint = "androidx.compose.ui.Modifier",
                             classHint = "androidx.compose.ui.node.LayoutNode",
                             semanticsId = "7",
