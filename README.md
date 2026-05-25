@@ -3,10 +3,12 @@
 AgentPreview is a Gradle plugin that captures AndroidX Compose `@Preview` functions into files an AI agent can inspect:
 
 ```text
-<module>/build/agentPreviewSnapshots/<preview-id>/<viewport>/
+<module>/build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/
   screenshot.png
   snapshot.json
 ```
+
+Preview ids are sanitized for file paths: `:app:main:LoginPreview` becomes `app-main-LoginPreview`, and viewport folders include the platform, e.g. `android-phone`.
 
 Use it when an agent is editing Compose UI and needs a quick screenshot plus structured preview data without driving the full app.
 
@@ -58,7 +60,7 @@ For a focused capture while iterating:
 
 Outputs are written under:
 
-- snapshots: `<module>/build/agentPreviewSnapshots/<preview-id>/<viewport>/`
+- snapshots: `<module>/build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/`
 - capture report: `<module>/build/agentPreviewReports/capture-report.json`
 
 ## More docs

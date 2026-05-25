@@ -16,10 +16,10 @@ Use AgentPreview as a tight visual feedback loop: small Compose edit, focused ca
 | List previews | `./gradlew :app:listComposePreviews` |
 | Dry-run plan | `./gradlew :app:captureComposePreviews -PagentPreview.previewNameFilter=Login -PagentPreview.viewportFilter=phone -PagentPreview.maxPreviewParameterValues=1 -PagentPreview.maxCaptures=1 -PagentPreview.dryRun=true` |
 | Capture | Same command without `-PagentPreview.dryRun=true` |
-| Outputs | `build/agentPreviewSnapshots/<preview-id>/<viewport>/screenshot.png`, `snapshot.json` |
+| Outputs | `build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/screenshot.png`, `snapshot.json` |
 | Report | `build/agentPreviewReports/capture-report.json` |
 
-If this repo still needs scaffold rendering, append `-PagentPreview.fakeRenderer=true`; fake captures are not visual parity evidence.
+Path note: logical preview ids are sanitized for folders (`:app:main:LoginPreview` -> `app-main-LoginPreview`) and viewport folders include platform (`android-phone`). If this repo still needs scaffold rendering, append `-PagentPreview.fakeRenderer=true`; fake captures are not visual parity evidence.
 
 ## Workflow
 
