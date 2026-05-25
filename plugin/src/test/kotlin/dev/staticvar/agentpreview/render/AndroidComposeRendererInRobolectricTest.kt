@@ -192,15 +192,91 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     @Test
+    fun `extracts layout tree source hints when tooling identity matches runtime node`() {
+        val child =
+            FakeLayoutNode(
+                semanticsId = 7,
+                coordinates = FakeCoordinates(width = 40, height = 20, rootX = 10.0f, rootY = 6.0f),
+                measurePolicy = FakeRowMeasurePolicy(),
+                modifier = FakeModifier("padding"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+            )
+        val root =
+            FakeLayoutNode(
+                semanticsId = 1,
+                coordinates = FakeCoordinates(width = 100, height = 50, rootX = 0.0f, rootY = 0.0f),
+                measurePolicy = FakeColumnMeasurePolicy(),
+                modifier = FakeModifier("fillMaxSize"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+                children = listOf(child),
+            )
+        val sourceHints =
+            mapOf(
+                System.identityHashCode(child) to
+                    AndroidComposeRendererInRobolectric.LayoutTreeSourceHint(
+                        sourceName = "LoginButton",
+                        sourceFile = "LoginPreview.kt",
+                        sourceLine = 42,
+                        sourceHintKind = "tooling-ancestor-node-identity",
+                    ),
+            )
+
+        val tree = AndroidComposeRendererInRobolectric.extractLayoutTree(root, density = 2.0f, sourceHints = sourceHints)
+
+        val enriched = tree.children.single()
+        assertEquals("LoginButton", enriched.sourceName)
+        assertEquals("LoginPreview.kt", enriched.sourceFile)
+        assertEquals(42, enriched.sourceLine)
+        assertEquals("tooling-ancestor-node-identity", enriched.sourceHintKind)
+        assertTrue(enriched.componentHint.orEmpty().contains("FakeRowMeasurePolicy"))
+    }
+
+    @Test
+    fun `preview source fallback can enrich root layout node when tooling hints are absent`() {
+        val outputFile = tempDir.resolve("layout-tree.json")
+        val root =
+            FakeLayoutNode(
+                semanticsId = 1,
+                coordinates = FakeCoordinates(width = 100, height = 50, rootX = 0.0f, rootY = 0.0f),
+                measurePolicy = FakeColumnMeasurePolicy(),
+                modifier = FakeModifier("fillMaxSize"),
+                semanticsConfiguration = FakeSemanticsConfiguration(),
+            )
+
+        AndroidComposeRendererInRobolectric.writeLayoutTreeFromComposeView(
+            ComposeRoot(root),
+            outputFile,
+            density = 2.0f,
+            previewSourceFallback =
+                AndroidComposeRendererInRobolectric.PreviewSourceFallback(
+                    className = "dev.example.LoginPreviewKt",
+                    methodName = "LoginPreview",
+                ),
+        )
+
+        val tree = outputFile.readText()
+        assertTrue(tree.contains("\"sourceName\":\"LoginPreview\""), tree)
+        assertTrue(tree.contains("\"sourceFile\":\"LoginPreview.kt\""), tree)
+        assertTrue(tree.contains("\"sourceLine\":1"), tree)
+        assertTrue(tree.contains("\"sourceHintKind\":\"preview-entrypoint-fallback\""), tree)
+    }
+
+    @Test
     fun `missing compose root writes empty layout tree sidecar and warns`() {
         val outputFile = tempDir.resolve("layout-tree.json")
 
         val warning =
             captureStderr {
                 AndroidComposeRendererInRobolectric::class.java
-                    .getDeclaredMethod("writeLayoutTree", Any::class.java, File::class.java, Float::class.javaPrimitiveType)
-                    .apply { isAccessible = true }
-                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f)
+                    .getDeclaredMethod(
+                        "writeLayoutTree",
+                        Any::class.java,
+                        File::class.java,
+                        Float::class.javaPrimitiveType,
+                        AndroidComposeRendererInRobolectric.ToolingCompositionRecord::class.java,
+                        AndroidComposeRendererInRobolectric.PreviewSourceFallback::class.java,
+                    ).apply { isAccessible = true }
+                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f, null, null)
             }
 
         assertEquals("[]", outputFile.readText())
@@ -261,6 +337,12 @@ class AndroidComposeRendererInRobolectricTest {
     }
 
     private class ViewWithoutComposeRoot
+
+    private class ComposeRoot(
+        private val root: Any,
+    ) {
+        fun getRoot(): Any = root
+    }
 
     private class ComposeRootWithBrokenLayoutNode {
         fun getRoot(): Any = error("boom")

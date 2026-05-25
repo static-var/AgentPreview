@@ -62,6 +62,10 @@ Version 2 adds preview parameter metadata, optional layout tree data, and option
       "boundsPx": { "x": 0, "y": 0, "width": 393, "height": 852 },
       "boundsDp": { "x": 0.0, "y": 0.0, "width": 393.0, "height": 852.0 },
       "componentHint": "androidx.compose.foundation.layout.Column",
+      "sourceName": "LoginCard",
+      "sourceFile": "LoginPreview.kt",
+      "sourceLine": 24,
+      "sourceHintKind": "tooling-ancestor-node-identity",
       "modifierHint": "androidx.compose.ui.Modifier",
       "classHint": "androidx.compose.ui.node.LayoutNode",
       "semanticsId": "7",
@@ -94,3 +98,5 @@ Future desktop and web renderers should use separate platform-specific viewport 
 ## Semantics and Layout Tree
 
 Fake renderer snapshots emit an empty `nodes` list because no real Compose semantics tree is available. Production renderer snapshots populate `nodes` from Compose semantics when available and may include `layoutTree` entries derived from the rendered Compose layout hierarchy.
+
+`layoutTree` entries always keep `componentHint` as the implementation-level fallback. Production Android rendering may also add nullable best-effort source hints from Compose tooling data: `sourceName`, `sourceFile`, `sourceLine`, and `sourceHintKind`. These fields are optional, depend on Compose tooling/source information being available at render time, and are omitted if enrichment fails.

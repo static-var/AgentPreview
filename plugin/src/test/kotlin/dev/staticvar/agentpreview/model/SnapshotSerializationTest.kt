@@ -82,6 +82,10 @@ class SnapshotSerializationTest {
                             boundsPx = Bounds(x = 8, y = 12, width = 40, height = 20),
                             boundsDp = DpBounds(x = 4.0f, y = 6.0f, width = 20.0f, height = 10.0f),
                             componentHint = "androidx.compose.foundation.layout.RowMeasurePolicy",
+                            sourceName = "LoginButton",
+                            sourceFile = "LoginPreview.kt",
+                            sourceLine = 42,
+                            sourceHintKind = "tooling-ancestor-node-identity",
                             modifierHint = "androidx.compose.ui.Modifier",
                             classHint = "androidx.compose.ui.node.LayoutNode",
                             semanticsId = "7",
@@ -104,6 +108,10 @@ class SnapshotSerializationTest {
         assertTrue(encoded.contains("\"boundsPx\""))
         assertTrue(encoded.contains("\"boundsDp\""))
         assertTrue(encoded.contains("\"componentHint\""))
+        assertTrue(encoded.contains("\"sourceName\""))
+        assertTrue(encoded.contains("\"sourceFile\""))
+        assertTrue(encoded.contains("\"sourceLine\": 42"))
+        assertTrue(encoded.contains("\"sourceHintKind\""))
         assertEquals(snapshot, json.decodeFromString(PreviewSnapshot.serializer(), encoded))
     }
 

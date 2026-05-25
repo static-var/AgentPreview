@@ -49,10 +49,17 @@ object AndroidComposeRendererInRobolectric {
         setNoActionBarTheme(activity)
         controller.javaClass.getMethod("setup").invoke(controller)
         applyConfiguration(activity, density, fontScale ?: DEFAULT_FONT_SCALE, locale, uiMode)
-        setContent(activity, className, methodName, previewParameterProviderClassName, previewParameterIndex)
+        val toolingRecord = ToolingCompositionRecord.createOrNull()
+        setContent(activity, className, methodName, previewParameterProviderClassName, previewParameterIndex, toolingRecord)
         val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile, showBackground, backgroundColor)
         writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
-        writeLayoutTree(view, layoutTreeOutputFile, density)
+        writeLayoutTree(
+            view,
+            layoutTreeOutputFile,
+            density,
+            toolingRecord,
+            PreviewSourceFallback(className = className, methodName = methodName),
+        )
     }
 
     private fun applyConfiguration(
@@ -126,8 +133,10 @@ object AndroidComposeRendererInRobolectric {
         methodName: String,
         previewParameterProviderClassName: String?,
         previewParameterIndex: Int?,
+        toolingRecord: ToolingCompositionRecord?,
     ) {
-        val content = PreviewComposable(className, methodName, previewParameterProviderClassName, previewParameterIndex)
+        val previewContent = PreviewComposable(className, methodName, previewParameterProviderClassName, previewParameterIndex)
+        val content = toolingRecord?.wrap(previewContent) ?: previewContent
         val ownerClass = Class.forName("androidx.activity.ComponentActivity")
         val setContent =
             Class
@@ -208,10 +217,12 @@ object AndroidComposeRendererInRobolectric {
         contentRoot: Any,
         outputFile: File,
         density: Float,
+        toolingRecord: ToolingCompositionRecord? = null,
+        previewSourceFallback: PreviewSourceFallback? = null,
     ) {
         runCatching {
             val composeView = checkNotNull(findComposeView(contentRoot)) { "Compose root view was not found." }
-            writeLayoutTreeFromComposeView(composeView, outputFile, density)
+            writeLayoutTreeFromComposeView(composeView, outputFile, density, toolingRecord, previewSourceFallback)
         }.getOrElse { throwable ->
             writeEmptyLayoutTreeWarning(outputFile, throwable)
         }
@@ -221,6 +232,8 @@ object AndroidComposeRendererInRobolectric {
         composeView: Any,
         outputFile: File,
         density: Float,
+        toolingRecord: ToolingCompositionRecord? = null,
+        previewSourceFallback: PreviewSourceFallback? = null,
     ) {
         runCatching {
             val getRoot =
@@ -232,7 +245,14 @@ object AndroidComposeRendererInRobolectric {
                     }
                     ?: error("Compose root view ${composeView.javaClass.name} does not expose getRoot().")
             val rootLayoutNode = getRoot.invoke(composeView)
-            val nodes = listOf(extractLayoutTree(rootLayoutNode, density))
+            val sourceHints = toolingRecord?.sourceHintsOrEmpty().orEmpty()
+            val fallbackHints =
+                if (sourceHints.isEmpty() && previewSourceFallback != null) {
+                    mapOf(System.identityHashCode(rootLayoutNode) to previewSourceFallback.toLayoutTreeSourceHint())
+                } else {
+                    emptyMap()
+                }
+            val nodes = listOf(extractLayoutTree(rootLayoutNode, density, sourceHints + fallbackHints))
             outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), nodes))
         }.getOrElse { throwable ->
             writeEmptyLayoutTreeWarning(outputFile, throwable)
@@ -254,7 +274,28 @@ object AndroidComposeRendererInRobolectric {
     internal fun extractLayoutTree(
         rootLayoutNode: Any,
         density: Float,
-    ): SnapshotLayoutNode = toSnapshotLayoutNode(rootLayoutNode, density, nextLayoutId())
+        sourceHints: Map<Int, LayoutTreeSourceHint> = emptyMap(),
+    ): SnapshotLayoutNode = toSnapshotLayoutNode(rootLayoutNode, density, nextLayoutId(), sourceHints)
+
+    internal data class LayoutTreeSourceHint(
+        val sourceName: String? = null,
+        val sourceFile: String? = null,
+        val sourceLine: Int? = null,
+        val sourceHintKind: String? = null,
+    )
+
+    internal data class PreviewSourceFallback(
+        val className: String,
+        val methodName: String,
+    ) {
+        fun toLayoutTreeSourceHint(): LayoutTreeSourceHint =
+            LayoutTreeSourceHint(
+                sourceName = methodName,
+                sourceFile = "${className.substringAfterLast('$').substringAfterLast('.').removeSuffix("Kt")}.kt",
+                sourceLine = 1,
+                sourceHintKind = "preview-entrypoint-fallback",
+            )
+    }
 
     private fun nextLayoutId(): Iterator<String> = generateSequence(1) { it + 1 }.map { id -> "layout-$id" }.iterator()
 
@@ -322,18 +363,24 @@ object AndroidComposeRendererInRobolectric {
         node: Any,
         density: Float,
         ids: Iterator<String>,
+        sourceHints: Map<Int, LayoutTreeSourceHint>,
     ): SnapshotLayoutNode {
         val id = ids.next()
         val boundsPx = layoutBounds(node)
         val semantics = semanticsProperties(method(node, "getSemanticsConfiguration")?.invoke(node))
-        val children = layoutChildren(node).map { child -> toSnapshotLayoutNode(child, density, ids) }
+        val children = layoutChildren(node).map { child -> toSnapshotLayoutNode(child, density, ids, sourceHints) }
         val measurePolicy = method(node, "getMeasurePolicy")?.invoke(node)
         val modifier = method(node, "getModifier")?.invoke(node)
+        val sourceHint = sourceHints[System.identityHashCode(node)]
         return SnapshotLayoutNode(
             id = id,
             boundsPx = boundsPx,
             boundsDp = boundsPx.toDpBounds(density),
             componentHint = measurePolicy?.javaClass?.name ?: node.javaClass.name,
+            sourceName = sourceHint?.sourceName,
+            sourceFile = sourceHint?.sourceFile,
+            sourceLine = sourceHint?.sourceLine,
+            sourceHintKind = sourceHint?.sourceHintKind,
             modifierHint = modifier?.javaClass?.name ?: modifier?.toString(),
             classHint = node.javaClass.name,
             semanticsId = method(node, "getSemanticsId")?.invoke(node)?.toString(),
@@ -500,6 +547,125 @@ object AndroidComposeRendererInRobolectric {
     ) {
         val field = target.javaClass.getField(name)
         field.set(target, value)
+    }
+
+    internal class ToolingCompositionRecord private constructor(
+        private val record: Any,
+        private val inspectableMethod: java.lang.reflect.Method,
+    ) {
+        fun wrap(content: Function2<Any?, Int, Unit>): Function2<Any?, Int, Unit> =
+            object : Function2<Any?, Int, Unit> {
+                private var warningLogged = false
+
+                override fun invoke(
+                    composer: Any?,
+                    changed: Int,
+                ) {
+                    runCatching {
+                        inspectableMethod.invoke(null, record, content, composer, changed)
+                    }.getOrElse { throwable ->
+                        if (!warningLogged) {
+                            warningLogged = true
+                            warnSourceHintsDisabled("failed to invoke Compose tooling Inspectable wrapper", throwable)
+                        }
+                        content.invoke(composer, changed)
+                    }
+                }
+            }
+
+        fun sourceHintsOrEmpty(): Map<Int, LayoutTreeSourceHint> =
+            runCatching { sourceHints() }.getOrElse { throwable ->
+                warnSourceHintsDisabled("failed to read Compose tooling composition data", throwable)
+                emptyMap()
+            }
+
+        private fun sourceHints(): Map<Int, LayoutTreeSourceHint> {
+            @Suppress("UNCHECKED_CAST")
+            val store = method(record, "getStore")?.invoke(record) as? Iterable<*> ?: return emptyMap()
+            val asTree = Class.forName("androidx.compose.ui.tooling.data.SlotTreeKt").getMethod("asTree", compositionDataClass())
+            return buildMap {
+                store.filterNotNull().forEach { compositionData ->
+                    val rootGroup = asTree.invoke(null, compositionData)
+                    collectGroupSourceHints(rootGroup, nearestHint = null, hints = this)
+                }
+            }
+        }
+
+        companion object {
+            fun createOrNull(): ToolingCompositionRecord? =
+                runCatching {
+                    val recordClass = Class.forName("androidx.compose.ui.tooling.CompositionDataRecord")
+                    val companion = recordClass.getField("Companion").get(null)
+                    val record = companion.javaClass.getMethod("create").invoke(companion)
+                    val inspectableMethod =
+                        Class
+                            .forName("androidx.compose.ui.tooling.InspectableKt")
+                            .getMethod(
+                                "Inspectable",
+                                recordClass,
+                                Function2::class.java,
+                                compositionComposerClass(),
+                                Int::class.javaPrimitiveType,
+                            )
+                    ToolingCompositionRecord(record, inspectableMethod)
+                }.getOrElse { throwable ->
+                    warnSourceHintsDisabled("Compose tooling APIs are unavailable", throwable)
+                    null
+                }
+
+            private fun compositionDataClass(): Class<*> = Class.forName("androidx.compose.runtime.tooling.CompositionData")
+
+            private fun compositionComposerClass(): Class<*> = Class.forName("androidx.compose.runtime.Composer")
+        }
+    }
+
+    private fun collectGroupSourceHints(
+        group: Any,
+        nearestHint: LayoutTreeSourceHint?,
+        hints: MutableMap<Int, LayoutTreeSourceHint>,
+    ) {
+        val ownName = method(group, "getName")?.invoke(group) as? String
+        val ownLocation = method(group, "getLocation")?.invoke(group)
+        val ownHint = sourceHint(ownName, ownLocation, "tooling-node-identity")
+        val currentHint = ownHint ?: nearestHint
+        val node = method(group, "getNode")?.invoke(group)
+        if (node != null && currentHint != null) {
+            hints[System.identityHashCode(node)] =
+                if (ownHint != null) {
+                    currentHint
+                } else {
+                    currentHint.copy(sourceHintKind = "tooling-ancestor-node-identity")
+                }
+        }
+        @Suppress("UNCHECKED_CAST")
+        val children = method(group, "getChildren")?.invoke(group) as? Iterable<*> ?: return
+        children.filterNotNull().forEach { child -> collectGroupSourceHints(child, currentHint, hints) }
+    }
+
+    private fun sourceHint(
+        sourceName: String?,
+        location: Any?,
+        sourceHintKind: String,
+    ): LayoutTreeSourceHint? {
+        val sourceFile = location?.let { method(it, "getSourceFile")?.invoke(it) as? String }
+        val sourceLine = location?.let { method(it, "getLineNumber")?.invoke(it) as? Int }?.takeIf { it > 0 }
+        return LayoutTreeSourceHint(
+            sourceName = sourceName,
+            sourceFile = sourceFile,
+            sourceLine = sourceLine,
+            sourceHintKind = sourceHintKind,
+        ).takeIf { it.sourceName != null || it.sourceFile != null || it.sourceLine != null }
+    }
+
+    private fun warnSourceHintsDisabled(
+        message: String,
+        throwable: Throwable,
+    ) {
+        System.err.println(
+            "AgentPreview: optional Compose layout source hints disabled; $message. " +
+                "Layout tree extraction will continue without source hints. " +
+                "Cause: ${throwable.javaClass.name}: ${throwable.message}",
+        )
     }
 
     private const val DENSITY_DEFAULT = 160
