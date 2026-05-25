@@ -40,23 +40,43 @@ class AgentPreviewConfigurationCacheFunctionalTest {
             """.trimIndent(),
         )
 
+        val listArguments = listOf("listComposePreviews", "--configuration-cache", "--warning-mode", "all")
         val listResult =
             GradleRunner
                 .create()
                 .withProjectDir(projectDir)
-                .withArguments("listComposePreviews", "--configuration-cache", "--warning-mode", "all")
+                .withArguments(listArguments)
                 .withPluginClasspath()
                 .build()
         assertTrue(listResult.output.contains("Configuration cache entry stored"), listResult.output)
 
+        val listReuseResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments(listArguments)
+                .withPluginClasspath()
+                .build()
+        assertTrue(listReuseResult.output.contains("Configuration cache entry reused"), listReuseResult.output)
+
+        val captureArguments = listOf("captureComposePreviews", "--configuration-cache", "-PagentPreview.fakeRenderer=true")
         val captureResult =
             GradleRunner
                 .create()
                 .withProjectDir(projectDir)
-                .withArguments("captureComposePreviews", "--configuration-cache", "-PagentPreview.fakeRenderer=true")
+                .withArguments(captureArguments)
                 .withPluginClasspath()
                 .build()
         assertTrue(captureResult.output.contains("Configuration cache entry stored"), captureResult.output)
+
+        val captureReuseResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments(captureArguments)
+                .withPluginClasspath()
+                .build()
+        assertTrue(captureReuseResult.output.contains("Configuration cache entry reused"), captureReuseResult.output)
     }
 
     private fun testClassesDir(): File =
