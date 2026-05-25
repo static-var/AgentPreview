@@ -28,9 +28,6 @@ render.experimental.xml
 
 # Agents
 .pi/*
-!.pi/agents/
-!.pi/agents/skills/
-!.pi/agents/skills/**
 docs/superpowers/
 .worktrees/
 

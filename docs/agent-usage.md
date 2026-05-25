@@ -8,7 +8,7 @@ AgentPreview is a Gradle plugin for turning AndroidX Compose `@Preview` function
   snapshot.json
 ```
 
-Use it when you need to inspect, compare, or iterate on Compose UI without launching an app manually.
+Use it when you need to inspect, compare, or iterate on Compose UI without launching an app manually. For a reusable agent workflow, see [`skills/agentpreview-compose-iteration/SKILL.md`](../skills/agentpreview-compose-iteration/SKILL.md).
 
 Output path note: preview ids are sanitized for file-system paths. For example, `:app:main:LoginPreview` becomes `app-main-LoginPreview`, and a `phone` Android viewport is stored under `android-phone`. Use `listComposePreviews` for the logical id and `find <module>/build/agentPreviewSnapshots -name snapshot.json` when locating files programmatically.
 
