@@ -38,9 +38,21 @@ class PreviewComposable(
         val provider = constructor.newInstance()
         val values = providerClass.methods.first { it.name == "getValues" && it.parameterTypes.isEmpty() }.invoke(provider)
         val iterator =
-            values.javaClass.methods
-                .first { it.name == "iterator" && it.parameterTypes.isEmpty() }
-                .invoke(values) as Iterator<*>
+            when (values) {
+                is Sequence<*> -> {
+                    values.iterator()
+                }
+
+                is Iterable<*> -> {
+                    values.iterator()
+                }
+
+                else -> {
+                    values.javaClass.methods
+                        .first { it.name == "iterator" && it.parameterTypes.isEmpty() }
+                        .invoke(values) as Iterator<*>
+                }
+            }
         repeat(index) {
             check(iterator.hasNext()) { "PreviewParameterProvider $providerClassName has fewer than ${index + 1} values." }
             iterator.next()

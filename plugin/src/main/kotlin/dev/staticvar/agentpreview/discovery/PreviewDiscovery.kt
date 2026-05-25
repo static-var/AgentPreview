@@ -13,7 +13,6 @@ import dev.staticvar.agentpreview.scanner.discovery.PreviewScanInput
 import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import java.io.File
-import java.net.URLClassLoader
 
 data class PreviewDiscoveryResult(
     val previews: List<PreviewDescriptor>,
@@ -43,10 +42,9 @@ class PreviewDiscovery(
                 )
 
         val mapped = scanResult.previews.flatMap(::toPreviewDescriptors)
-        val expanded = mapped.map(::expandPreviewParameter).flatten()
         return PreviewDiscoveryResult(
-            previews = expanded.previews,
-            diagnostics = scanResult.diagnostics + expanded.diagnostics,
+            previews = mapped,
+            diagnostics = scanResult.diagnostics,
         )
     }
 
@@ -79,75 +77,6 @@ class PreviewDiscovery(
             )
         }
 
-    private fun expandPreviewParameter(preview: PreviewDescriptor): PreviewParameterExpansion {
-        val parameter = preview.previewParameter ?: return PreviewParameterExpansion(previews = listOf(preview))
-        val countResult = previewParameterValueCount(parameter)
-        val count = countResult.count
-        val diagnostics = countResult.diagnostic?.let(::listOf).orEmpty()
-        if (count <= 0) return PreviewParameterExpansion(previews = emptyList(), diagnostics = diagnostics)
-        return PreviewParameterExpansion(
-            previews =
-                (0 until count).map { index ->
-                    preview.copy(
-                        id = "${preview.id}:previewParam-$index",
-                        previewParameter = parameter.copy(index = index),
-                    )
-                },
-            diagnostics = diagnostics,
-        )
-    }
-
-    private fun previewParameterValueCount(parameter: PreviewParameterDescriptor): PreviewParameterCountResult {
-        val classpath = classesDirs + runtimeClasspath
-        return runCatching {
-            URLClassLoader(classpath.map { it.toURI().toURL() }.toTypedArray(), javaClass.classLoader).use { loader ->
-                val providerClass = Class.forName(parameter.providerClassName, true, loader)
-                val constructor = providerClass.getDeclaredConstructor()
-                if (!constructor.canAccess(null)) constructor.isAccessible = true
-                val provider = constructor.newInstance()
-                val values = providerClass.methods.first { it.name == "getValues" && it.parameterTypes.isEmpty() }.invoke(provider)
-                val iterator =
-                    values.javaClass.methods.first { it.name == "iterator" && it.parameterTypes.isEmpty() }.invoke(
-                        values,
-                    ) as Iterator<*>
-                var count = 0
-                val limit = parameter.limit ?: Int.MAX_VALUE
-                while (count < limit && iterator.hasNext()) {
-                    iterator.next()
-                    count++
-                }
-                val diagnostic =
-                    if (count == 0) {
-                        PreviewScanDiagnostic(
-                            severity = PreviewScanDiagnostic.Severity.WARNING,
-                            message = "Skipping parameterized preview because provider ${parameter.providerClassName} produced no values.",
-                        )
-                    } else {
-                        null
-                    }
-                PreviewParameterCountResult(count = count, diagnostic = diagnostic)
-            }
-        }.getOrElse { throwable ->
-            PreviewParameterCountResult(
-                count = 0,
-                diagnostic =
-                    PreviewScanDiagnostic(
-                        severity = PreviewScanDiagnostic.Severity.WARNING,
-                        message =
-                            "Skipping parameterized preview because provider ${parameter.providerClassName} could not be instantiated. " +
-                                "Ensure it implements AndroidX PreviewParameterProvider and has an accessible no-arg constructor. " +
-                                "Cause: ${throwable.javaClass.name}: ${throwable.message}",
-                    ),
-            )
-        }
-    }
-
-    private fun List<PreviewParameterExpansion>.flatten(): PreviewParameterExpansion =
-        PreviewParameterExpansion(
-            previews = flatMap { it.previews },
-            diagnostics = flatMap { it.diagnostics },
-        )
-
     private fun variantId(
         scannedPreview: ScannedPreview,
         annotation: PreviewAnnotation,
@@ -158,16 +87,6 @@ class PreviewDiscovery(
         } else {
             "${scannedPreview.id}:${index + 1}-${variantName(annotation, index)}"
         }
-
-    private data class PreviewParameterExpansion(
-        val previews: List<PreviewDescriptor>,
-        val diagnostics: List<PreviewScanDiagnostic> = emptyList(),
-    )
-
-    private data class PreviewParameterCountResult(
-        val count: Int,
-        val diagnostic: PreviewScanDiagnostic? = null,
-    )
 
     private fun variantName(
         annotation: PreviewAnnotation,

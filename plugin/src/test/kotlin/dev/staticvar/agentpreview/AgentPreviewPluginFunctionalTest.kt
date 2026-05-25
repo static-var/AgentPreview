@@ -21,7 +21,7 @@ class AgentPreviewPluginFunctionalTest {
     lateinit var projectDir: File
 
     @Test
-    fun `list task expands preview parameter variants without failing`() {
+    fun `list task shows preview parameter metadata without expanding values`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
             pluginManagement {
@@ -53,9 +53,48 @@ class AgentPreviewPluginFunctionalTest {
                 .withPluginClasspath()
                 .build()
 
+        assertTrue(result.output.contains("parameterizedPreview  Parameterized"), result.output)
+        assertTrue(result.output.contains("values expand during capture"), result.output)
+        assertFalse(result.output.contains("parameterizedPreview:previewParam-0"), result.output)
+        assertTrue(result.output.contains(":listComposePreviews"), result.output)
+    }
+
+    @Test
+    fun `fake capture expands preview parameter values through isolated resolver`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
         assertTrue(result.output.contains("parameterizedPreview:previewParam-0"), result.output)
         assertTrue(result.output.contains("parameterizedPreview:previewParam-1"), result.output)
-        assertTrue(result.output.contains(":listComposePreviews"), result.output)
     }
 
     @Test

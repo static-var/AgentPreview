@@ -9,6 +9,7 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
@@ -59,7 +60,8 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
         previews.forEach { preview ->
             val label = preview.name ?: preview.fullyQualifiedFunctionName
-            logger.lifecycle("${preview.id}  $label")
+            val parameterNote = previewParameterNote(preview.previewParameter)
+            logger.lifecycle("${preview.id}  $label$parameterNote")
         }
     }
 
@@ -70,6 +72,13 @@ abstract class ListComposePreviewsTask : DefaultTask() {
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
+
+    private fun previewParameterNote(parameter: PreviewParameterDescriptor?): String =
+        parameter
+            ?.let {
+                val limit = it.limit?.toString() ?: "default cap 50"
+                "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; values expand during capture]"
+            }.orEmpty()
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->

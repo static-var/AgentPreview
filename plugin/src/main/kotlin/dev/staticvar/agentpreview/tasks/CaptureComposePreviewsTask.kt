@@ -7,9 +7,12 @@ package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.discovery.IsolatedPreviewParameterCountResolver
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
+import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewMetadata
@@ -74,9 +77,10 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         warnIfConfigurationIsIncompatible()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
-        logDiagnostics(discoveryResult.diagnostics)
+        val expansionResult = expandPreviewParameters(discoveryResult.previews)
+        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
         val previews =
-            discoveryResult.previews
+            expansionResult.previews
                 .filter { filters.isEmpty() || it.id in filters || it.name in filters }
         val outputRoot = outputDirectory.get().asFile
         if (outputRoot.exists()) {
@@ -100,8 +104,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         val previewRenderer by lazy {
             PreviewRendererImpl(
                 robolectricSdk = robolectricSdk.get(),
-                previewClasspath =
-                    (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+                previewClasspath = previewClasspath(),
                 includeUnmergedSemantics = includeUnmergedSemantics.get(),
             )
         }
@@ -192,6 +195,18 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
+
+    private fun previewClasspath(): List<File> =
+        (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList()
+
+    private fun expandPreviewParameters(previews: List<PreviewDescriptor>) =
+        if (previewClassesDirs.files.isEmpty()) {
+            PreviewParameterExpansionResult(previews = previews)
+        } else {
+            PreviewParameterExpander(
+                IsolatedPreviewParameterCountResolver(previewClasspath()),
+            ).expand(previews)
+        }
 
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
         if (previewClassesDirs.files.isEmpty()) {

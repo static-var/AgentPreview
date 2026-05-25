@@ -113,7 +113,8 @@ class PreviewDiscoveryTest {
     }
 
     @Test
-    fun `expands preview parameter provider values with stable ids`() {
+    fun `discovers preview parameter metadata without executing provider`() {
+        ProviderExecutionProbe.instantiationCount = 0
         val discovery =
             PreviewDiscovery(
                 projectPath = ":app",
@@ -122,21 +123,15 @@ class PreviewDiscoveryTest {
                 runtimeClasspath = emptyList(),
             )
 
-        val previews =
+        val preview =
             discovery
                 .discover()
-                .filter { it.fullyQualifiedFunctionName.endsWith("discovery.parameterizedPreview") }
-                .sortedBy { it.previewParameter?.index }
+                .single { it.fullyQualifiedFunctionName.endsWith("discovery.parameterizedPreview") }
 
-        assertEquals(listOf(0, 1), previews.map { it.previewParameter?.index })
-        assertEquals(
-            listOf(
-                ":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview:previewParam-0",
-                ":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview:previewParam-1",
-            ),
-            previews.map { it.id },
-        )
-        assertEquals("dev.staticvar.agentpreview.discovery.StringProvider", previews.first().previewParameter?.providerClassName)
+        assertEquals(0, ProviderExecutionProbe.instantiationCount)
+        assertEquals(":app:test:dev.staticvar.agentpreview.discovery.parameterizedPreview", preview.id)
+        assertEquals(null, preview.previewParameter?.index)
+        assertEquals("dev.staticvar.agentpreview.discovery.StringProvider", preview.previewParameter?.providerClassName)
     }
 
     @Test
