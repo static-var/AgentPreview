@@ -6,7 +6,9 @@
 package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.Bounds
+import dev.staticvar.agentpreview.model.DpBounds
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.SnapshotLayoutNode
 import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
 import kotlinx.serialization.builtins.ListSerializer
@@ -63,6 +65,7 @@ class PreviewRendererImplTest {
                 robolectricSdk = 35,
                 outputFile = result.screenshotFile,
                 semanticsOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.semantics.json"),
+                layoutTreeOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.layout-tree.json"),
                 includeUnmergedSemantics = true,
                 locale = "fr-rFR",
                 uiMode = 0x20,
@@ -74,6 +77,87 @@ class PreviewRendererImplTest {
         )
         assertEquals(listOf(File("app/classes"), File("app/runtime.jar")), processRunner.previewClasspath)
         assertTrue(result.screenshotFile.parentFile.isDirectory)
+    }
+
+    @Test
+    fun `reads structured layout tree output from isolated harness process`() {
+        val expectedLayoutTree =
+            listOf(
+                SnapshotLayoutNode(
+                    id = "layout-1",
+                    boundsPx = Bounds(x = 10, y = 20, width = 80, height = 40),
+                    boundsDp = DpBounds(x = 5.0f, y = 10.0f, width = 40.0f, height = 20.0f),
+                    componentHint = "ColumnMeasurePolicy",
+                    semanticsId = "3",
+                ),
+            )
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = LayoutTreeRenderProcessRunner(expectedLayoutTree),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.LayoutPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.LayoutPreview",
+                fullyQualifiedClassName = "dev.example.LayoutPreviewKt",
+                sourceFile = "LayoutPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(expectedLayoutTree, result.layoutTree)
+    }
+
+    @Test
+    fun `missing optional layout tree sidecar returns empty layout tree`() {
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = ScreenshotOnlyRenderProcessRunner(),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.MissingLayoutPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.MissingLayoutPreview",
+                fullyQualifiedClassName = "dev.example.MissingLayoutPreviewKt",
+                sourceFile = "MissingLayoutPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(emptyList<SnapshotLayoutNode>(), result.layoutTree)
+        assertEquals(RenderMode.Robolectric, result.renderMode)
+    }
+
+    @Test
+    fun `malformed optional layout tree output does not fail render`() {
+        val renderer =
+            PreviewRendererImpl(
+                robolectricSdk = 35,
+                previewClasspath = listOf(File("app/classes")),
+                processRunner = MalformedLayoutTreeRenderProcessRunner(),
+            )
+        val preview =
+            PreviewDescriptor(
+                id = "dev.example.MalformedLayoutPreview",
+                sourceSet = "main",
+                fullyQualifiedFunctionName = "dev.example.MalformedLayoutPreview",
+                fullyQualifiedClassName = "dev.example.MalformedLayoutPreviewKt",
+                sourceFile = "MalformedLayoutPreview.kt",
+            )
+        val viewport = Viewport(platform = "android", name = "phone", width = 393, height = 852, density = 2.0f)
+
+        val result = renderer.render(preview, viewport, tempDir)
+
+        assertEquals(emptyList<SnapshotLayoutNode>(), result.layoutTree)
+        assertEquals(RenderMode.Robolectric, result.renderMode)
     }
 
     @Test
@@ -174,6 +258,46 @@ class PreviewRendererImplTest {
                 RenderProcessFailureKind.ResourceLoadingGap,
                 "android.content.res.Resources\$NotFoundException: Resource ID #0x7f010001",
             )
+    }
+
+    private class LayoutTreeRenderProcessRunner(
+        private val layoutTree: List<SnapshotLayoutNode>,
+    ) : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
+            request.layoutTreeOutputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), layoutTree))
+            return RenderProcessResult.Success
+        }
+    }
+
+    private class ScreenshotOnlyRenderProcessRunner : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
+            return RenderProcessResult.Success
+        }
+    }
+
+    private class MalformedLayoutTreeRenderProcessRunner : RenderProcessRunner {
+        override fun run(
+            request: AndroidComposeRenderRequest,
+            previewClasspath: List<File>,
+        ): RenderProcessResult {
+            request.outputFile.writeBytes(
+                byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0, 0, 0, 0, 0),
+            )
+            request.layoutTreeOutputFile.writeText("not-json")
+            return RenderProcessResult.Success
+        }
     }
 
     private class SemanticsRenderProcessRunner(

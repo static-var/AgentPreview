@@ -37,11 +37,11 @@ class DefaultRenderProcessRunnerTest {
             runWithFakeJava(
                 """
                 #!/bin/sh
-                if [ "${'$'}{12}" != "true" ]; then
-                  echo "Expected includeUnmergedSemantics arg true, got ${'$'}{12}" >&2
+                if [ "${'$'}{13}" != "true" ]; then
+                  echo "Expected includeUnmergedSemantics arg true, got ${'$'}{13}" >&2
                   exit 1
                 fi
-                cat > "${'$'}{18}" <<'EOF'
+                cat > "${'$'}{19}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -58,11 +58,11 @@ class DefaultRenderProcessRunnerTest {
             runWithFakeJava(
                 """
                 #!/bin/sh
-                if [ "${'$'}{13}" != "fr-rFR" ] || [ "${'$'}{14}" != "32" ] || [ "${'$'}{15}" != "1.3" ] || [ "${'$'}{16}" != "true" ] || [ "${'$'}{17}" != "4279312947" ]; then
-                  echo "Unexpected preview config args: ${'$'}{13} ${'$'}{14} ${'$'}{15} ${'$'}{16} ${'$'}{17}" >&2
+                if [ "${'$'}{14}" != "fr-rFR" ] || [ "${'$'}{15}" != "32" ] || [ "${'$'}{16}" != "1.3" ] || [ "${'$'}{17}" != "true" ] || [ "${'$'}{18}" != "4279312947" ]; then
+                  echo "Unexpected preview config args: ${'$'}{14} ${'$'}{15} ${'$'}{16} ${'$'}{17} ${'$'}{18}" >&2
                   exit 1
                 fi
-                cat > "${'$'}{18}" <<'EOF'
+                cat > "${'$'}{19}" <<'EOF'
                 status=success
                 EOF
                 exit 0
@@ -83,7 +83,7 @@ class DefaultRenderProcessRunnerTest {
             runWithFakeJava(
                 """
                 #!/bin/sh
-                cat > "${'$'}{18}" <<'EOF'
+                cat > "${'$'}{19}" <<'EOF'
                 status=failure
                 failureKind=ResourceLoadingGap
                 EOF
@@ -124,6 +124,7 @@ class DefaultRenderProcessRunnerTest {
                         robolectricSdk = 35,
                         outputFile = tempDir.resolve("preview.png"),
                         semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
+                        layoutTreeOutputFile = tempDir.resolve("preview.layout-tree.json"),
                         includeUnmergedSemantics = includeUnmergedSemantics,
                         locale = locale,
                         uiMode = uiMode,

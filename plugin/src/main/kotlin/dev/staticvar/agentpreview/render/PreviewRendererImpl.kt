@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.SnapshotLayoutNode
 import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.sanitize
@@ -29,6 +30,7 @@ class PreviewRendererImpl(
         val outputName = preview.id.sanitize() + "-" + (viewport.name ?: "preview")
         val screenshot = outputDirectory.resolve("$outputName.png")
         val semanticsOutput = outputDirectory.resolve("$outputName.semantics.json")
+        val layoutTreeOutput = outputDirectory.resolve("$outputName.layout-tree.json")
         require(robolectricSdk == SUPPORTED_ROBOLECTRIC_SDK) {
             "AgentPreview Android renderer currently supports only robolectricSdk=$SUPPORTED_ROBOLECTRIC_SDK; " +
                 "configured robolectricSdk=$robolectricSdk is not used by the Robolectric entry point."
@@ -48,6 +50,7 @@ class PreviewRendererImpl(
                 robolectricSdk = robolectricSdk,
                 outputFile = screenshot,
                 semanticsOutputFile = semanticsOutput,
+                layoutTreeOutputFile = layoutTreeOutput,
                 includeUnmergedSemantics = includeUnmergedSemantics,
                 locale = preview.locale,
                 uiMode = preview.uiMode,
@@ -67,6 +70,7 @@ class PreviewRendererImpl(
             screenshotFile = screenshot,
             viewport = viewport,
             rawSemantics = readSemantics(semanticsOutput).takeIf { renderMode == RenderMode.Robolectric },
+            layoutTree = readLayoutTree(layoutTreeOutput).takeIf { renderMode == RenderMode.Robolectric } ?: emptyList(),
             renderMode = renderMode,
         )
     }
@@ -75,6 +79,25 @@ class PreviewRendererImpl(
         if (semanticsOutput.isFile) {
             Json.decodeFromString(ListSerializer(SnapshotNode.serializer()), semanticsOutput.readText())
         } else {
+            emptyList()
+        }
+
+    private fun readLayoutTree(layoutTreeOutput: File): List<SnapshotLayoutNode> =
+        if (layoutTreeOutput.isFile) {
+            runCatching {
+                Json.decodeFromString(ListSerializer(SnapshotLayoutNode.serializer()), layoutTreeOutput.readText())
+            }.getOrElse { throwable ->
+                System.err.println(
+                    "AgentPreview: failed to read optional layout tree sidecar at ${layoutTreeOutput.absolutePath}; " +
+                        "continuing with an empty layout tree. Cause: ${throwable.javaClass.name}: ${throwable.message}",
+                )
+                emptyList()
+            }
+        } else {
+            System.err.println(
+                "AgentPreview: optional layout tree sidecar is missing at ${layoutTreeOutput.absolutePath}; " +
+                    "continuing with an empty layout tree.",
+            )
             emptyList()
         }
 

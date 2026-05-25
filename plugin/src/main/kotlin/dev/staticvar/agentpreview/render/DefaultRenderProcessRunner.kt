@@ -34,6 +34,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
                 request.robolectricSdk.toString(),
                 request.outputFile.absolutePath,
                 request.semanticsOutputFile.absolutePath,
+                request.layoutTreeOutputFile.absolutePath,
                 request.includeUnmergedSemantics.toString(),
                 request.locale.orEmpty(),
                 request.uiMode?.toString().orEmpty(),

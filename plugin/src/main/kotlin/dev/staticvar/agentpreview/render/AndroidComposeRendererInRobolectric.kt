@@ -6,6 +6,9 @@
 package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.model.Bounds
+import dev.staticvar.agentpreview.model.DpBounds
+import dev.staticvar.agentpreview.model.SnapshotLayoutNode
+import dev.staticvar.agentpreview.model.SnapshotLayoutSemanticsSummary
 import dev.staticvar.agentpreview.model.SnapshotNode
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -24,6 +27,7 @@ object AndroidComposeRendererInRobolectric {
         density: Float,
         outputFile: File,
         semanticsOutputFile: File,
+        layoutTreeOutputFile: File,
         includeUnmergedSemantics: Boolean = false,
         locale: String? = null,
         uiMode: Int? = null,
@@ -33,6 +37,7 @@ object AndroidComposeRendererInRobolectric {
     ) {
         outputFile.parentFile.mkdirs()
         semanticsOutputFile.parentFile.mkdirs()
+        layoutTreeOutputFile.parentFile.mkdirs()
         val activityClass = Class.forName("androidx.activity.ComponentActivity")
         val controller =
             Robolectric::class.java
@@ -45,6 +50,7 @@ object AndroidComposeRendererInRobolectric {
         setContent(activity, className, methodName)
         val view = draw(activity, widthPx.coerceAtLeast(1), heightPx.coerceAtLeast(1), outputFile, showBackground, backgroundColor)
         writeSemantics(view, semanticsOutputFile, includeUnmergedSemantics)
+        writeLayoutTree(view, layoutTreeOutputFile, density)
     }
 
     private fun applyConfiguration(
@@ -194,6 +200,60 @@ object AndroidComposeRendererInRobolectric {
         outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotNode.serializer()), nodes))
     }
 
+    private fun writeLayoutTree(
+        contentRoot: Any,
+        outputFile: File,
+        density: Float,
+    ) {
+        runCatching {
+            val composeView = checkNotNull(findComposeView(contentRoot)) { "Compose root view was not found." }
+            writeLayoutTreeFromComposeView(composeView, outputFile, density)
+        }.getOrElse { throwable ->
+            writeEmptyLayoutTreeWarning(outputFile, throwable)
+        }
+    }
+
+    internal fun writeLayoutTreeFromComposeView(
+        composeView: Any,
+        outputFile: File,
+        density: Float,
+    ) {
+        runCatching {
+            val getRoot =
+                composeView
+                    .javaClass
+                    .methods
+                    .firstOrNull {
+                        it.name == "getRoot" && it.parameterTypes.isEmpty()
+                    }
+                    ?: error("Compose root view ${composeView.javaClass.name} does not expose getRoot().")
+            val rootLayoutNode = getRoot.invoke(composeView)
+            val nodes = listOf(extractLayoutTree(rootLayoutNode, density))
+            outputFile.writeText(Json.encodeToString(ListSerializer(SnapshotLayoutNode.serializer()), nodes))
+        }.getOrElse { throwable ->
+            writeEmptyLayoutTreeWarning(outputFile, throwable)
+        }
+    }
+
+    private fun writeEmptyLayoutTreeWarning(
+        outputFile: File,
+        throwable: Throwable,
+    ) {
+        outputFile.writeText("[]")
+        System.err.println(
+            "AgentPreview: failed to extract Compose layout tree for ${outputFile.absolutePath}; " +
+                "wrote an empty layout tree sidecar. Screenshot and semantics output are preserved. " +
+                "Cause: ${throwable.javaClass.name}: ${throwable.message}",
+        )
+    }
+
+    internal fun extractLayoutTree(
+        rootLayoutNode: Any,
+        density: Float,
+    ): SnapshotLayoutNode = toSnapshotLayoutNode(rootLayoutNode, density, nextLayoutId())
+
+    private fun nextLayoutId(): Iterator<String> = generateSequence(1) { it + 1 }.map { id -> "layout-$id" }.iterator()
+
     internal fun rootSemanticsNode(
         semanticsOwner: Any,
         includeUnmergedSemantics: Boolean,
@@ -254,12 +314,94 @@ object AndroidComposeRendererInRobolectric {
         )
     }
 
-    private fun semanticsProperties(config: Any): Map<String, Any?> {
+    private fun toSnapshotLayoutNode(
+        node: Any,
+        density: Float,
+        ids: Iterator<String>,
+    ): SnapshotLayoutNode {
+        val id = ids.next()
+        val boundsPx = layoutBounds(node)
+        val semantics = semanticsProperties(method(node, "getSemanticsConfiguration")?.invoke(node))
+        val children = layoutChildren(node).map { child -> toSnapshotLayoutNode(child, density, ids) }
+        val measurePolicy = method(node, "getMeasurePolicy")?.invoke(node)
+        val modifier = method(node, "getModifier")?.invoke(node)
+        return SnapshotLayoutNode(
+            id = id,
+            boundsPx = boundsPx,
+            boundsDp = boundsPx.toDpBounds(density),
+            componentHint = measurePolicy?.javaClass?.name ?: node.javaClass.name,
+            modifierHint = modifier?.javaClass?.name ?: modifier?.toString(),
+            classHint = node.javaClass.name,
+            semanticsId = method(node, "getSemanticsId")?.invoke(node)?.toString(),
+            semantics = semantics.toLayoutSummary(),
+            children = children,
+        )
+    }
+
+    private fun layoutChildren(node: Any): List<Any> {
+        val vector =
+            method(node, "getZSortedChildren")?.invoke(node) ?: method(node, "get_children\$ui")?.invoke(node) ?: return emptyList()
+        if (vector is Iterable<*>) return vector.filterNotNull()
+        val asList = method(vector, "asMutableList")?.invoke(vector)
+        if (asList is List<*>) return asList.filterNotNull()
+        val size = method(vector, "getSize")?.invoke(vector) as? Int ?: return emptyList()
+        val content = method(vector, "getContent")?.invoke(vector) as? Array<*> ?: return emptyList()
+        return content.take(size).filterNotNull()
+    }
+
+    private fun layoutBounds(node: Any): Bounds {
+        val coordinates = method(node, "getCoordinates")?.invoke(node) ?: return Bounds(0, 0, 0, 0)
+        val width = method(coordinates, "getWidth")?.invoke(coordinates) as? Int ?: 0
+        val height = method(coordinates, "getHeight")?.invoke(coordinates) as? Int ?: 0
+        val packedOffset =
+            coordinates.javaClass.methods
+                .firstOrNull { method ->
+                    method.name.startsWith("localToRoot-") && method.parameterTypes.contentEquals(arrayOf(Long::class.javaPrimitiveType))
+                }?.invoke(coordinates, 0L) as? Long ?: 0L
+        return Bounds(
+            x = packedOffset.unpackFloat1().roundToInt(),
+            y = packedOffset.unpackFloat2().roundToInt(),
+            width = width.coerceAtLeast(0),
+            height = height.coerceAtLeast(0),
+        )
+    }
+
+    private fun Bounds.toDpBounds(density: Float): DpBounds =
+        if (density <= 0f) {
+            DpBounds(0.0f, 0.0f, 0.0f, 0.0f)
+        } else {
+            DpBounds(x / density, y / density, width / density, height / density)
+        }
+
+    private fun Map<String, Any?>.toLayoutSummary(): SnapshotLayoutSemanticsSummary? {
+        if (isEmpty()) return null
+        val actions = filterKeys { it.startsWith("On") }.keys.sorted()
+        val summary =
+            SnapshotLayoutSemanticsSummary(
+                text = get("Text")?.toSnapshotText(),
+                contentDescription = get("ContentDescription")?.toSnapshotText(),
+                role = get("Role")?.toString(),
+                actions = actions,
+                tag = get("TestTag")?.toString(),
+            )
+        return summary.takeIf {
+            it.text != null || it.contentDescription != null || it.role != null || it.actions.isNotEmpty() || it.tag != null
+        }
+    }
+
+    private fun method(
+        target: Any,
+        name: String,
+    ) = target.javaClass.methods.firstOrNull { it.name == name && it.parameterTypes.isEmpty() }
+
+    private fun semanticsProperties(config: Any?): Map<String, Any?> {
+        val nonNullConfig = config ?: return emptyMap()
+
         @Suppress("UNCHECKED_CAST")
         val iterator =
-            config.javaClass.methods
+            nonNullConfig.javaClass.methods
                 .firstOrNull { it.name == "iterator" && it.parameterTypes.isEmpty() }
-                ?.invoke(config)
+                ?.invoke(nonNullConfig)
                 as? Iterator<Map.Entry<Any, Any?>>
                 ?: return emptyMap()
         return buildMap {
@@ -323,6 +465,10 @@ object AndroidComposeRendererInRobolectric {
             is Iterable<*> -> joinToString(" ") { item -> item.toString() }
             else -> toString()
         }
+
+    private fun Long.unpackFloat1(): Float = Float.fromBits((this shr 32).toInt())
+
+    private fun Long.unpackFloat2(): Float = Float.fromBits((this and 0xffffffffL).toInt())
 
     private fun setNoActionBarTheme(activity: Any) {
         val styleClass = Class.forName("android.R\$style")
