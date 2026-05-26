@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview
 
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -110,6 +112,36 @@ class AndroidAutoWiringFunctionalTest {
 
         assertTrue(result.output.contains(":compileDebugKotlinAndroid"), result.output)
         assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
+    fun `non-preview tasks still run when release variant is configured`() {
+        writeFakeAndroidPlugin()
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("com.android.library")
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                android {
+                    variant.set("release")
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("help")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":help")?.outcome)
     }
 
     @Test

@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview.dependencies
 
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -9,16 +14,18 @@ class RendererSupportClasspathResolverTest {
 
     @Test
     fun `keeps consumer provided renderer support artifacts and adds only missing ones`() {
-        val resolution = resolver.resolve(
-            selectedVariant = "debug",
-            inspectedConfigurations = listOf("debugRuntimeClasspath"),
-            runtimeArtifacts = listOf(
-                ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.9.0", "/consumer/ui.jar"),
-                ResolvedArtifactCoordinate("androidx.compose.ui", "ui-tooling", "1.9.0", "/consumer/ui-tooling.jar"),
-                ResolvedArtifactCoordinate("androidx.test", "core", "1.7.1", "/consumer/test-core.jar"),
-                ResolvedArtifactCoordinate("androidx.test", "monitor", "1.8.1", "/consumer/test-monitor.jar"),
-            ),
-        )
+        val resolution =
+            resolver.resolve(
+                selectedVariant = "debug",
+                inspectedConfigurations = listOf("debugRuntimeClasspath"),
+                runtimeArtifacts =
+                    listOf(
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.9.0", "/consumer/ui.jar"),
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui-tooling", "1.9.0", "/consumer/ui-tooling.jar"),
+                        ResolvedArtifactCoordinate("androidx.test", "core", "1.7.1", "/consumer/test-core.jar"),
+                        ResolvedArtifactCoordinate("androidx.test", "monitor", "1.8.1", "/consumer/test-monitor.jar"),
+                    ),
+            )
 
         assertEquals("1.9.0", resolution.composeVersion)
         assertEquals(
@@ -40,14 +47,16 @@ class RendererSupportClasspathResolverTest {
 
     @Test
     fun `adds only missing androidx test renderer support artifacts`() {
-        val resolution = resolver.resolve(
-            selectedVariant = "debug",
-            inspectedConfigurations = listOf("debugRuntimeClasspath"),
-            runtimeArtifacts = listOf(
-                ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.8.1", "/consumer/ui.jar"),
-                ResolvedArtifactCoordinate("androidx.test", "core", "1.7.1", "/consumer/test-core.jar"),
-            ),
-        )
+        val resolution =
+            resolver.resolve(
+                selectedVariant = "debug",
+                inspectedConfigurations = listOf("debugRuntimeClasspath"),
+                runtimeArtifacts =
+                    listOf(
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.8.1", "/consumer/ui.jar"),
+                        ResolvedArtifactCoordinate("androidx.test", "core", "1.7.1", "/consumer/test-core.jar"),
+                    ),
+            )
 
         assertEquals(listOf("/consumer/test-core.jar"), resolution.consumerArtifactFiles)
         assertEquals(
@@ -62,13 +71,15 @@ class RendererSupportClasspathResolverTest {
 
     @Test
     fun `adds matching tooling artifacts when consumer lacks them`() {
-        val resolution = resolver.resolve(
-            selectedVariant = "debug",
-            inspectedConfigurations = listOf("debugRuntimeClasspath"),
-            runtimeArtifacts = listOf(
-                ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.8.1", "/consumer/ui.jar"),
-            ),
-        )
+        val resolution =
+            resolver.resolve(
+                selectedVariant = "debug",
+                inspectedConfigurations = listOf("debugRuntimeClasspath"),
+                runtimeArtifacts =
+                    listOf(
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui", "1.8.1", "/consumer/ui.jar"),
+                    ),
+            )
 
         assertEquals(
             listOf(
@@ -83,13 +94,15 @@ class RendererSupportClasspathResolverTest {
 
     @Test
     fun `falls back to default tooling coordinates and warns when compose version is unknown`() {
-        val resolution = resolver.resolve(
-            selectedVariant = "stagingDebug",
-            inspectedConfigurations = listOf("stagingDebugRuntimeClasspath", "stagingDebugCompileClasspath"),
-            runtimeArtifacts = listOf(
-                ResolvedArtifactCoordinate("androidx.activity", "activity-compose", "1.10.1", "/consumer/activity-compose.jar"),
-            ),
-        )
+        val resolution =
+            resolver.resolve(
+                selectedVariant = "stagingDebug",
+                inspectedConfigurations = listOf("stagingDebugRuntimeClasspath", "stagingDebugCompileClasspath"),
+                runtimeArtifacts =
+                    listOf(
+                        ResolvedArtifactCoordinate("androidx.activity", "activity-compose", "1.10.1", "/consumer/activity-compose.jar"),
+                    ),
+            )
 
         assertEquals(RendererDependencyPolicy.FALLBACK_COMPOSE_VERSION, resolution.composeVersion)
         assertTrue(

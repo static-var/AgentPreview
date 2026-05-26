@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview
 
 import dev.staticvar.agentpreview.android.AndroidPreviewAutoWiring
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
 import dev.staticvar.agentpreview.dependencies.RendererSupportClasspathResolver
 import dev.staticvar.agentpreview.dependencies.ResolvedArtifactCoordinate
 import dev.staticvar.agentpreview.dependencies.VariantRuntimeClasspathProvider
@@ -54,7 +55,9 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.previewSupportClasspath.from(project.provider { resolveRendererClasspath(project, selectedVariant.get()).previewSupportFiles })
+            it.previewSupportClasspath.from(
+                project.provider { resolveRendererClasspath(project, selectedVariant.get()).previewSupportFiles },
+            )
             it.selectedVariant.set(selectedVariant)
             it.robolectricSdk.set(extension.android.robolectricSdk)
             it.javaMajorVersion.set(javaMajorVersion(project))
@@ -96,7 +99,9 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.rendererRuntimeClasspath.from(project.provider { resolveRendererClasspath(project, selectedVariant.get()).rendererRuntimeFiles })
+            it.rendererRuntimeClasspath.from(
+                project.provider { resolveRendererClasspath(project, selectedVariant.get()).rendererRuntimeFiles },
+            )
             it.selectedVariant.set(selectedVariant)
             it.androidViewportsJson.set(
                 project.provider {
@@ -121,10 +126,12 @@ class AgentPreviewPlugin : Plugin<Project> {
         project: Project,
         variant: String,
     ): ResolvedRendererClasspath {
+        RendererDependencyPolicy.requireSupportedVariant(variant)
         val runtimeProvider = VariantRuntimeClasspathProvider(project)
         val inspectedConfigurations = runtimeProvider.inspectedConfigurationNames(variant)
         val runtimeArtifacts =
-            runtimeProvider.configurationFor(variant)
+            runtimeProvider
+                .configurationFor(variant)
                 .resolvedArtifacts()
         val resolution =
             RendererSupportClasspathResolver().resolve(
@@ -153,7 +160,10 @@ class AgentPreviewPlugin : Plugin<Project> {
     ): Set<File> {
         if (coordinates.isEmpty()) return emptySet()
         val configuration =
-            project.configurations.detachedConfiguration(*coordinates.map(project.dependencies::create).toTypedArray()).apply {
+            project.configurations.detachedConfiguration().apply {
+                coordinates
+                    .map(project.dependencies::create)
+                    .forEach(dependencies::add)
                 isCanBeConsumed = false
                 isCanBeResolved = true
                 isVisible = false

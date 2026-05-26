@@ -13,6 +13,7 @@ abstract class AndroidPreviewConfig
     @Inject
     constructor() {
         abstract val robolectricSdk: Property<Int>
+
         /**
          * Selected Android runtime variant used for preview discovery and rendering. Defaults to debug.
          * AgentPreview reads this variant classpath but resolves any missing renderer support in plugin-owned,

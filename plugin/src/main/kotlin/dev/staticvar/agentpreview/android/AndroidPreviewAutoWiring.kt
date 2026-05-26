@@ -6,7 +6,6 @@
 package dev.staticvar.agentpreview.android
 
 import dev.staticvar.agentpreview.AgentPreviewExtension
-import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.file.FileCollection
@@ -20,9 +19,6 @@ class AndroidPreviewAutoWiring(
     fun configure() {
         project.afterEvaluate {
             val variantName = extension.android.variant.get()
-            require(!variantName.equals("release", ignoreCase = true)) {
-                RendererDependencyPolicy.releaseVariantMessage(variantName)
-            }
             when {
                 hasAndroidBackedVariant() -> configureAndroidBackedVariant(variantName)
                 hasAndroidKmpLibraryShape() -> configureAndroidKmpLibrary()

@@ -1,3 +1,8 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2026 Shreyansh Lodha
+ */
 package dev.staticvar.agentpreview.dependencies
 
 internal object RendererDependencyPolicy {
@@ -13,8 +18,10 @@ internal object RendererDependencyPolicy {
             moduleKey("androidx.test", "monitor"),
         )
 
-    fun isRendererSupportModule(group: String, module: String): Boolean =
-        moduleKey(group, module) in rendererSupportModuleKeys
+    fun isRendererSupportModule(
+        group: String,
+        module: String,
+    ): Boolean = moduleKey(group, module) in rendererSupportModuleKeys
 
     fun moduleKey(coordinate: String): String = coordinate.substringBeforeLast(':')
 
@@ -26,10 +33,19 @@ internal object RendererDependencyPolicy {
             "androidx.test:monitor:$FALLBACK_ANDROIDX_TEST_MONITOR_VERSION",
         )
 
+    fun requireSupportedVariant(variant: String) {
+        require(!variant.equals("release", ignoreCase = true)) {
+            releaseVariantMessage(variant)
+        }
+    }
+
     fun releaseVariantMessage(variant: String): String =
         "AgentPreview: agentPreview.android.variant=$variant is not supported for rendering. " +
             "AgentPreview reads the selected variant runtime classpath for rendering and keeps renderer support " +
             "dependencies out of the app production graph. Use a debug/preview-style variant instead."
 
-    private fun moduleKey(group: String, module: String): String = "$group:$module"
+    private fun moduleKey(
+        group: String,
+        module: String,
+    ): String = "$group:$module"
 }
