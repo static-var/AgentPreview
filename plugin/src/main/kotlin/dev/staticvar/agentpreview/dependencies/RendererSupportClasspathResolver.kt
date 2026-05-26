@@ -44,13 +44,14 @@ internal class RendererSupportClasspathResolver(
 
         val consumerArtifacts =
             runtimeArtifacts.filter {
-                it.group == "androidx.compose.ui" && it.module in RendererDependencyPolicy.composeToolingModules
+                RendererDependencyPolicy.isRendererSupportModule(it.group, it.module)
             }
+        val consumerModuleKeys = consumerArtifacts.map { "${it.group}:${it.module}" }.toSet()
 
         val pluginCoordinates =
             RendererDependencyPolicy
                 .fallbackRendererCoordinates(composeVersion)
-                .filterNot { coordinate -> consumerArtifacts.any { it.notation == coordinate } }
+                .filterNot { coordinate -> RendererDependencyPolicy.moduleKey(coordinate) in consumerModuleKeys }
 
         return RendererSupportResolution(
             composeVersion = composeVersion,
