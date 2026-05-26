@@ -22,6 +22,10 @@ abstract class AgentPreviewExtension(
 
     val previewClassesDirs: ConfigurableFileCollection = project.objects.fileCollection()
     val previewRuntimeClasspath: ConfigurableFileCollection = project.objects.fileCollection()
+    /**
+     * AgentPreview renders against the selected Android variant runtime classpath but keeps renderer-only
+     * support dependencies out of the app's packaged dependency graph.
+     */
     val android: AndroidPreviewConfig = project.objects.newInstance(AndroidPreviewConfig::class.java)
 
     abstract val includeUnmergedSemantics: Property<Boolean>

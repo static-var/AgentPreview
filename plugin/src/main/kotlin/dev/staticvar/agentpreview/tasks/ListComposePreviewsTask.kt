@@ -54,6 +54,9 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     abstract val previewSupportClasspath: ConfigurableFileCollection
 
     @get:Input
+    abstract val selectedVariant: Property<String>
+
+    @get:Input
     abstract val robolectricSdk: Property<Int>
 
     @get:Input
@@ -63,6 +66,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     fun list() {
         val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
+        logEffectiveRenderingClasspath()
         val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
@@ -149,6 +153,15 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
         if (previewClassesDirs.files.isEmpty()) emptySet() else previewSupportClasspath.files
+
+    private fun logEffectiveRenderingClasspath() {
+        if (previewClassesDirs.files.isEmpty()) return
+        logger.debug(
+            "AgentPreview list variant ${selectedVariant.get()} runtime artifacts: " +
+                (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
+                    .joinToString(", ") { it.name },
+        )
+    }
 
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {

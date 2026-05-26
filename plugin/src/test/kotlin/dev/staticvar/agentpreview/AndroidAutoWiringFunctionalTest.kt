@@ -113,7 +113,7 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
-    fun `uses configured Android variant for auto wiring`() {
+    fun `fails when release variant is configured for auto wiring`() {
         writeFakeAndroidPlugin()
         writeSettings()
         projectDir.resolve("build.gradle.kts").writeText(
@@ -138,10 +138,9 @@ class AndroidAutoWiringFunctionalTest {
                 .withProjectDir(projectDir)
                 .withArguments("listComposePreviews")
                 .withPluginClasspath()
-                .build()
+                .buildAndFail()
 
-        assertTrue(result.output.contains(":compileReleaseKotlin"), result.output)
-        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+        assertTrue(result.output.contains("agentPreview.android.variant=release is not supported"), result.output)
     }
 
     @Test
