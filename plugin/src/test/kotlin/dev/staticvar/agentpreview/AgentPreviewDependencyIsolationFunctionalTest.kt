@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.util.jar.JarOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class AgentPreviewDependencyIsolationFunctionalTest {
     @TempDir
@@ -70,6 +72,49 @@ class AgentPreviewDependencyIsolationFunctionalTest {
         assertFalse(dependenciesResult.output.contains("androidx.test:core"), dependenciesResult.output)
         assertFalse(dependenciesResult.output.contains("androidx.test:monitor"), dependenciesResult.output)
         assertFalse(dependenciesResult.output.contains("agentpreview"), dependenciesResult.output)
+    }
+
+    @Test
+    fun `list task materializes renderer support AARs before classpath backed discovery`() {
+        writeSettings()
+        writeLocalModule("androidx.compose.ui", "ui", "1.8.1")
+        writeLocalAarModule("androidx.compose.ui", "ui-tooling", "1.8.1")
+        writeLocalModule("androidx.compose.ui", "ui-tooling-data", "1.8.1")
+        writeLocalModule("androidx.test", "core", "1.7.0")
+        writeLocalModule("androidx.test", "monitor", "1.8.0")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            repositories {
+                maven(url = uri("${mavenRepoDir().invariantSeparatorsPath}"))
+            }
+
+            configurations.create("debugRuntimeClasspath")
+
+            dependencies {
+                add("debugRuntimeClasspath", "androidx.compose.ui:ui:1.8.1")
+                add("debugRuntimeClasspath", "androidx.compose.ui:ui-tooling:1.8.1")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val result = runner("listComposePreviews", "--debug").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":listComposePreviews")?.outcome)
+        val runtimeArtifactsLog =
+            result.output
+                .lineSequence()
+                .firstOrNull { it.contains("AgentPreview list variant debug runtime artifacts:") }
+        assertTrue(runtimeArtifactsLog != null, result.output)
+        assertTrue(runtimeArtifactsLog!!.contains("classes.jar"), result.output)
+        assertFalse(runtimeArtifactsLog.contains("ui-tooling-1.8.1.aar"), result.output)
     }
 
     @Test
@@ -169,6 +214,38 @@ class AgentPreviewDependencyIsolationFunctionalTest {
             """.trimIndent(),
         )
         JarOutputStream(moduleDir.resolve("$module-$version.jar").outputStream()).use { }
+    }
+
+    private fun writeLocalAarModule(
+        group: String,
+        module: String,
+        version: String,
+    ) {
+        val moduleDir =
+            mavenRepoDir().resolve("${group.replace('.', '/')}/$module/$version").apply {
+                mkdirs()
+            }
+        moduleDir.resolve("$module-$version.pom").writeText(
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>$group</groupId>
+              <artifactId>$module</artifactId>
+              <version>$version</version>
+              <packaging>aar</packaging>
+            </project>
+            """.trimIndent(),
+        )
+        val classesJar = moduleDir.resolve("classes.jar")
+        JarOutputStream(classesJar.outputStream()).use { }
+        ZipOutputStream(moduleDir.resolve("$module-$version.aar").outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("classes.jar"))
+            classesJar.inputStream().use { input -> input.copyTo(zip) }
+            zip.closeEntry()
+        }
+        classesJar.delete()
     }
 
     private fun mavenRepoDir(): File = projectDir.resolve("test-repo")

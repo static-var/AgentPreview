@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
@@ -158,10 +159,12 @@ abstract class ListComposePreviewsTask : DefaultTask() {
         if (previewClassesDirs.files.isEmpty()) return
         logger.debug(
             "AgentPreview list variant ${selectedVariant.get()} runtime artifacts: " +
-                (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
-                    .joinToString(", ") { it.name },
+                materializedDiscoveryClasspath().joinToString(", ") { it.name },
         )
     }
+
+    private fun materializedDiscoveryClasspath(): List<File> =
+        AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
 
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
@@ -169,7 +172,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
                 projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked()).toList(),
+                runtimeClasspath = materializedDiscoveryClasspath(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(
