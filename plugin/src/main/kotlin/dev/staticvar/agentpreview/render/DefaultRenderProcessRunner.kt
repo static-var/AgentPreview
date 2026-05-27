@@ -117,7 +117,7 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         }
 
     private fun materializeAarClasspath(aar: File): List<File> =
-        listOfNotNull(extractAarClassesJar(aar)) + extractAarEmbeddedJars(aar) + listOfNotNull(materializeAarRClassesJar(aar)) + aar
+        listOfNotNull(extractAarClassesJar(aar)) + extractAarEmbeddedJars(aar) + listOfNotNull(materializeAarRClassesJar(aar))
 
     private fun extractAarClassesJar(aar: File): File? = extractAarEntry(aar, "classes.jar", aarMaterializationFile(aar, "classes", "jar"))
 
