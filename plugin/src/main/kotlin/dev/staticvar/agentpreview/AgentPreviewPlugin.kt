@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview
 
 import dev.staticvar.agentpreview.android.AndroidPreviewAutoWiring
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
 import dev.staticvar.agentpreview.dependencies.RendererSupportClasspathResolver
 import dev.staticvar.agentpreview.dependencies.RendererSupportConfigurationFactory
@@ -146,7 +147,7 @@ class AgentPreviewPlugin : Plugin<Project> {
                 resolution.pluginArtifactCoordinates.joinToString(", ").ifBlank { "<none>" },
         )
         val pluginFiles = pluginOwnedRendererFiles(project, resolution.pluginArtifactCoordinates, variantRuntimeConfiguration)
-        val consumerFiles = resolution.consumerArtifactFiles.map(::File)
+        val consumerFiles = AarClasspathMaterializer().materialize(resolution.consumerArtifactFiles.map(::File))
         return ResolvedRendererClasspath(
             previewSupportFiles = (consumerFiles + pluginFiles.filter { it.name.contains("ui-tooling") }).toSet(),
             rendererRuntimeFiles = (consumerFiles + pluginFiles).toSet(),

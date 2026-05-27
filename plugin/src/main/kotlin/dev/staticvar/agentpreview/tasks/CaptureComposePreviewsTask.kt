@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.discovery.IsolatedPreviewParameterCountResolver
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
@@ -568,7 +569,9 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     }
 
     private fun previewClasspath(): List<File> =
-        (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList()
+        AarClasspathMaterializer().materialize(
+            previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked(),
+        )
 
     private fun expandPreviewParameters(
         previews: List<PreviewDescriptor>,
@@ -696,7 +699,8 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+                runtimeClasspath =
+                    AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(
