@@ -73,6 +73,29 @@ class AgentPreviewDependencyIsolationFunctionalTest {
     }
 
     @Test
+    fun `list task fails fast when flavored release variant is selected`() {
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                android {
+                    variant.set("paidRelease")
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result = runner("listComposePreviews").buildAndFail()
+
+        assertTrue(result.output.contains("agentPreview.android.variant=paidRelease is not supported"), result.output)
+    }
+
+    @Test
     fun `list task fails fast when release variant is selected`() {
         writeSettings()
         projectDir.resolve("build.gradle.kts").writeText(

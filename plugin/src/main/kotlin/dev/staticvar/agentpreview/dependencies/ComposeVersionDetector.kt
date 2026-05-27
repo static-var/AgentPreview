@@ -25,13 +25,22 @@ internal class ComposeVersionDetector {
     fun detect(modules: List<ResolvedModuleCoordinate>): ComposeVersionDetectionResult {
         val matches =
             modules.filter {
-                it.group == "androidx.compose.ui" &&
-                    (it.module == "ui" || it.module == "ui-tooling-preview")
+                it.group == "androidx.compose.ui" && it.module in composeVersionSourceModules
             }
 
         return ComposeVersionDetectionResult(
             version = matches.firstOrNull()?.version,
             matchedModules = matches.map { it.notation },
         )
+    }
+
+    private companion object {
+        val composeVersionSourceModules =
+            setOf(
+                "ui",
+                "ui-android",
+                "ui-tooling-preview",
+                "ui-tooling-preview-android",
+            )
     }
 }

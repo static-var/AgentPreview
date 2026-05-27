@@ -24,6 +24,32 @@ class ComposeVersionDetectorTest {
     }
 
     @Test
+    fun `detects version from compose ui android module`() {
+        val result =
+            ComposeVersionDetector().detect(
+                listOf(
+                    ResolvedModuleCoordinate("androidx.compose.ui", "ui-android", "1.11.2"),
+                ),
+            )
+
+        assertEquals("1.11.2", result.version)
+        assertEquals(listOf("androidx.compose.ui:ui-android:1.11.2"), result.matchedModules)
+    }
+
+    @Test
+    fun `detects version from android tooling preview when compose ui is absent`() {
+        val result =
+            ComposeVersionDetector().detect(
+                listOf(
+                    ResolvedModuleCoordinate("androidx.compose.ui", "ui-tooling-preview-android", "1.11.2"),
+                ),
+            )
+
+        assertEquals("1.11.2", result.version)
+        assertEquals(listOf("androidx.compose.ui:ui-tooling-preview-android:1.11.2"), result.matchedModules)
+    }
+
+    @Test
     fun `detects version from ui tooling preview when compose ui is absent`() {
         val result =
             ComposeVersionDetector().detect(

@@ -13,7 +13,9 @@ internal object RendererDependencyPolicy {
     private val rendererSupportModuleKeys =
         setOf(
             moduleKey("androidx.compose.ui", "ui-tooling"),
+            moduleKey("androidx.compose.ui", "ui-tooling-android"),
             moduleKey("androidx.compose.ui", "ui-tooling-data"),
+            moduleKey("androidx.compose.ui", "ui-tooling-data-android"),
             moduleKey("androidx.test", "core"),
             moduleKey("androidx.test", "monitor"),
         )
@@ -34,7 +36,7 @@ internal object RendererDependencyPolicy {
         )
 
     fun requireSupportedVariant(variant: String) {
-        require(!variant.equals("release", ignoreCase = true)) {
+        require(!variant.equals("release", ignoreCase = true) && !variant.endsWith("Release", ignoreCase = true)) {
             releaseVariantMessage(variant)
         }
     }

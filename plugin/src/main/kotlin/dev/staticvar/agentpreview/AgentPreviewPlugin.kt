@@ -9,6 +9,7 @@ import dev.staticvar.agentpreview.android.AndroidPreviewAutoWiring
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
 import dev.staticvar.agentpreview.dependencies.RendererSupportClasspathResolver
+import dev.staticvar.agentpreview.dependencies.RendererSupportConfigurationFactory
 import dev.staticvar.agentpreview.dependencies.ResolvedArtifactCoordinate
 import dev.staticvar.agentpreview.dependencies.VariantRuntimeClasspathProvider
 import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
@@ -129,10 +130,8 @@ class AgentPreviewPlugin : Plugin<Project> {
         RendererDependencyPolicy.requireSupportedVariant(variant)
         val runtimeProvider = VariantRuntimeClasspathProvider(project)
         val inspectedConfigurations = runtimeProvider.inspectedConfigurationNames(variant)
-        val runtimeArtifacts =
-            runtimeProvider
-                .configurationFor(variant)
-                .resolvedArtifacts()
+        val variantRuntimeConfiguration = runtimeProvider.configurationFor(variant)
+        val runtimeArtifacts = variantRuntimeConfiguration.resolvedArtifacts()
         val resolution =
             RendererSupportClasspathResolver().resolve(
                 selectedVariant = variant,
@@ -146,7 +145,7 @@ class AgentPreviewPlugin : Plugin<Project> {
                 "; plugin renderer support=" +
                 resolution.pluginArtifactCoordinates.joinToString(", ").ifBlank { "<none>" },
         )
-        val pluginFiles = pluginOwnedRendererFiles(project, resolution.pluginArtifactCoordinates)
+        val pluginFiles = pluginOwnedRendererFiles(project, resolution.pluginArtifactCoordinates, variantRuntimeConfiguration)
         val consumerFiles = resolution.consumerArtifactFiles.map(::File)
         return ResolvedRendererClasspath(
             previewSupportFiles = (consumerFiles + pluginFiles.filter { it.name.contains("ui-tooling") }).toSet(),
@@ -157,18 +156,15 @@ class AgentPreviewPlugin : Plugin<Project> {
     private fun pluginOwnedRendererFiles(
         project: Project,
         coordinates: List<String>,
+        variantRuntimeConfiguration: Configuration?,
     ): Set<File> {
         if (coordinates.isEmpty()) return emptySet()
         val configuration =
-            project.configurations.detachedConfiguration().apply {
-                coordinates
-                    .map(project.dependencies::create)
-                    .forEach(dependencies::add)
-                isCanBeConsumed = false
-                isCanBeResolved = true
-                isVisible = false
-                description = "AgentPreview renderer-only support for isolated preview rendering"
-            }
+            RendererSupportConfigurationFactory().create(
+                project = project,
+                coordinates = coordinates,
+                variantRuntimeConfiguration = variantRuntimeConfiguration,
+            )
         return lenientFiles(project, configuration).files
     }
 

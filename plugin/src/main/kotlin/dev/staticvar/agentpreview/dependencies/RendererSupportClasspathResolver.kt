@@ -51,12 +51,12 @@ internal class RendererSupportClasspathResolver(
             runtimeArtifacts.filter {
                 RendererDependencyPolicy.isRendererSupportModule(it.group, it.module)
             }
-        val consumerModuleKeys = consumerArtifacts.map { "${it.group}:${it.module}" }.toSet()
+        val consumerModuleKeys = consumerArtifacts.map { rendererSupportModuleKey(it.group, it.module) }.toSet()
 
         val pluginCoordinates =
             RendererDependencyPolicy
                 .fallbackRendererCoordinates(composeVersion)
-                .filterNot { coordinate -> RendererDependencyPolicy.moduleKey(coordinate) in consumerModuleKeys }
+                .filterNot { coordinate -> rendererSupportModuleKey(RendererDependencyPolicy.moduleKey(coordinate)) in consumerModuleKeys }
 
         return RendererSupportResolution(
             composeVersion = composeVersion,
@@ -65,4 +65,15 @@ internal class RendererSupportClasspathResolver(
             warnings = warnings,
         )
     }
+
+    private fun rendererSupportModuleKey(moduleKey: String): String =
+        rendererSupportModuleKey(
+            group = moduleKey.substringBefore(':'),
+            module = moduleKey.substringAfter(':'),
+        )
+
+    private fun rendererSupportModuleKey(
+        group: String,
+        module: String,
+    ): String = "$group:${module.removeSuffix("-android")}"
 }

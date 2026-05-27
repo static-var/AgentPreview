@@ -46,6 +46,43 @@ class RendererSupportClasspathResolverTest {
     }
 
     @Test
+    fun `keeps consumer provided Android renderer support artifacts and adds only missing ones`() {
+        val resolution =
+            resolver.resolve(
+                selectedVariant = "debug",
+                inspectedConfigurations = listOf("debugRuntimeClasspath"),
+                runtimeArtifacts =
+                    listOf(
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui-android", "1.11.2", "/consumer/ui.aar"),
+                        ResolvedArtifactCoordinate("androidx.compose.ui", "ui-tooling-android", "1.11.2", "/consumer/ui-tooling.aar"),
+                        ResolvedArtifactCoordinate(
+                            "androidx.compose.ui",
+                            "ui-tooling-data-android",
+                            "1.11.2",
+                            "/consumer/ui-tooling-data.aar",
+                        ),
+                    ),
+            )
+
+        assertEquals("1.11.2", resolution.composeVersion)
+        assertEquals(
+            listOf(
+                "/consumer/ui-tooling.aar",
+                "/consumer/ui-tooling-data.aar",
+            ),
+            resolution.consumerArtifactFiles,
+        )
+        assertEquals(
+            listOf(
+                "androidx.test:core:1.7.0",
+                "androidx.test:monitor:1.8.0",
+            ),
+            resolution.pluginArtifactCoordinates,
+        )
+        assertTrue(resolution.warnings.isEmpty())
+    }
+
+    @Test
     fun `adds only missing androidx test renderer support artifacts`() {
         val resolution =
             resolver.resolve(
@@ -90,6 +127,25 @@ class RendererSupportClasspathResolverTest {
             ),
             resolution.pluginArtifactCoordinates,
         )
+    }
+
+    @Test
+    fun `rejects flavored release variants`() {
+        listOf("paidRelease", "stagingRelease", "release").forEach { variant ->
+            val exception =
+                org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+                    RendererDependencyPolicy.requireSupportedVariant(variant)
+                }
+
+            assertTrue(exception.message!!.contains("agentPreview.android.variant=$variant is not supported"))
+        }
+    }
+
+    @Test
+    fun `allows debug and debug-like variants`() {
+        listOf("debug", "stagingDebug", "releaseCandidateDebug").forEach { variant ->
+            RendererDependencyPolicy.requireSupportedVariant(variant)
+        }
     }
 
     @Test
