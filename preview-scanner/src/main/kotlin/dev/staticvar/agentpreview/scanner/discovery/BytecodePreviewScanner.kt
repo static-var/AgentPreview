@@ -23,6 +23,7 @@ class BytecodePreviewScanner : PreviewScanner {
     override fun scan(input: PreviewScanInput): PreviewScanResult {
         val parsedClasses = input.classesDirs.flatMap(::parseClassesIn)
         val classpathClasses = input.runtimeClasspath.flatMap(::parseClassesIn)
+        // Runtime classpath classes only seed the annotation index; discovery below stays limited to project classes.
         val annotationPreviews = (parsedClasses + classpathClasses).annotationPreviewIndex()
 
         val discovered =

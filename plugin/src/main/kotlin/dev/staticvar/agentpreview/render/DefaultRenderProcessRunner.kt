@@ -19,7 +19,7 @@ import java.net.URLClassLoader
  * app/preview classes out of the Gradle daemon/plugin classloader while still using the consumer
  * project's runtime artifacts for rendering.
  */
-class DefaultRenderProcessRunner(
+internal class DefaultRenderProcessRunner(
     private val environment: AndroidRendererEnvironment = AndroidRendererEnvironment(),
     private val processService: RenderProcessService = RenderProcessService(),
     private val classpathMaterializer: ClasspathMaterializer = AarClasspathMaterializer(),

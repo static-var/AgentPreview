@@ -19,11 +19,11 @@ data class PreviewParameterCount(
     val diagnostics: List<String> = emptyList(),
 )
 
-interface PreviewParameterCountResolver {
+internal interface PreviewParameterCountResolver {
     fun count(parameter: PreviewParameterDescriptor): PreviewParameterCount
 }
 
-class PreviewParameterExpander(
+internal class PreviewParameterExpander(
     private val resolver: PreviewParameterCountResolver? = null,
     private val defaultCap: Int = Int.MAX_VALUE,
     private val requestedIndexes: Set<Int> = emptySet(),

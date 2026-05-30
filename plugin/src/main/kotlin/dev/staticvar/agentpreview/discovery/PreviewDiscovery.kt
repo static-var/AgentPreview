@@ -14,12 +14,12 @@ import dev.staticvar.agentpreview.scanner.model.PreviewAnnotation
 import dev.staticvar.agentpreview.scanner.model.ScannedPreview
 import java.io.File
 
-data class PreviewDiscoveryResult(
+internal data class PreviewDiscoveryResult(
     val previews: List<PreviewDescriptor>,
     val diagnostics: List<PreviewScanDiagnostic>,
 )
 
-class PreviewDiscovery(
+internal class PreviewDiscovery(
     private val projectPath: String,
     private val sourceSetName: String,
     private val classesDirs: List<File>,

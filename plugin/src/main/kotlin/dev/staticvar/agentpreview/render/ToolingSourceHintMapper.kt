@@ -15,6 +15,8 @@ internal object ToolingSourceHintMapper {
         val entries = mutableListOf<ToolingGroupEntry>()
         collectToolingGroupEntries(group, parentPreorder = null, depth = 0, entries = entries)
         val sourceEntries = entries.filter { it.hint != null }
+        // Compose tooling groups do not always attach source info to the render node itself. Degrade from exact
+        // app hints to nearby app hints, then framework hints, preserving a kind that explains how the hint was chosen.
         entries.filter { it.node != null }.forEach { nodeEntry ->
             val node = nodeEntry.node ?: return@forEach
             val ancestorEntries =

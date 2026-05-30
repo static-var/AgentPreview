@@ -5,7 +5,7 @@
  */
 package dev.staticvar.agentpreview.config
 
-object AndroidPreviewConfigDefaults {
+internal object AndroidPreviewConfigDefaults {
     const val ROBOLECTRIC_SDK = 35
     const val VARIANT = "debug"
 

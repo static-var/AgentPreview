@@ -7,7 +7,7 @@ package dev.staticvar.agentpreview.discovery
 
 import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 
-class BoundedPreviewParameterValueCounter(
+internal class BoundedPreviewParameterValueCounter(
     private val classLoader: ClassLoader,
     private val defaultCap: Int = DEFAULT_CAP,
 ) : PreviewParameterCountResolver {

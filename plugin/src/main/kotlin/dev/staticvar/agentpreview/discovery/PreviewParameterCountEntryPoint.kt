@@ -13,6 +13,7 @@ object PreviewParameterCountEntryPoint {
     const val COUNT_PROPERTY = "count"
     const val DIAGNOSTIC_COUNT_PROPERTY = "diagnostic.count"
 
+    /** Child-JVM entry point; keep public and avoid Gradle types in the argument/result contract. */
     @JvmStatic
     fun main(args: Array<String>) {
         require(args.size == 5) { "Expected providerClassName, parameterType, limit, defaultCap, resultFile." }

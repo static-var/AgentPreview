@@ -7,7 +7,7 @@ package dev.staticvar.agentpreview.render
 
 import dev.staticvar.agentpreview.discovery.PreviewParameterProviderAdapter
 
-class PreviewComposable(
+internal class PreviewComposable(
     private val className: String,
     private val methodName: String,
     private val previewParameterProviderClassName: String? = null,

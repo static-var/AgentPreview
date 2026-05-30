@@ -5,7 +5,7 @@
  */
 package dev.staticvar.agentpreview.config
 
-object AndroidPreviewConfigValidator {
+internal object AndroidPreviewConfigValidator {
     fun warning(
         robolectricSdk: Int,
         javaMajorVersion: Int,

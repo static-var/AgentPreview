@@ -30,10 +30,14 @@ import org.gradle.api.provider.Provider
 abstract class AgentPreviewExtension(
     project: Project,
 ) {
+    /** Directory where `captureComposePreviews` writes per-preview screenshot and snapshot bundles. */
     val outputDirectory: Provider<Directory> =
         project.layout.buildDirectory.dir("agentPreviewSnapshots")
 
+    /** Primary compiled class directories scanned for `@Preview` composables; the generated index is used only when these are empty. */
     val previewClassesDirs: ConfigurableFileCollection = project.objects.fileCollection()
+
+    /** Runtime classpath used for bytecode scanning, preview-parameter counting, and child-JVM rendering. */
     val previewRuntimeClasspath: ConfigurableFileCollection = project.objects.fileCollection()
 
     /**
@@ -42,12 +46,25 @@ abstract class AgentPreviewExtension(
      */
     val android: AndroidPreviewConfig = project.objects.newInstance(AndroidPreviewConfig::class.java)
 
+    /** Include unmerged Compose semantics nodes in `snapshot.json` when the renderer can extract them. */
     abstract val includeUnmergedSemantics: Property<Boolean>
+
+    /** Preview id/name/function filters used by list and capture tasks; CLI filters are appended to this list. */
     abstract val previewNameFilter: ListProperty<String>
+
+    /** Viewport-name filters used by capture tasks; CLI viewport filters are appended to this list. */
     abstract val viewportNameFilter: ListProperty<String>
+
+    /** Maximum values to enumerate from each `@PreviewParameter` provider before diagnostics cap expansion. */
     abstract val maxPreviewParameterValues: Property<Int>
+
+    /** Optional cap on total planned captures after preview and viewport expansion. */
     abstract val maxCaptures: Property<Int>
+
+    /** Maximum number of render child JVMs scheduled concurrently by `captureComposePreviews`. */
     abstract val maxParallelRenders: Property<Int>
+
+    /** Continue writing successful captures and reports when an individual preview render fails. */
     abstract val continueOnError: Property<Boolean>
 
     init {

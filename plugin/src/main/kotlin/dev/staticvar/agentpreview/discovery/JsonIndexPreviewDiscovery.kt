@@ -11,7 +11,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class JsonIndexPreviewDiscovery(
+internal class JsonIndexPreviewDiscovery(
     private val indexFile: File,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
