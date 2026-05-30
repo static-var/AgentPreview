@@ -12,7 +12,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 
-object DiagnosticPngRenderer {
+internal object DiagnosticPngRenderer {
     fun render(
         outputFile: File,
         widthPx: Int,

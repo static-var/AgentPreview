@@ -9,9 +9,11 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
 
+/** Android-specific defaults used by AgentPreview discovery and rendering tasks. */
 abstract class AndroidPreviewConfig
     @Inject
     constructor() {
+        /** Robolectric SDK API level used in the isolated render JVM. */
         abstract val robolectricSdk: Property<Int>
 
         /**
@@ -20,6 +22,8 @@ abstract class AndroidPreviewConfig
          * detached configurations so those artifacts are not packaged into the app.
          */
         abstract val variant: Property<String>
+
+        /** Named Android viewport presets expanded by `captureComposePreviews` unless viewport filters apply. */
         abstract val viewports: ListProperty<ConfiguredViewport>
 
         init {
@@ -28,6 +32,7 @@ abstract class AndroidPreviewConfig
             viewports.convention(AndroidPreviewConfigDefaults.viewports)
         }
 
+        /** Adds a named Android viewport preset in dp for capture expansion. */
         fun viewport(
             name: String,
             widthDp: Int,

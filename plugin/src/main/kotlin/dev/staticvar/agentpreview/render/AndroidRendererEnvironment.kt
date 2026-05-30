@@ -7,7 +7,7 @@ package dev.staticvar.agentpreview.render
 
 import java.io.File
 
-class AndroidRendererEnvironment(
+internal class AndroidRendererEnvironment(
     private val env: Map<String, String> = System.getenv(),
 ) {
     fun javaExecutable(): JavaExecutableResolution {

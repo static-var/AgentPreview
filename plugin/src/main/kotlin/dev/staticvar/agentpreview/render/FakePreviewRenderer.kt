@@ -11,7 +11,7 @@ import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
 
-class FakePreviewRenderer : PreviewRenderer {
+internal class FakePreviewRenderer : PreviewRenderer {
     @Suppress("UNUSED_PARAMETER")
     fun render(
         preview: PreviewDescriptor,

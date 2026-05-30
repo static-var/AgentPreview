@@ -22,34 +22,44 @@ import java.io.File
 abstract class ListComposePreviewsTask :
     DefaultTask(),
     PreviewIndexInput {
+    /** Gradle project path used as the stable prefix for discovered preview ids. */
     @get:Input
     abstract val projectPath: Property<String>
 
+    /** Preview id/name/function filters after DSL and CLI additive filters have been combined. */
     @get:Input
     abstract val previewNameFilter: ListProperty<String>
 
+    /** Default cap for enumerating `@PreviewParameter` values when listing parameterized previews. */
     @get:Input
     abstract val maxPreviewParameterValues: Property<Int>
 
+    /** CLI scalar override for [maxPreviewParameterValues]; unlike list filters, this replaces the DSL value. */
     @get:Input
     @get:Optional
     abstract val cliMaxPreviewParameterValues: Property<String>
 
+    /** Primary bytecode scan roots; when empty, listing falls back to the generated preview index input. */
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
 
+    /** Consumer runtime classpath used for scanner metadata and preview-parameter provider counting. */
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
 
+    /** Renderer-owned scanner support artifacts appended only for Android-backed bytecode discovery. */
     @get:Classpath
     abstract val previewSupportClasspath: ConfigurableFileCollection
 
+    /** Android variant name used for compatibility diagnostics and renderer-support classpath reporting. */
     @get:Input
     abstract val selectedVariant: Property<String>
 
+    /** Robolectric SDK configured for real rendering; list uses it only for compatibility warnings. */
     @get:Input
     abstract val robolectricSdk: Property<Int>
 
+    /** Java major version of the current Gradle JVM, used to warn about unsupported render configurations. */
     @get:Input
     abstract val javaMajorVersion: Property<Int>
 

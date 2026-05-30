@@ -14,7 +14,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.math.roundToInt
 
-class PreviewRendererImpl(
+internal class PreviewRendererImpl(
     private val robolectricSdk: Int = DEFAULT_ROBOLECTRIC_SDK,
     private val previewClasspath: List<File> = emptyList(),
     private val includeUnmergedSemantics: Boolean = false,

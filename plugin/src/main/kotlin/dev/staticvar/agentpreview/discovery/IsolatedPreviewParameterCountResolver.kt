@@ -11,12 +11,14 @@ import java.net.URLClassLoader
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
-class IsolatedPreviewParameterCountResolver(
+internal class IsolatedPreviewParameterCountResolver(
     private val previewClasspath: List<File>,
     private val timeoutSeconds: Long = TIMEOUT_SECONDS,
     private val defaultCap: Int = DEFAULT_CAP,
     private val processRunner: ProcessRunner = DefaultProcessRunner(),
 ) : PreviewParameterCountResolver {
+    /* Provider code is loaded in a short-lived child JVM so arbitrary preview parameter providers never enter
+     * the Gradle daemon classloader and can be timed out independently of preview scanning. */
     override fun count(parameter: PreviewParameterDescriptor): PreviewParameterCount {
         val resultFile = File.createTempFile("agent-preview-parameter-count", ".properties")
         resultFile.delete()

@@ -8,7 +8,7 @@ package dev.staticvar.agentpreview.android
 import dev.staticvar.agentpreview.AgentPreviewExtension
 import org.gradle.api.Project
 
-class AndroidPreviewAutoWiring(
+internal class AndroidPreviewAutoWiring(
     private val project: Project,
     private val extension: AgentPreviewExtension,
 ) {

@@ -10,6 +10,11 @@ import dev.staticvar.agentpreview.model.PreviewDescriptor
 private val PREVIEW_PARAMETER_ID_SUFFIX_REGEX = Regex(":previewParam-\\d+$")
 private val PREVIEW_PARAMETER_SHORTHAND_ID_REGEX = Regex("^previewParam-\\d+$")
 
+/*
+ * Preview filters intentionally use substring matching for human-friendly CLI use, except preview-parameter
+ * filters. Before parameter expansion, `previewParam-n` can only select previews that have a provider; after
+ * expansion it must match the synthetic child id so users can target one materialized provider value exactly.
+ */
 internal fun PreviewDescriptor.matchesBeforePreviewParameterExpansion(filters: Set<String>): Boolean =
     filters.any { filter ->
         when {

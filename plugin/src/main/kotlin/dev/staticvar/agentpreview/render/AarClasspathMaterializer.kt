@@ -17,6 +17,8 @@ import java.util.zip.ZipFile
 internal class AarClasspathMaterializer(
     private val syntheticRJarWriter: SyntheticRJarWriter = SyntheticRJarWriter(),
 ) : ClasspathMaterializer {
+    /* AARs are not directly loadable by the child JVM; materialization exposes classes.jar, embedded libs, and
+     * a best-effort synthetic R jar for binary compatibility without pretending to load Android resources. */
     override fun materialize(classpath: List<File>): List<File> =
         classpath.flatMap { file ->
             if (file.extension == "aar" && file.isFile) {

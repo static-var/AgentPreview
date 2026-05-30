@@ -37,84 +37,109 @@ import java.io.File
 abstract class CaptureComposePreviewsTask :
     DefaultTask(),
     PreviewIndexInput {
+    /** Gradle project path used as the stable prefix for discovered preview ids. */
     @get:Input
     abstract val projectPath: Property<String>
 
+    /** Root directory for snapshot bundles; each successful capture writes `screenshot.png` and `snapshot.json`. */
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
+    /** Directory for `capture-report.json`, including dry-run plans and failure details. */
     @get:OutputDirectory
     abstract val reportDirectory: DirectoryProperty
 
+    /** Scratch space for renderer child-JVM sidecars and PNGs; safe to delete between task executions. */
     @get:LocalState
     abstract val renderOutputDirectory: DirectoryProperty
 
+    /** Include unmerged Compose semantics when the real renderer can extract them. */
     @get:Input
     abstract val includeUnmergedSemantics: Property<Boolean>
 
+    /** Preview id/name/function filters after DSL and CLI additive filters have been combined. */
     @get:Input
     abstract val previewNameFilter: ListProperty<String>
 
+    /** Viewport filters after DSL and CLI additive filters have been combined. */
     @get:Input
     abstract val viewportNameFilter: ListProperty<String>
 
+    /** Default cap for enumerating `@PreviewParameter` values before capture expansion. */
     @get:Input
     abstract val maxPreviewParameterValues: Property<Int>
 
+    /** CLI scalar override for [maxPreviewParameterValues]; unlike list filters, this replaces the DSL value. */
     @get:Input
     @get:Optional
     abstract val cliMaxPreviewParameterValues: Property<String>
 
+    /** Optional DSL cap on planned viewport captures after preview and viewport filtering. */
     @get:Input
     @get:Optional
     abstract val maxCaptures: Property<Int>
 
+    /** CLI scalar override for [maxCaptures]. */
     @get:Input
     @get:Optional
     abstract val cliMaxCaptures: Property<String>
 
+    /** Maximum number of renderer child JVMs scheduled at once. */
     @get:Input
     abstract val maxParallelRenders: Property<Int>
 
+    /** CLI scalar override for [maxParallelRenders]. */
     @get:Input
     @get:Optional
     abstract val cliMaxParallelRenders: Property<String>
 
+    /** When true, write the capture plan/report without rendering or snapshot bundles. */
     @get:Input
     abstract val dryRun: Property<Boolean>
 
+    /** CLI scalar override for [dryRun]. */
     @get:Input
     @get:Optional
     abstract val cliDryRun: Property<String>
 
+    /** Continue scheduling remaining captures after failures; the task still fails if any capture fails. */
     @get:Input
     abstract val continueOnError: Property<Boolean>
 
+    /** CLI scalar override for [continueOnError]. */
     @get:Input
     @get:Optional
     abstract val cliContinueOnError: Property<String>
 
+    /** Use the deterministic fake renderer for wiring tests instead of launching the real Android renderer. */
     @get:Input
     abstract val fakeRenderer: Property<Boolean>
 
+    /** Android variant name used for renderer classpath resolution and diagnostics. */
     @get:Input
     abstract val selectedVariant: Property<String>
 
+    /** Primary bytecode scan roots; when empty, capture falls back to the generated preview index input. */
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
 
+    /** Consumer runtime classpath used for scanner metadata, preview-parameter providers, and target preview classes. */
     @get:Classpath
     abstract val previewRuntimeClasspath: ConfigurableFileCollection
 
+    /** Renderer-owned Android/Robolectric support artifacts used only by real Android-backed captures. */
     @get:Classpath
     abstract val rendererRuntimeClasspath: ConfigurableFileCollection
 
+    /** Serialized Android viewport DSL used as a task input for viewport planning. */
     @get:Input
     abstract val androidViewportsJson: Property<String>
 
+    /** Robolectric SDK configured for real rendering and compatibility warnings. */
     @get:Input
     abstract val robolectricSdk: Property<Int>
 
+    /** Java major version of the current Gradle JVM, used to warn about unsupported render configurations. */
     @get:Input
     abstract val javaMajorVersion: Property<Int>
 
