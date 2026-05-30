@@ -12,9 +12,17 @@ Use it when you need to inspect, compare, or iterate on Compose UI without launc
 
 Output path note: preview ids are sanitized for file-system paths. For example, `:app:main:LoginPreview` becomes `app-main-LoginPreview`, and a `phone` Android viewport is stored under `android-phone`. Use `listComposePreviews` for the logical id and `find <module>/build/agentPreviewSnapshots -name snapshot.json` when locating files programmatically.
 
-## 1. Install from a local checkout
+## 1. Install AgentPreview
 
-Until the plugin is published, add the AgentPreview checkout as an included build in the target project's `settings.gradle.kts`.
+For normal use, apply the published Gradle Plugin Portal plugin to the module that owns the previews.
+
+```kotlin
+plugins {
+    id("dev.staticvar.agentpreview") version "0.1.0"
+}
+```
+
+For local AgentPreview development, add this checkout as an included build in the target project's `settings.gradle.kts`, then apply `id("dev.staticvar.agentpreview")` without a version.
 
 ```kotlin
 pluginManagement {
@@ -27,7 +35,6 @@ pluginManagement {
 }
 ```
 
-Apply the plugin to the module that owns the previews.
 
 ### Android app module
 

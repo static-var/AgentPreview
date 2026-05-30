@@ -1,25 +1,26 @@
 # Releasing
 
-`preview-scanner` is configured for Maven Central as `dev.staticvar:preview-scanner`.
+`preview-scanner` is published to Maven Central as `dev.staticvar:preview-scanner`.
+
+The Gradle plugin is published to the Gradle Plugin Portal as `dev.staticvar.agentpreview`.
 
 ## Maintainer checklist
 
-Before publishing a release:
-
-1. Verify the Maven Central namespace is active.
-2. Confirm publishing and signing credentials are configured in the repository environment.
-3. Run the normal quality gate locally or in CI:
-
-```bash
-build-brief ./gradlew spotlessCheck detekt :preview-scanner:test
-```
-
-4. Optionally validate publication metadata locally without publishing:
+1. Choose a semantic release version, for example `0.1.0` or `0.1.0-rc.1`.
+2. Release `preview-scanner` first with the manual **Publish preview-scanner** workflow for the same version.
+3. Confirm the scanner artifact is available from Maven Central.
+4. Run the normal local quality gate when practical:
 
 ```bash
-build-brief ./gradlew :preview-scanner:publishToMavenLocal
+./gradlew spotlessCheck detekt :plugin:test :preview-scanner:test validatePlugins
 ```
 
-5. Use the manual GitHub Actions workflow **Publish preview-scanner** and enter the release version, for example `0.1.0`.
+5. Optionally validate non-portal publication locally:
 
-The workflow is manual-only and runs preview-scanner quality gates before publishing. Do not run Maven Central publishing commands locally unless you are intentionally performing a maintainer release.
+```bash
+./gradlew :preview-scanner:publishToMavenLocal :plugin:publishToMavenLocal
+```
+
+6. Run the manual-only **Publish Gradle Plugin** workflow with the same version.
+
+The plugin depends on the published `dev.staticvar:preview-scanner:0.1.0` artifact. Do not place secrets in source files or docs, and do not run `publishPlugins` locally unless you are intentionally performing a maintainer release.

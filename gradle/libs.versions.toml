@@ -5,6 +5,7 @@ junit = "6.0.3"
 spotless = "8.5.1"
 detekt = "1.23.8"
 mavenPublish = "0.34.0"
+gradlePluginPublish = "2.0.0"
 asm = "9.9"
 robolectric = "4.16.1"
 junit4 = "4.13.2"
@@ -30,3 +31,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublish" }
+gradle-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "gradlePluginPublish" }
