@@ -395,7 +395,7 @@ class AgentPreviewPluginFunctionalTest {
                             "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
                         ).readText(),
                 ).jsonObject
-        assertEquals("2", snapshotJson.getValue("schemaVersion").jsonPrimitive.content)
+        assertEquals("1", snapshotJson.getValue("schemaVersion").jsonPrimitive.content)
         assertEquals(
             "Login",
             snapshotJson
