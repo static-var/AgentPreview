@@ -7,12 +7,6 @@ package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
-import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
-import dev.staticvar.agentpreview.discovery.PreviewDiscovery
-import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
-import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
-import dev.staticvar.agentpreview.discovery.PreviewParameterExpansionResult
-import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
@@ -66,25 +60,15 @@ abstract class ListComposePreviewsTask :
         logEffectiveRenderingClasspath()
         val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
         val filters = previewNameFilter.get().toSet()
-        val discoveryResult = discoverPreviews(indexFile)
-        val expansionCandidates =
-            discoveryResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
-        val requestedPreviewParameterIndexes = filters.previewParameterFilterIndexes()
-        val classpathBacked = previewClassesDirs.files.isNotEmpty()
-        val expansionResult =
-            if (requestedPreviewParameterIndexes.isEmpty() || classpathBacked) {
-                PreviewParameterExpansionResult(previews = expansionCandidates)
-            } else {
-                PreviewParameterExpander(
-                    defaultCap = maxPreviewParameterValues,
-                    requestedIndexes = requestedPreviewParameterIndexes,
-                ).expand(expansionCandidates)
-            }
-        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
-        val previews =
-            expansionResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesListFilter(filters, classpathBacked) }
+        val selection =
+            selectionService().select(
+                indexFile = indexFile,
+                filters = filters,
+                maxPreviewParameterValues = maxPreviewParameterValues,
+                mode = PreviewSelectionService.Mode.LIST,
+            )
+        logDiagnostics(selection.diagnostics)
+        val previews = selection.selectedPreviews
 
         if (previews.isEmpty()) {
             logger.lifecycle("No Compose previews discovered.")
@@ -105,16 +89,6 @@ abstract class ListComposePreviewsTask :
                 javaMajorVersion = javaMajorVersion.get(),
             )?.let { warning -> logger.warn(warning) }
     }
-
-    private fun PreviewDescriptor.matchesListFilter(
-        filters: Set<String>,
-        classpathBacked: Boolean,
-    ): Boolean =
-        if (classpathBacked && previewParameter?.index == null) {
-            matchesBeforePreviewParameterExpansion(filters)
-        } else {
-            matchesAfterPreviewParameterExpansion(filters)
-        }
 
     private fun previewParameterNote(
         parameter: PreviewParameterDescriptor?,
@@ -156,18 +130,10 @@ abstract class ListComposePreviewsTask :
     private fun materializedDiscoveryClasspath(): List<File> =
         AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
 
-    private fun discoverPreviews(indexFile: File?): PreviewDiscoveryResult =
-        if (previewClassesDirs.files.isNotEmpty()) {
-            PreviewDiscovery(
-                projectPath = projectPath.get(),
-                sourceSetName = "main",
-                classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = materializedDiscoveryClasspath(),
-            ).discoverWithDiagnostics()
-        } else {
-            PreviewDiscoveryResult(
-                previews = indexFile?.let { JsonIndexPreviewDiscovery(it).discover() }.orEmpty(),
-                diagnostics = emptyList(),
-            )
-        }
+    private fun selectionService(): PreviewSelectionService =
+        PreviewSelectionService(
+            projectPath = projectPath.get(),
+            classesDirs = previewClassesDirs.files.toList(),
+            discoveryClasspath = materializedDiscoveryClasspath(),
+        )
 }
