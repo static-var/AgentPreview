@@ -53,7 +53,8 @@ class PreviewRendererImplTest {
 
         val result = renderer.render(preview, viewport, tempDir)
 
-        assertEquals(tempDir.resolve("dev.example.LoginPreview-phone.png"), result.screenshotFile)
+        assertEquals(tempDir, result.screenshotFile.parentFile)
+        assertEquals("preview.png", result.screenshotFile.name)
         assertEquals(viewport, result.viewport)
         assertEquals(RenderMode.Robolectric, result.renderMode)
         assertEquals(
@@ -65,8 +66,11 @@ class PreviewRendererImplTest {
                 density = 2.0f,
                 robolectricSdk = 35,
                 outputFile = result.screenshotFile,
-                semanticsOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.semantics.json"),
-                layoutTreeOutputFile = tempDir.resolve("dev.example.LoginPreview-phone.layout-tree.json"),
+                semanticsOutputFile = result.screenshotFile.resolveSibling(result.screenshotFile.nameWithoutExtension + ".semantics.json"),
+                layoutTreeOutputFile =
+                    result.screenshotFile.resolveSibling(
+                        result.screenshotFile.nameWithoutExtension + ".layout-tree.json",
+                    ),
                 includeUnmergedSemantics = true,
                 locale = "fr-rFR",
                 uiMode = 0x20,
@@ -244,7 +248,7 @@ class PreviewRendererImplTest {
         val error = assertThrows(IllegalStateException::class.java) { renderer.render(preview, viewport, tempDir) }
 
         assertTrue(error.message.orEmpty().contains("ClassNotFoundException"))
-        assertFalse(tempDir.resolve("dev.example.MissingPreview-phone.png").exists())
+        assertFalse(tempDir.resolve("preview.png").exists())
     }
 
     @Test

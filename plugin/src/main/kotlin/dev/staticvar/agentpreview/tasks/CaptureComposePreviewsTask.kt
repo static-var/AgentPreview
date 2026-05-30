@@ -8,21 +8,17 @@ package dev.staticvar.agentpreview.tasks
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
+import dev.staticvar.agentpreview.export.PreviewSnapshotMapper
 import dev.staticvar.agentpreview.export.SnapshotExporter
-import dev.staticvar.agentpreview.model.CURRENT_SNAPSHOT_SCHEMA_VERSION
+import dev.staticvar.agentpreview.export.SnapshotOutputPath
 import dev.staticvar.agentpreview.model.CaptureFailure
 import dev.staticvar.agentpreview.model.CaptureReport
 import dev.staticvar.agentpreview.model.PreviewDescriptor
-import dev.staticvar.agentpreview.model.PreviewMetadata
-import dev.staticvar.agentpreview.model.PreviewSnapshot
-import dev.staticvar.agentpreview.model.SnapshotRenderMetadata
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
 import dev.staticvar.agentpreview.render.RenderResult
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
-import dev.staticvar.agentpreview.semantics.EmptySemanticsExtractor
-import dev.staticvar.agentpreview.semantics.RenderedSemanticsExtractor
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
@@ -37,9 +33,6 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.util.concurrent.CompletionService
-import java.util.concurrent.ExecutorCompletionService
-import java.util.concurrent.Executors
 
 abstract class CaptureComposePreviewsTask :
     DefaultTask(),
@@ -154,7 +147,7 @@ abstract class CaptureComposePreviewsTask :
         if (result.failures.isNotEmpty() && !plan.continueOnError && plan.maxParallelRenders > 1) {
             logger.lifecycle(
                 "AgentPreview stopped scheduling new captures after the first parallel failure; " +
-                    "already-started captures were allowed to finish.",
+                    "already-submitted captures were allowed to finish.",
             )
         }
         if (result.failures.isNotEmpty()) {
@@ -207,64 +200,50 @@ abstract class CaptureComposePreviewsTask :
 
     private fun renderCaptures(plan: CapturePlan): CaptureResult {
         val renderSettings = renderSettings()
-        return if (plan.maxParallelRenders == 1) {
-            renderCapturesSequentially(plan, renderSettings)
-        } else {
-            renderCapturesInParallel(plan, renderSettings)
-        }
-    }
-
-    private fun renderCapturesSequentially(
-        plan: CapturePlan,
-        renderSettings: RenderSettings,
-    ): CaptureResult {
-        val failures = mutableListOf<CaptureFailure>()
-        var capturedViewportCount = 0
-        captureRequests(plan).forEach { request ->
-            val result = renderCapture(request, renderSettings)
-            if (recordCompletedCapture(result, failures)) capturedViewportCount++
-            if (result is SingleCaptureResult.Failed && !plan.continueOnError) {
-                return CaptureResult(capturedViewportCount, failures)
-            }
-        }
-        return CaptureResult(capturedViewportCount, failures)
-    }
-
-    private fun renderCapturesInParallel(
-        plan: CapturePlan,
-        renderSettings: RenderSettings,
-    ): CaptureResult {
-        logger.lifecycle("AgentPreview parallel render workers: ${plan.maxParallelRenders}")
         val requests = captureRequests(plan)
-        val executor = Executors.newFixedThreadPool(plan.maxParallelRenders)
-        val completions: CompletionService<SingleCaptureResult> = ExecutorCompletionService(executor)
-        val failures = mutableListOf<CaptureFailure>()
-        var capturedViewportCount = 0
-        var submitted = 0
-        var completed = 0
-        var acceptingWork = true
-
-        fun submitNext() {
-            if (submitted < requests.size && acceptingWork) {
-                val request = requests[submitted++]
-                completions.submit { renderCapture(request, renderSettings) }
-            }
+        preflightDestinationCollisions(requests, renderSettings.outputRoot).takeIf { it.isNotEmpty() }?.let { failures ->
+            failures.forEach(::logFailure)
+            return CaptureResult(capturedViewportCount = 0, failures = failures)
         }
-
-        try {
-            repeat(plan.maxParallelRenders.coerceAtMost(requests.size)) { submitNext() }
-            while (completed < submitted) {
-                val result = completions.take().get()
-                if (recordCompletedCapture(result, failures)) capturedViewportCount++
-                if (result is SingleCaptureResult.Failed && !plan.continueOnError) acceptingWork = false
-                completed++
-                submitNext()
+        val executor =
+            if (plan.maxParallelRenders == 1) {
+                SequentialCaptureExecutor()
+            } else {
+                logger.lifecycle("AgentPreview parallel render workers: ${plan.maxParallelRenders}")
+                ParallelCaptureExecutor(plan.maxParallelRenders)
             }
-        } finally {
-            executor.shutdownNow()
-        }
+        return executor.execute(
+            requests = requests,
+            continueOnError = plan.continueOnError,
+            render = { request -> renderCapture(request, renderSettings) },
+            record = ::recordCompletedCapture,
+        )
+    }
 
-        return CaptureResult(capturedViewportCount, failures)
+    private fun preflightDestinationCollisions(
+        requests: List<CaptureRequest>,
+        outputRoot: File,
+    ): List<CaptureFailure> {
+        val outputPath = SnapshotOutputPath()
+        val destinations = requests.map { request -> outputPath.resolve(outputRoot, request.preview.id, request.viewport) }
+        val duplicateDestinations = outputPath.duplicateDestinations(destinations).map { it.absolutePath }.toSet()
+        if (duplicateDestinations.isEmpty()) return emptyList()
+
+        return requests
+            .filter { request ->
+                outputPath.resolve(outputRoot, request.preview.id, request.viewport).absolutePath in duplicateDestinations
+            }.map { request ->
+                CaptureFailure(
+                    request.preview.id,
+                    request.viewport.label(),
+                    "Snapshot output path collision at ${outputPath.resolve(
+                        outputRoot,
+                        request.preview.id,
+                        request.viewport,
+                    ).absolutePath}; " +
+                        "multiple previews/viewports sanitize to the same directory label.",
+                )
+            }
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -274,11 +253,11 @@ abstract class CaptureComposePreviewsTask :
     ): SingleCaptureResult =
         try {
             val renderer = CaptureRenderer(renderSettings)
-            val renderResult = renderer.render(request.preview, request.viewport)
+            val renderResult = renderer.render(request.preview, request.viewport, request.scratchDirectory)
             SnapshotExporter().export(
                 previewId = request.preview.id,
                 screenshotFile = renderResult.screenshotFile,
-                snapshot = snapshot(request.preview, renderResult, renderSettings.useFakeRenderer),
+                snapshot = PreviewSnapshotMapper().map(request.preview, renderResult, renderSettings.useFakeRenderer),
                 outputRoot = renderSettings.outputRoot,
                 viewport = request.viewport,
             )
@@ -290,26 +269,22 @@ abstract class CaptureComposePreviewsTask :
         }
 
     private fun captureRequests(plan: CapturePlan): List<CaptureRequest> =
-        plan.plannedCaptures.flatMap { plannedPreview ->
-            plannedPreview.viewports.map { viewport -> CaptureRequest(plannedPreview.preview, viewport) }
-        }
+        plan.plannedCaptures
+            .flatMap { plannedPreview -> plannedPreview.viewports.map { viewport -> plannedPreview.preview to viewport } }
+            .mapIndexed { index, (preview, viewport) ->
+                CaptureRequest(
+                    preview = preview,
+                    viewport = viewport,
+                    scratchDirectory = renderOutputDirectory.get().asFile.resolve("capture-$index"),
+                )
+            }
 
-    private fun recordCompletedCapture(
-        result: SingleCaptureResult,
-        failures: MutableList<CaptureFailure>,
-    ): Boolean =
+    private fun recordCompletedCapture(result: SingleCaptureResult) {
         when (result) {
-            is SingleCaptureResult.Captured -> {
-                logCaptured(result)
-                true
-            }
-
-            is SingleCaptureResult.Failed -> {
-                failures += result.failure
-                logFailure(result.failure)
-                false
-            }
+            is SingleCaptureResult.Captured -> logCaptured(result)
+            is SingleCaptureResult.Failed -> logFailure(result.failure)
         }
+    }
 
     private fun logCaptured(result: SingleCaptureResult.Captured) {
         logger.lifecycle("Captured ${result.previewId} (${result.viewport.platform}-${result.viewport.name}) via ${result.renderModeLabel}")
@@ -318,32 +293,6 @@ abstract class CaptureComposePreviewsTask :
     private fun logFailure(failure: CaptureFailure) {
         logger.error("Failed ${failure.previewId} (${failure.viewport}): ${failure.message}")
     }
-
-    private fun snapshot(
-        preview: PreviewDescriptor,
-        renderResult: RenderResult,
-        useFakeRenderer: Boolean,
-    ) = PreviewSnapshot(
-        schemaVersion = CURRENT_SNAPSHOT_SCHEMA_VERSION,
-        preview =
-            PreviewMetadata(
-                id = preview.id,
-                name = preview.name,
-                group = preview.group,
-                source = sourceLabel(preview),
-                sourceSet = preview.sourceSet,
-                previewParameter = preview.previewParameter,
-            ),
-        viewport = renderResult.viewport,
-        nodes =
-            if (useFakeRenderer) {
-                EmptySemanticsExtractor().extract(renderResult.rawSemantics)
-            } else {
-                RenderedSemanticsExtractor().extract(renderResult.rawSemantics)
-            },
-        layoutTree = renderResult.layoutTree.takeUnless { useFakeRenderer }.orEmpty(),
-        render = SnapshotRenderMetadata(mode = renderResult.renderMode.logLabel),
-    )
 
     private fun logSummary(
         plan: CapturePlan,
@@ -381,16 +330,6 @@ abstract class CaptureComposePreviewsTask :
 
     private fun Viewport.label(): String = "$platform-$name"
 
-    private data class CaptureResult(
-        val capturedViewportCount: Int,
-        val failures: List<CaptureFailure>,
-    )
-
-    private data class CaptureRequest(
-        val preview: PreviewDescriptor,
-        val viewport: Viewport,
-    )
-
     private data class RenderSettings(
         val useFakeRenderer: Boolean,
         val outputRoot: File,
@@ -399,18 +338,6 @@ abstract class CaptureComposePreviewsTask :
         val previewClasspath: List<File>,
         val includeUnmergedSemantics: Boolean,
     )
-
-    private sealed interface SingleCaptureResult {
-        data class Captured(
-            val previewId: String,
-            val viewport: Viewport,
-            val renderModeLabel: String,
-        ) : SingleCaptureResult
-
-        data class Failed(
-            val failure: CaptureFailure,
-        ) : SingleCaptureResult
-    }
 
     private fun renderSettings() =
         RenderSettings(
@@ -437,11 +364,12 @@ abstract class CaptureComposePreviewsTask :
         fun render(
             preview: PreviewDescriptor,
             viewport: Viewport,
+            scratchDirectory: File,
         ): RenderResult =
             if (settings.useFakeRenderer) {
-                fakePreviewRenderer.render(preview, viewport, settings.renderOutput)
+                fakePreviewRenderer.render(preview, viewport, scratchDirectory)
             } else {
-                previewRenderer.render(preview, viewport, settings.renderOutput)
+                previewRenderer.render(preview, viewport, scratchDirectory)
             }
     }
 
@@ -547,7 +475,4 @@ abstract class CaptureComposePreviewsTask :
                 AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
             previewParameterClasspath = previewClasspath(),
         )
-
-    private fun sourceLabel(preview: PreviewDescriptor): String =
-        if (preview.sourceLine == null) preview.sourceFile else "${preview.sourceFile}:${preview.sourceLine}"
 }

@@ -9,7 +9,6 @@ import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.SnapshotLayoutNode
 import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
-import dev.staticvar.agentpreview.sanitize
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -27,7 +26,7 @@ class PreviewRendererImpl(
         outputDirectory: File,
     ): RenderResult {
         outputDirectory.mkdirs()
-        val outputName = preview.id.sanitize() + "-" + (viewport.name ?: "preview")
+        val outputName = "preview"
         val screenshot = outputDirectory.resolve("$outputName.png")
         val semanticsOutput = outputDirectory.resolve("$outputName.semantics.json")
         val layoutTreeOutput = outputDirectory.resolve("$outputName.layout-tree.json")
