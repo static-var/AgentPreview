@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview
 
+import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -72,6 +73,45 @@ class AgentPreviewDependencyIsolationFunctionalTest {
         assertFalse(dependenciesResult.output.contains("androidx.test:core"), dependenciesResult.output)
         assertFalse(dependenciesResult.output.contains("androidx.test:monitor"), dependenciesResult.output)
         assertFalse(dependenciesResult.output.contains("agentpreview"), dependenciesResult.output)
+    }
+
+    @Test
+    fun `KMP Android runtime classpath drives renderer support resolution when variant runtime is absent`() {
+        writeSettings()
+        writeLocalModule("androidx.compose.ui", "ui", "1.8.1")
+        writeLocalModule("androidx.compose.ui", "ui-tooling", "1.8.1")
+        writeLocalModule("androidx.compose.ui", "ui-tooling-data", "1.8.1")
+        writeLocalModule("androidx.test", "core", "1.7.0")
+        writeLocalModule("androidx.test", "monitor", "1.8.0")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            repositories {
+                maven(url = uri("${mavenRepoDir().invariantSeparatorsPath}"))
+            }
+
+            configurations.create("androidRuntimeClasspath")
+
+            dependencies {
+                add("androidRuntimeClasspath", "androidx.compose.ui:ui:1.8.1")
+                add("androidRuntimeClasspath", "androidx.compose.ui:ui-tooling:1.8.1")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+            """.trimIndent(),
+        )
+
+        val result = runner("listComposePreviews", "--debug").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":listComposePreviews")?.outcome)
+        assertTrue(result.output.contains("AgentPreview renderer variant 'debug' compose=1.8.1"), result.output)
+        assertTrue(result.output.contains("ui-tooling-1.8.1.jar"), result.output)
+        assertFalse(result.output.contains("${RendererDependencyPolicy.FALLBACK_COMPOSE_VERSION}"), result.output)
     }
 
     @Test

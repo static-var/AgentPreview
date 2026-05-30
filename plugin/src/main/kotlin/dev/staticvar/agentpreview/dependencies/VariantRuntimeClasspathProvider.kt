@@ -15,7 +15,18 @@ import org.gradle.api.artifacts.Configuration
 internal class VariantRuntimeClasspathProvider(
     private val project: Project,
 ) {
-    fun configurationFor(variant: String): Configuration? = project.configurations.findByName("${variant}RuntimeClasspath")
+    fun configurationFor(variant: String): Configuration? =
+        project.configurations.findByName("${variant}RuntimeClasspath")
+            ?: project.configurations.findByName(ANDROID_KMP_RUNTIME_CLASSPATH)
 
-    fun inspectedConfigurationNames(variant: String): List<String> = listOf("${variant}RuntimeClasspath", "${variant}CompileClasspath")
+    fun inspectedConfigurationNames(variant: String): List<String> =
+        listOfNotNull(
+            "${variant}RuntimeClasspath",
+            "${variant}CompileClasspath",
+            ANDROID_KMP_RUNTIME_CLASSPATH.takeIf { project.configurations.findByName(it) != null },
+        )
+
+    private companion object {
+        const val ANDROID_KMP_RUNTIME_CLASSPATH = "androidRuntimeClasspath"
+    }
 }
