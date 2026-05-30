@@ -25,13 +25,9 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 
-abstract class ListComposePreviewsTask : DefaultTask() {
-    @get:Input
-    abstract val previewIndexFilePath: Property<String>
-
-    @get:Input
-    abstract val previewIndexContent: Property<String>
-
+abstract class ListComposePreviewsTask :
+    DefaultTask(),
+    PreviewIndexInput {
     @get:Input
     abstract val projectPath: Property<String>
 
@@ -65,7 +61,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
 
     @TaskAction
     fun list() {
-        val indexFile = File(previewIndexFilePath.get())
+        val indexFile = previewIndexFileOrNull()
         warnIfConfigurationIsIncompatible()
         logEffectiveRenderingClasspath()
         val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
@@ -130,17 +126,11 @@ abstract class ListComposePreviewsTask : DefaultTask() {
                 "  [@PreviewParameter provider=${it.providerClassName}, limit=$limit; capture ids append :previewParam-N]"
             }.orEmpty()
 
-    private fun effectiveMaxPreviewParameterValues(): Int {
-        val raw = cliMaxPreviewParameterValues.orNull
-        val value = raw?.toIntOrNull() ?: maxPreviewParameterValues.get()
-        require(raw == null || raw.toIntOrNull() != null) { maxPreviewParameterValuesError() }
-        require(value > 0) { maxPreviewParameterValuesError() }
-        return value
-    }
-
-    private fun maxPreviewParameterValuesError(): String =
-        "agentPreview.maxPreviewParameterValues must be a positive integer. " +
-            "Configure agentPreview { maxPreviewParameterValues.set(n) } or pass -PagentPreview.maxPreviewParameterValues=n."
+    private fun effectiveMaxPreviewParameterValues(): Int =
+        AgentPreviewTaskOptions.maxPreviewParameterValues(
+            defaultValue = maxPreviewParameterValues.get(),
+            cliValue = cliMaxPreviewParameterValues.orNull,
+        )
 
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->
@@ -166,7 +156,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     private fun materializedDiscoveryClasspath(): List<File> =
         AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
 
-    private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
+    private fun discoverPreviews(indexFile: File?): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = projectPath.get(),
@@ -176,7 +166,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(
-                previews = JsonIndexPreviewDiscovery(indexFile).discover(),
+                previews = indexFile?.let { JsonIndexPreviewDiscovery(it).discover() }.orEmpty(),
                 diagnostics = emptyList(),
             )
         }
