@@ -13,7 +13,6 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
-import java.lang.reflect.Method
 import java.time.Duration
 import java.util.jar.JarFile
 import java.util.zip.ZipEntry
@@ -159,7 +158,7 @@ class DefaultRenderProcessRunnerTest {
     fun `generated aar R jar uses Java 8 compatible bytecode`() {
         val aar = aarWithRSymbols("androidx.example.lib", "int id pooled_container_tag 0x0\n")
 
-        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
+        val output = materializeSyntheticRJar(aar) ?: error("Expected synthetic R jar")
 
         assertEquals(52, classMajorVersion(output, "androidx/example/lib/R${'$'}id.class"))
     }
@@ -168,7 +167,7 @@ class DefaultRenderProcessRunnerTest {
     fun `generated aar R jar entries are written in deterministic sorted order`() {
         val aar = aarWithRSymbols("androidx.example.lib", "int style AppTheme 0x0\nint id button 0x0\n")
 
-        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar) as File
+        val output = materializeSyntheticRJar(aar) ?: error("Expected synthetic R jar")
 
         val entries =
             JarFile(output).use { jar ->
@@ -192,7 +191,7 @@ class DefaultRenderProcessRunnerTest {
     fun `aar R jar materialization returns null when generated source cannot compile`() {
         val aar = aarWithRSymbols("androidx.example.lib", "int id invalid-name 0x0\n")
 
-        val output = materializeAarRClassesJarMethod().invoke(DefaultRenderProcessRunner(), aar)
+        val output = materializeSyntheticRJar(aar)
 
         assertEquals(null, output)
     }
@@ -458,10 +457,10 @@ class DefaultRenderProcessRunnerTest {
             .map(ProcessHandle::isAlive)
             .orElse(false)
 
-    private fun materializeAarRClassesJarMethod(): Method =
-        DefaultRenderProcessRunner::class.java
-            .getDeclaredMethod("materializeAarRClassesJar", File::class.java)
-            .apply { isAccessible = true }
+    private fun materializeSyntheticRJar(aar: File): File? {
+        val materialized = AarClasspathMaterializer().materialize(listOf(aar))
+        return materialized.firstOrNull { it.name.endsWith("-r.jar") }
+    }
 
     private fun aarWithRSymbols(
         packageName: String,
