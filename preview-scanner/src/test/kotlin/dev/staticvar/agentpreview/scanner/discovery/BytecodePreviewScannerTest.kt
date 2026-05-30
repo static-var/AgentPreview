@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview.scanner.discovery
 
+import dev.staticvar.agentpreview.scanner.composefixtures.RealNameProvider
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -118,6 +119,19 @@ class BytecodePreviewScannerTest {
     }
 
     @Test
+    fun `discovers real Compose compiled preview parameter`() {
+        val result = scanRealComposeFixtureClasses()
+
+        val preview = result.previews.single { it.methodName == "realComposeParameterizedPreview" }
+        val parameter = requireNotNull(preview.previewParameter)
+        assertEquals(RealNameProvider::class.java.name, parameter.providerClassName)
+        assertEquals(1, parameter.limit)
+        assertEquals(0, parameter.parameterIndex)
+        assertEquals("java.lang.String", parameter.parameterType)
+        assertTrue(result.diagnostics.none { it.message.contains("realComposeParameterizedPreview") })
+    }
+
+    @Test
     fun `reports diagnostic for preview methods with parameters`() {
         val result = scanTestClasses()
 
@@ -145,15 +159,30 @@ class BytecodePreviewScannerTest {
             PreviewScanInput(
                 projectPath = ":app",
                 sourceSetName = "test",
-                classesDirs =
-                    listOf(
-                        javaClass.protectionDomain.codeSource.location
-                            .toURI()
-                            .let(::File),
-                    ),
+                classesDirs = listOf(testClassesLocation()),
                 runtimeClasspath = emptyList(),
             ),
         )
+
+    private fun scanRealComposeFixtureClasses(): PreviewScanResult =
+        BytecodePreviewScanner().scan(
+            PreviewScanInput(
+                projectPath = ":compose-fixtures",
+                sourceSetName = "main",
+                classesDirs = listOf(realComposeFixtureLocation()),
+                runtimeClasspath = emptyList(),
+            ),
+        )
+
+    private fun testClassesLocation(): File =
+        javaClass.protectionDomain.codeSource.location
+            .toURI()
+            .let(::File)
+
+    private fun realComposeFixtureLocation(): File =
+        RealNameProvider::class.java.protectionDomain.codeSource.location
+            .toURI()
+            .let(::File)
 
     private fun copyClassResource(
         resourceName: String,

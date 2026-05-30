@@ -15,5 +15,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "PreviewForAgents"
-include(":plugin", ":preview-scanner")
+include(":plugin", ":preview-scanner", ":preview-scanner-compose-fixtures")
 includeBuild("samples/android-compose-app")
