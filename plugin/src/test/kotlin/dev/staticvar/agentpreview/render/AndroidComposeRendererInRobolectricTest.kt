@@ -100,7 +100,7 @@ class AndroidComposeRendererInRobolectricTest {
     fun `default semantics mode omits replaced semantics children`() {
         val node = FakeSemanticsNode()
 
-        val children = AndroidComposeRendererInRobolectric.semanticsChildren(node, includeUnmergedSemantics = false)
+        val children = ComposeSemanticsSnapshotMapper().semanticsChildren(node, includeUnmergedSemantics = false)
 
         assertEquals(listOf("merged-child"), children)
     }
@@ -109,7 +109,7 @@ class AndroidComposeRendererInRobolectricTest {
     fun `include unmerged semantics mode includes replaced semantics children`() {
         val node = FakeSemanticsNode()
 
-        val children = AndroidComposeRendererInRobolectric.semanticsChildren(node, includeUnmergedSemantics = true)
+        val children = ComposeSemanticsSnapshotMapper().semanticsChildren(node, includeUnmergedSemantics = true)
 
         assertEquals(listOf("unmerged-child"), children)
     }
@@ -140,7 +140,7 @@ class AndroidComposeRendererInRobolectricTest {
                 children = listOf(child),
             )
 
-        val tree = AndroidComposeRendererInRobolectric.extractLayoutTree(root, density = 2.0f)
+        val tree = ComposeLayoutTreeSnapshotMapper().extract(root, density = 2.0f)
 
         assertEquals("layout-1", tree.id)
         assertTrue(tree.componentHint.orEmpty().contains("FakeColumnMeasurePolicy"))
@@ -213,7 +213,7 @@ class AndroidComposeRendererInRobolectricTest {
         val sourceHints =
             mapOf(
                 System.identityHashCode(child) to
-                    AndroidComposeRendererInRobolectric.LayoutTreeSourceHint(
+                    LayoutTreeSourceHint(
                         sourceName = "LoginButton",
                         sourceFile = "LoginPreview.kt",
                         sourceLine = 42,
@@ -221,7 +221,7 @@ class AndroidComposeRendererInRobolectricTest {
                     ),
             )
 
-        val tree = AndroidComposeRendererInRobolectric.extractLayoutTree(root, density = 2.0f, sourceHints = sourceHints)
+        val tree = ComposeLayoutTreeSnapshotMapper().extract(root, density = 2.0f, sourceHints = sourceHints)
 
         val enriched = tree.children.single()
         assertEquals("LoginButton", enriched.sourceName)
@@ -235,7 +235,7 @@ class AndroidComposeRendererInRobolectricTest {
     fun `accessible no arg reflection invokes public method on non-public implementation`() {
         val record = FakePackagePrivateRecord(setOf("composition-data"))
 
-        val store = AndroidComposeRendererInRobolectric.accessibleNoArgMethod(record, "getStore")?.invoke(record)
+        val store = ComposeReflection.optionalNoArgMethod(record, "getStore")?.invoke(record)
 
         assertEquals(setOf("composition-data"), store)
     }
@@ -258,9 +258,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints)
 
         val hint = hints.getValue(System.identityHashCode(node))
         assertEquals("LoginCard", hint.sourceName)
@@ -287,9 +287,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints)
 
         assertEquals(null, hints[System.identityHashCode(node)])
     }
@@ -326,9 +326,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
 
         val hint = hints.getValue(System.identityHashCode(node))
         assertEquals("OtherComposable", hint.sourceName)
@@ -360,9 +360,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints, preferredAppSourceFile = "LoginPreview.kt")
 
         val hint = hints.getValue(System.identityHashCode(node))
         assertEquals("LoginPreview", hint.sourceName)
@@ -395,9 +395,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints)
 
         val hint = hints.getValue(System.identityHashCode(node))
         assertEquals("LoginPreview", hint.sourceName)
@@ -432,9 +432,9 @@ class AndroidComposeRendererInRobolectricTest {
                         ),
                     ),
             )
-        val hints = mutableMapOf<Int, AndroidComposeRendererInRobolectric.LayoutTreeSourceHint>()
+        val hints = mutableMapOf<Int, LayoutTreeSourceHint>()
 
-        AndroidComposeRendererInRobolectric.collectGroupSourceHints(rootGroup, hints)
+        ToolingSourceHintMapper.collectGroupSourceHints(rootGroup, hints)
 
         val hint = hints.getValue(System.identityHashCode(node))
         assertEquals("LoginCard", hint.sourceName)
@@ -455,12 +455,12 @@ class AndroidComposeRendererInRobolectricTest {
                 semanticsConfiguration = FakeSemanticsConfiguration(),
             )
 
-        AndroidComposeRendererInRobolectric.writeLayoutTreeFromComposeView(
+        ComposeLayoutTreeSnapshotMapper().writeFromComposeView(
             ComposeRoot(root),
             outputFile,
             density = 2.0f,
             previewSourceFallback =
-                AndroidComposeRendererInRobolectric.PreviewSourceFallback(
+                PreviewSourceFallback(
                     className = "dev.example.LoginPreviewKt",
                     methodName = "LoginPreview",
                 ),
@@ -479,16 +479,13 @@ class AndroidComposeRendererInRobolectricTest {
 
         val warning =
             captureStderr {
-                AndroidComposeRendererInRobolectric::class.java
-                    .getDeclaredMethod(
-                        "writeLayoutTree",
-                        Any::class.java,
-                        File::class.java,
-                        Float::class.javaPrimitiveType,
-                        AndroidComposeRendererInRobolectric.ToolingCompositionRecord::class.java,
-                        AndroidComposeRendererInRobolectric.PreviewSourceFallback::class.java,
-                    ).apply { isAccessible = true }
-                    .invoke(AndroidComposeRendererInRobolectric, ViewWithoutComposeRoot(), outputFile, 2.0f, null, null)
+                ComposeLayoutTreeSnapshotMapper().write(
+                    ViewWithoutComposeRoot(),
+                    outputFile,
+                    density = 2.0f,
+                    toolingRecord = null,
+                    previewSourceFallback = null,
+                )
             }
 
         assertEquals("[]", outputFile.readText())
@@ -502,7 +499,7 @@ class AndroidComposeRendererInRobolectricTest {
 
         val warning =
             captureStderr {
-                AndroidComposeRendererInRobolectric.writeLayoutTreeFromComposeView(
+                ComposeLayoutTreeSnapshotMapper().writeFromComposeView(
                     ComposeRootWithBrokenLayoutNode(),
                     outputFile,
                     density = 2.0f,
@@ -517,7 +514,7 @@ class AndroidComposeRendererInRobolectricTest {
     fun `default semantics mode selects merged root`() {
         val owner = FakeSemanticsOwner()
 
-        val root = AndroidComposeRendererInRobolectric.rootSemanticsNode(owner, includeUnmergedSemantics = false)
+        val root = ComposeSemanticsSnapshotMapper().rootSemanticsNode(owner, includeUnmergedSemantics = false)
 
         assertEquals("merged-root", root)
     }
@@ -526,7 +523,7 @@ class AndroidComposeRendererInRobolectricTest {
     fun `include unmerged semantics mode selects unmerged root`() {
         val owner = FakeSemanticsOwner()
 
-        val root = AndroidComposeRendererInRobolectric.rootSemanticsNode(owner, includeUnmergedSemantics = true)
+        val root = ComposeSemanticsSnapshotMapper().rootSemanticsNode(owner, includeUnmergedSemantics = true)
 
         assertEquals("unmerged-root", root)
     }
