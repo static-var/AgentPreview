@@ -7,11 +7,12 @@ package dev.staticvar.agentpreview.export
 
 import dev.staticvar.agentpreview.model.PreviewSnapshot
 import dev.staticvar.agentpreview.model.Viewport
-import dev.staticvar.agentpreview.sanitize
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class SnapshotExporter {
+internal class SnapshotExporter(
+    private val outputPath: SnapshotOutputPath = SnapshotOutputPath(),
+) {
     private val json =
         Json {
             prettyPrint = true
@@ -25,15 +26,9 @@ class SnapshotExporter {
         outputRoot: File,
         viewport: Viewport? = null,
     ): File {
-        val destination =
-            outputRoot.resolve(previewId.sanitize()).let { previewRoot ->
-                if (viewport?.platform != null && viewport.name != null) {
-                    previewRoot.resolve("${viewport.platform}-${viewport.name}".sanitize())
-                } else {
-                    previewRoot
-                }
-            }
-        destination.mkdirs()
+        // Sanitized directories are path labels; logical snapshot identity remains preview.id in snapshot.json.
+        val destination = outputPath.resolve(outputRoot, previewId, viewport)
+        outputPath.validateAvailable(destination)
         screenshotFile.copyTo(destination.resolve("screenshot.png"), overwrite = true)
         destination.resolve("snapshot.json").writeText(
             json.encodeToString(PreviewSnapshot.serializer(), snapshot),
