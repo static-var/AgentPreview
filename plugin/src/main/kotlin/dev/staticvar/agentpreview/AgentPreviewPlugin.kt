@@ -38,17 +38,8 @@ class AgentPreviewPlugin : Plugin<Project> {
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"
             it.description = "Lists Compose previews discoverable by Preview For Agents."
-            it.previewIndexFilePath.set(previewIndexFile.map { file -> file.asFile.path })
-            it.previewIndexContent.set(
-                project.provider {
-                    previewIndexFile
-                        .get()
-                        .asFile
-                        .takeIf { file ->
-                            file.isFile
-                        }?.readText()
-                        .orEmpty()
-                },
+            it.previewIndexFile.set(
+                project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
             )
             it.projectPath.set(project.path)
             it.previewNameFilter.set(extension.previewNameFilter)
@@ -68,17 +59,8 @@ class AgentPreviewPlugin : Plugin<Project> {
         project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
             it.group = "agent preview"
             it.description = "Captures Compose previews into screenshot.png and snapshot.json bundles."
-            it.previewIndexFilePath.set(previewIndexFile.map { file -> file.asFile.path })
-            it.previewIndexContent.set(
-                project.provider {
-                    previewIndexFile
-                        .get()
-                        .asFile
-                        .takeIf { file ->
-                            file.isFile
-                        }?.readText()
-                        .orEmpty()
-                },
+            it.previewIndexFile.set(
+                project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
             )
             it.projectPath.set(project.path)
             it.outputDirectory.set(extension.outputDirectory)

@@ -46,13 +46,9 @@ import java.util.concurrent.CompletionService
 import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
 
-abstract class CaptureComposePreviewsTask : DefaultTask() {
-    @get:Input
-    abstract val previewIndexFilePath: Property<String>
-
-    @get:Input
-    abstract val previewIndexContent: Property<String>
-
+abstract class CaptureComposePreviewsTask :
+    DefaultTask(),
+    PreviewIndexInput {
     @get:Input
     abstract val projectPath: Property<String>
 
@@ -174,7 +170,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun capturePlan(): CapturePlan {
         val filters = previewNameFilter.get().toSet()
         val viewportFilters = viewportNameFilter.get().toSet()
-        val discoveryResult = discoverPreviews(File(previewIndexFilePath.get()))
+        val discoveryResult = discoverPreviews(previewIndexFileOrNull())
         val expansionCandidates =
             discoveryResult.previews
                 .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
@@ -590,63 +586,35 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         requestedIndexes = previewNameFilter.get().toSet().previewParameterFilterIndexes(),
     ).expand(previews)
 
-    private fun effectiveMaxPreviewParameterValues(): Int {
-        val raw = cliMaxPreviewParameterValues.orNull
-        val value = raw?.toIntOrNull() ?: maxPreviewParameterValues.get()
-        require(raw == null || raw.toIntOrNull() != null) { maxPreviewParameterValuesError() }
-        require(value > 0) { maxPreviewParameterValuesError() }
-        return value
-    }
+    private fun effectiveMaxPreviewParameterValues(): Int =
+        AgentPreviewTaskOptions.maxPreviewParameterValues(
+            defaultValue = maxPreviewParameterValues.get(),
+            cliValue = cliMaxPreviewParameterValues.orNull,
+        )
 
-    private fun effectiveMaxCaptures(): Int? {
-        val raw = cliMaxCaptures.orNull
-        val value = raw?.toIntOrNull() ?: maxCaptures.orNull
-        require(raw == null || raw.toIntOrNull() != null) { maxCapturesError() }
-        require(value == null || value >= 0) { maxCapturesError() }
-        return value
-    }
+    private fun effectiveMaxCaptures(): Int? =
+        AgentPreviewTaskOptions.maxCaptures(
+            defaultValue = maxCaptures.orNull,
+            cliValue = cliMaxCaptures.orNull,
+        )
 
-    private fun effectiveMaxParallelRenders(): Int {
-        val raw = cliMaxParallelRenders.orNull
-        val value = raw?.toIntOrNull() ?: maxParallelRenders.get()
-        require(raw == null || raw.toIntOrNull() != null) { maxParallelRendersError() }
-        require(value > 0) { maxParallelRendersError() }
-        return value
-    }
+    private fun effectiveMaxParallelRenders(): Int =
+        AgentPreviewTaskOptions.maxParallelRenders(
+            defaultValue = maxParallelRenders.get(),
+            cliValue = cliMaxParallelRenders.orNull,
+        )
 
-    private fun effectiveDryRun(): Boolean {
-        val raw = cliDryRun.orNull
-        val value = raw?.toBooleanStrictOrNull()
-        require(raw == null || value != null) { dryRunError() }
-        return value ?: dryRun.get()
-    }
+    private fun effectiveDryRun(): Boolean =
+        AgentPreviewTaskOptions.dryRun(
+            defaultValue = dryRun.get(),
+            cliValue = cliDryRun.orNull,
+        )
 
-    private fun effectiveContinueOnError(): Boolean {
-        val raw = cliContinueOnError.orNull
-        val value = raw?.toBooleanStrictOrNull()
-        require(raw == null || value != null) { continueOnErrorError() }
-        return value ?: continueOnError.get()
-    }
-
-    private fun maxPreviewParameterValuesError(): String =
-        "agentPreview.maxPreviewParameterValues must be a positive integer. " +
-            "Configure agentPreview { maxPreviewParameterValues.set(n) } or pass -PagentPreview.maxPreviewParameterValues=n."
-
-    private fun maxCapturesError(): String =
-        "agentPreview.maxCaptures must be a non-negative integer. " +
-            "Configure agentPreview { maxCaptures.set(n) } or pass -PagentPreview.maxCaptures=n."
-
-    private fun maxParallelRendersError(): String =
-        "agentPreview.maxParallelRenders must be a positive integer. " +
-            "Configure agentPreview { maxParallelRenders.set(n) } or pass -PagentPreview.maxParallelRenders=n."
-
-    private fun dryRunError(): String =
-        "agentPreview.dryRun must be true or false. " +
-            "Pass -PagentPreview.dryRun=true|false."
-
-    private fun continueOnErrorError(): String =
-        "agentPreview.continueOnError must be true or false. " +
-            "Configure agentPreview { continueOnError.set(true|false) } or pass -PagentPreview.continueOnError=true|false."
+    private fun effectiveContinueOnError(): Boolean =
+        AgentPreviewTaskOptions.continueOnError(
+            defaultValue = continueOnError.get(),
+            cliValue = cliContinueOnError.orNull,
+        )
 
     private fun captureSummary(
         discoveredCount: Int,
@@ -693,7 +661,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
         }
     }
 
-    private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
+    private fun discoverPreviews(indexFile: File?): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = projectPath.get(),
@@ -704,7 +672,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(
-                previews = JsonIndexPreviewDiscovery(indexFile).discover(),
+                previews = indexFile?.let { JsonIndexPreviewDiscovery(it).discover() }.orEmpty(),
                 diagnostics = emptyList(),
             )
         }
