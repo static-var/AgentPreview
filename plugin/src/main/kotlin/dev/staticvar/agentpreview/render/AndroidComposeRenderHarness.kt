@@ -6,31 +6,14 @@
 package dev.staticvar.agentpreview.render
 
 import org.junit.runner.JUnitCore
-import java.io.File
 import kotlin.system.exitProcess
 
 object AndroidComposeRenderHarness {
     @JvmStatic
     fun main(args: Array<String>) {
-        require(args.size == ARG_COUNT) { "Expected $ARG_COUNT arguments, got ${args.size}" }
-        System.setProperty("agentpreview.render.className", args[0])
-        System.setProperty("agentpreview.render.methodName", args[1])
-        System.setProperty("agentpreview.render.widthPx", args[2])
-        System.setProperty("agentpreview.render.heightPx", args[3])
-        System.setProperty("agentpreview.render.density", args[4])
-        System.setProperty("agentpreview.render.robolectricSdk", args[5])
-        System.setProperty("agentpreview.render.outputFile", args[6])
-        System.setProperty("agentpreview.render.semanticsOutputFile", args[7])
-        System.setProperty("agentpreview.render.layoutTreeOutputFile", args[8])
-        System.setProperty("agentpreview.render.includeUnmergedSemantics", args[9])
-        System.setProperty("agentpreview.render.locale", args[10])
-        System.setProperty("agentpreview.render.uiMode", args[11])
-        System.setProperty("agentpreview.render.fontScale", args[12])
-        System.setProperty("agentpreview.render.showBackground", args[13])
-        System.setProperty("agentpreview.render.backgroundColor", args[14])
-        System.setProperty("agentpreview.render.previewParameterProviderClassName", args[15])
-        System.setProperty("agentpreview.render.previewParameterIndex", args[16])
-        val resultFile = File(args[17])
+        val command = RenderHarnessCommand.fromArgs(args)
+        command.applyToSystemProperties()
+        val resultFile = command.resultFile
 
         val result = JUnitCore.runClasses(AndroidComposeRobolectricEntryPoint::class.java)
         if (!result.wasSuccessful()) {
@@ -55,6 +38,5 @@ object AndroidComposeRenderHarness {
         generateSequence(this) { throwable -> throwable.cause }
             .any { throwable -> throwable.javaClass.name == RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME }
 
-    private const val ARG_COUNT = 18
     private const val RESOURCE_NOT_FOUND_EXCEPTION_CLASS_NAME = "android.content.res.Resources\$NotFoundException"
 }
