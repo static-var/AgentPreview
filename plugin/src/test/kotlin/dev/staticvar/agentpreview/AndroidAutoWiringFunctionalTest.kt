@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview
 
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -113,7 +115,37 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
-    fun `uses configured Android variant for auto wiring`() {
+    fun `non-preview tasks still run when release variant is configured`() {
+        writeFakeAndroidPlugin()
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("com.android.library")
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                android {
+                    variant.set("release")
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("help")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":help")?.outcome)
+    }
+
+    @Test
+    fun `fails when release variant is configured for auto wiring`() {
         writeFakeAndroidPlugin()
         writeSettings()
         projectDir.resolve("build.gradle.kts").writeText(
@@ -138,10 +170,9 @@ class AndroidAutoWiringFunctionalTest {
                 .withProjectDir(projectDir)
                 .withArguments("listComposePreviews")
                 .withPluginClasspath()
-                .build()
+                .buildAndFail()
 
-        assertTrue(result.output.contains(":compileReleaseKotlin"), result.output)
-        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+        assertTrue(result.output.contains("agentPreview.android.variant=release is not supported"), result.output)
     }
 
     @Test

@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
@@ -54,6 +55,9 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     abstract val previewSupportClasspath: ConfigurableFileCollection
 
     @get:Input
+    abstract val selectedVariant: Property<String>
+
+    @get:Input
     abstract val robolectricSdk: Property<Int>
 
     @get:Input
@@ -63,6 +67,7 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     fun list() {
         val indexFile = File(previewIndexFilePath.get())
         warnIfConfigurationIsIncompatible()
+        logEffectiveRenderingClasspath()
         val maxPreviewParameterValues = effectiveMaxPreviewParameterValues()
         val filters = previewNameFilter.get().toSet()
         val discoveryResult = discoverPreviews(indexFile)
@@ -150,13 +155,24 @@ abstract class ListComposePreviewsTask : DefaultTask() {
     private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
         if (previewClassesDirs.files.isEmpty()) emptySet() else previewSupportClasspath.files
 
+    private fun logEffectiveRenderingClasspath() {
+        if (previewClassesDirs.files.isEmpty()) return
+        logger.debug(
+            "AgentPreview list variant ${selectedVariant.get()} runtime artifacts: " +
+                materializedDiscoveryClasspath().joinToString(", ") { it.name },
+        )
+    }
+
+    private fun materializedDiscoveryClasspath(): List<File> =
+        AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
+
     private fun discoverPreviews(indexFile: File): PreviewDiscoveryResult =
         if (previewClassesDirs.files.isNotEmpty()) {
             PreviewDiscovery(
                 projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = (previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked()).toList(),
+                runtimeClasspath = materializedDiscoveryClasspath(),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

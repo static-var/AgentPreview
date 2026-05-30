@@ -7,6 +7,7 @@ package dev.staticvar.agentpreview.tasks
 
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.discovery.IsolatedPreviewParameterCountResolver
 import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
 import dev.staticvar.agentpreview.discovery.PreviewDiscovery
@@ -112,6 +113,9 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @get:Input
     abstract val fakeRenderer: Property<Boolean>
 
+    @get:Input
+    abstract val selectedVariant: Property<String>
+
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
 
@@ -133,6 +137,7 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     @TaskAction
     fun capture() {
         warnIfConfigurationIsIncompatible()
+        logEffectiveRenderingClasspath()
         val plan = capturePlan()
 
         if (plan.dryRun) {
@@ -564,7 +569,9 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     }
 
     private fun previewClasspath(): List<File> =
-        (previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList()
+        AarClasspathMaterializer().materialize(
+            previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked(),
+        )
 
     private fun expandPreviewParameters(
         previews: List<PreviewDescriptor>,
@@ -667,6 +674,15 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
         if (previewClassesDirs.files.isEmpty()) emptySet() else rendererRuntimeClasspath.files
 
+    private fun logEffectiveRenderingClasspath() {
+        if (previewClassesDirs.files.isEmpty()) return
+        logger.lifecycle(
+            "AgentPreview capture variant ${selectedVariant.get()} runtime artifacts: " +
+                (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked())
+                    .joinToString(", ") { it.name },
+        )
+    }
+
     private fun logDiagnostics(diagnostics: List<PreviewScanDiagnostic>) {
         diagnostics.forEach { diagnostic ->
             val message = "AgentPreview scanner: ${diagnostic.message}"
@@ -683,7 +699,8 @@ abstract class CaptureComposePreviewsTask : DefaultTask() {
                 projectPath = projectPath.get(),
                 sourceSetName = "main",
                 classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath = (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()).toList(),
+                runtimeClasspath =
+                    AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
             ).discoverWithDiagnostics()
         } else {
             PreviewDiscoveryResult(

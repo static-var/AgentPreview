@@ -7,6 +7,12 @@ package dev.staticvar.agentpreview
 
 import dev.staticvar.agentpreview.android.AndroidPreviewAutoWiring
 import dev.staticvar.agentpreview.config.ConfiguredViewport
+import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
+import dev.staticvar.agentpreview.dependencies.RendererDependencyPolicy
+import dev.staticvar.agentpreview.dependencies.RendererSupportClasspathResolver
+import dev.staticvar.agentpreview.dependencies.RendererSupportConfigurationFactory
+import dev.staticvar.agentpreview.dependencies.ResolvedArtifactCoordinate
+import dev.staticvar.agentpreview.dependencies.VariantRuntimeClasspathProvider
 import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
 import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
 import kotlinx.serialization.builtins.ListSerializer
@@ -27,8 +33,7 @@ class AgentPreviewPlugin : Plugin<Project> {
 
         AndroidPreviewAutoWiring(project, extension).configure()
         val previewIndexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json")
-        val previewSupportClasspath = previewSupportClasspath(project)
-        val rendererRuntimeClasspath = rendererRuntimeClasspath(project)
+        val selectedVariant = extension.android.variant
 
         project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
             it.group = "agent preview"
@@ -52,7 +57,10 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.previewSupportClasspath.from(previewSupportClasspath)
+            it.previewSupportClasspath.from(
+                project.provider { resolveRendererClasspath(project, selectedVariant.get()).previewSupportFiles },
+            )
+            it.selectedVariant.set(selectedVariant)
             it.robolectricSdk.set(extension.android.robolectricSdk)
             it.javaMajorVersion.set(javaMajorVersion(project))
         }
@@ -93,7 +101,10 @@ class AgentPreviewPlugin : Plugin<Project> {
             it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
             it.previewClassesDirs.from(extension.previewClassesDirs)
             it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.rendererRuntimeClasspath.from(rendererRuntimeClasspath)
+            it.rendererRuntimeClasspath.from(
+                project.provider { resolveRendererClasspath(project, selectedVariant.get()).rendererRuntimeFiles },
+            )
+            it.selectedVariant.set(selectedVariant)
             it.androidViewportsJson.set(
                 project.provider {
                     Json.encodeToString(
@@ -113,25 +124,50 @@ class AgentPreviewPlugin : Plugin<Project> {
         }
     }
 
-    private fun previewSupportClasspath(project: Project) =
-        lenientFiles(
-            project,
-            project.configurations.detachedConfiguration(
-                project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                project.dependencies.create("androidx.compose.ui:ui-tooling-data:1.11.2"),
-            ),
+    private fun resolveRendererClasspath(
+        project: Project,
+        variant: String,
+    ): ResolvedRendererClasspath {
+        RendererDependencyPolicy.requireSupportedVariant(variant)
+        val runtimeProvider = VariantRuntimeClasspathProvider(project)
+        val inspectedConfigurations = runtimeProvider.inspectedConfigurationNames(variant)
+        val variantRuntimeConfiguration = runtimeProvider.configurationFor(variant)
+        val runtimeArtifacts = variantRuntimeConfiguration.resolvedArtifacts()
+        val resolution =
+            RendererSupportClasspathResolver().resolve(
+                selectedVariant = variant,
+                inspectedConfigurations = inspectedConfigurations,
+                runtimeArtifacts = runtimeArtifacts,
+            )
+        resolution.warnings.forEach(project.logger::warn)
+        project.logger.debug(
+            "AgentPreview renderer variant '$variant' compose=${resolution.composeVersion}; consumer tooling=" +
+                resolution.consumerArtifactFiles.joinToString(", ").ifBlank { "<none>" } +
+                "; plugin renderer support=" +
+                resolution.pluginArtifactCoordinates.joinToString(", ").ifBlank { "<none>" },
         )
+        val pluginFiles = pluginOwnedRendererFiles(project, resolution.pluginArtifactCoordinates, variantRuntimeConfiguration)
+        val consumerFiles = AarClasspathMaterializer().materialize(resolution.consumerArtifactFiles.map(::File))
+        return ResolvedRendererClasspath(
+            previewSupportFiles = (consumerFiles + pluginFiles.filter { it.name.contains("ui-tooling") }).toSet(),
+            rendererRuntimeFiles = (consumerFiles + pluginFiles).toSet(),
+        )
+    }
 
-    private fun rendererRuntimeClasspath(project: Project) =
-        lenientFiles(
-            project,
-            project.configurations.detachedConfiguration(
-                project.dependencies.create("androidx.compose.ui:ui-tooling:1.11.2"),
-                project.dependencies.create("androidx.compose.ui:ui-tooling-data:1.11.2"),
-                project.dependencies.create("androidx.test:core:1.7.0"),
-                project.dependencies.create("androidx.test:monitor:1.8.0"),
-            ),
-        )
+    private fun pluginOwnedRendererFiles(
+        project: Project,
+        coordinates: List<String>,
+        variantRuntimeConfiguration: Configuration?,
+    ): Set<File> {
+        if (coordinates.isEmpty()) return emptySet()
+        val configuration =
+            RendererSupportConfigurationFactory().create(
+                project = project,
+                coordinates = coordinates,
+                variantRuntimeConfiguration = variantRuntimeConfiguration,
+            )
+        return lenientFiles(project, configuration).files
+    }
 
     private fun lenientFiles(
         project: Project,
@@ -143,6 +179,20 @@ class AgentPreviewPlugin : Plugin<Project> {
                 .toSet()
         },
     )
+
+    private fun Configuration?.resolvedArtifacts(): List<ResolvedArtifactCoordinate> {
+        if (this == null) return emptyList()
+        return resolvedConfiguration.lenientConfiguration.artifacts.mapNotNull { artifact ->
+            val id = artifact.moduleVersion.id
+            val version = id.version ?: return@mapNotNull null
+            ResolvedArtifactCoordinate(
+                group = id.group,
+                module = artifact.name,
+                version = version,
+                filePath = artifact.file.absolutePath,
+            )
+        }
+    }
 
     private fun javaMajorVersion(project: Project) =
         project.providers
@@ -163,3 +213,8 @@ class AgentPreviewPlugin : Plugin<Project> {
             .map(String::trim)
             .filter(String::isNotEmpty)
 }
+
+private data class ResolvedRendererClasspath(
+    val previewSupportFiles: Set<File>,
+    val rendererRuntimeFiles: Set<File>,
+)

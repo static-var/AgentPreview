@@ -117,6 +117,10 @@ class DefaultRenderProcessRunnerTest {
                 entries = os.environ['CLASSPATH'].split(os.pathsep)
                 has_generated_r = False
                 has_nested_jar = False
+                raw_aars = [entry for entry in entries if entry.endswith('.aar')]
+                if raw_aars:
+                    print('raw AARs must not be included on isolated Java classpath: ' + ','.join(raw_aars), file=sys.stderr)
+                    sys.exit(1)
                 for entry in entries:
                     if not zipfile.is_zipfile(entry):
                         continue

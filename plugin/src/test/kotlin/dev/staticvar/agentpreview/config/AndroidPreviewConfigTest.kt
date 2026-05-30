@@ -18,6 +18,11 @@ class AndroidPreviewConfigTest {
     }
 
     @Test
+    fun `default Android variant is debug`() {
+        assertEquals("debug", AndroidPreviewConfigDefaults.VARIANT)
+    }
+
+    @Test
     fun `SDK 36 warns that configurable renderer SDK is not supported`() {
         val warning = AndroidPreviewConfigValidator.warning(robolectricSdk = 36, javaMajorVersion = 21)
 
