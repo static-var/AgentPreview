@@ -139,7 +139,7 @@ agentPreview {
 
 ### Android KMP library wiring
 
-For Android Kotlin Multiplatform library-shaped modules, apply the plugin to the module with the Android target. AgentPreview wires Android-backed previews from Gradle providers: Android Components variant artifacts/runtime configurations when they are exposed by the Android KMP plugin, and Kotlin compilation outputs/runtime dependency files as a fallback. It does not rely on stale build output directories being present before the task graph is created.
+For Android Kotlin Multiplatform library-shaped modules, apply the plugin to the module with the Android target. AgentPreview wires Android-backed previews from Gradle providers: Android Components variant artifacts/runtime configurations for Android KMP plugin modules, and Kotlin compilation outputs/runtime dependency files only for Kotlin MPP Android-shaped targets that do not apply the Android KMP plugin. It does not rely on stale build output directories being present before the task graph is created.
 
 ```kotlin
 plugins {
@@ -162,6 +162,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.ui)
+            implementation("androidx.compose.ui:ui-tooling-preview:1.11.2")
         }
     }
 }

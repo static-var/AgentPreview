@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
+@Suppress("LargeClass")
 class AndroidAutoWiringFunctionalTest {
     @TempDir
     lateinit var projectDir: File
@@ -149,6 +150,65 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
+    fun `wires real Android KMP components into preview tasks`() {
+        writeSettings(requireAndroidSdk = true)
+        projectDir.resolve("src/commonMain/kotlin/dev/staticvar/agentpreview/test/DesignToken.kt").writeTextCreatingParents(
+            """
+            package dev.staticvar.agentpreview.test
+
+            object DesignToken {
+                const val Radius = 8
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+
+            plugins {
+                id("org.jetbrains.kotlin.multiplatform") version "2.3.21"
+                id("com.android.kotlin.multiplatform.library") version "8.13.2"
+                id("dev.staticvar.agentpreview")
+            }
+
+            kotlin {
+                androidLibrary {
+                    namespace = "dev.staticvar.agentpreview.test"
+                    compileSdk = 36
+                    minSdk = 23
+                }
+            }
+
+            tasks.named<ListComposePreviewsTask>("listComposePreviews") {
+                doFirst {
+                    println("previewClassesDirs=" + previewClassesDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                    println("androidProjectClassDirs=" + androidProjectClassDirs.get().joinToString("|") { it.asFile.invariantSeparatorsPath })
+                    println("androidRuntimeClassDirs=" + androidRuntimeClassDirs.get().joinToString("|") { it.asFile.invariantSeparatorsPath })
+                    println("previewRuntimeClasspath=" + previewRuntimeClasspath.files.joinToString("|") { it.invariantSeparatorsPath })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":listComposePreviews")?.outcome)
+        assertTrue(result.output.contains(":compileAndroidMain"), result.output)
+        assertTrue(result.output.contains("previewClassesDirs=\n"), result.output)
+        assertTrue(result.output.contains("androidProjectClassDirs="), result.output)
+        assertTrue(result.output.contains("build/classes/kotlin/android/main"), result.output)
+        assertTrue(result.output.contains("androidRuntimeClassDirs="), result.output)
+        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
     fun `wires Android KMP components that expose selector backed onVariants`() {
         writeSettings(includeAndroidKmpStub = true)
         projectDir.resolve("android-kmp-runtime.jar").writeText("runtime")
@@ -185,6 +245,89 @@ class AndroidAutoWiringFunctionalTest {
 
         assertTrue(result.output.contains("android-kmp-runtime.jar"), result.output)
         assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
+    @Test
+    fun `wires Android KMP components under configuration cache`() {
+        writeSettings(includeAndroidKmpStub = true)
+        projectDir.resolve("android-kmp-runtime.jar").writeText("runtime")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("com.android.kotlin.multiplatform.library")
+                id("dev.staticvar.agentpreview")
+            }
+
+            dependencies {
+                add("androidMainRuntimeClasspath", files("android-kmp-runtime.jar"))
+            }
+
+            tasks.named("listComposePreviews") {
+                doFirst {
+                    fun property(name: String) = javaClass.getMethod(name).invoke(this)
+                    fun listProperty(name: String): Iterable<*> =
+                        property(name).javaClass.getMethod("get").invoke(property(name)) as Iterable<*>
+
+                    println("androidProjectClassDirs=" + listProperty("getAndroidProjectClassDirs").joinToString("|") { it.toString() })
+                    println("androidRuntimeClassDirs=" + listProperty("getAndroidRuntimeClassDirs").joinToString("|") { it.toString() })
+                    val runtimeClasspath = property("getPreviewRuntimeClasspath") as org.gradle.api.file.FileCollection
+                    println("previewRuntimeClasspath=" + runtimeClasspath.files.joinToString("|") { it.name })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+        writeAndroidKmpStubPlugin()
+
+        val arguments = listOf("listComposePreviews", "--configuration-cache", "--warning-mode", "all")
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments(arguments)
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("android-kmp-runtime.jar"), result.output)
+        assertTrue(result.output.contains("stub-classes/project"), result.output)
+        assertTrue(result.output.contains("stub-classes/all"), result.output)
+        assertTrue(result.output.contains("Configuration cache entry stored"), result.output)
+
+        val reuseResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments(arguments)
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(reuseResult.output.contains("Configuration cache entry reused"), reuseResult.output)
+    }
+
+    @Test
+    fun `does not duplicate Kotlin compilation fallback when Android KMP components are active`() {
+        assertAndroidKmpComponentsDoNotUseKotlinFallback(
+            """
+            plugins {
+                id("com.android.kotlin.multiplatform.library")
+                id("org.jetbrains.kotlin.multiplatform")
+                id("dev.staticvar.agentpreview")
+            }
+            """.trimIndent(),
+        )
+    }
+
+    @Test
+    fun `does not duplicate Kotlin fallback when Android KMP plugin is applied after AgentPreview`() {
+        assertAndroidKmpComponentsDoNotUseKotlinFallback(
+            """
+            plugins {
+                id("org.jetbrains.kotlin.multiplatform")
+                id("dev.staticvar.agentpreview")
+                id("com.android.kotlin.multiplatform.library")
+            }
+            """.trimIndent(),
+        )
     }
 
     @Test
@@ -284,6 +427,47 @@ class AndroidAutoWiringFunctionalTest {
         )
     }
 
+    private fun assertAndroidKmpComponentsDoNotUseKotlinFallback(pluginsBlock: String) {
+        writeSettings(includeAndroidKmpStub = true)
+        projectDir.resolve("android-kmp-runtime.jar").writeText("component runtime")
+        projectDir.resolve("fallback-runtime.jar").writeText("fallback runtime")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+
+            $pluginsBlock
+
+            dependencies {
+                add("androidMainRuntimeClasspath", files("android-kmp-runtime.jar"))
+                add("fallbackRuntimeClasspath", files("fallback-runtime.jar"))
+            }
+
+            tasks.named<ListComposePreviewsTask>("listComposePreviews") {
+                doFirst {
+                    println("previewClassesDirs=" + previewClassesDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                    println("previewRuntimeClasspath=" + previewRuntimeClasspath.files.joinToString("|") { it.name })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+        writeAndroidKmpStubPlugin()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("listComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("android-kmp-runtime.jar"), result.output)
+        assertTrue(!result.output.contains("fallback-runtime.jar"), result.output)
+        assertTrue(!result.output.contains("fallback-classes"), result.output)
+        assertTrue(!result.output.contains(":compileFallbackKotlinAndroid"), result.output)
+        assertTrue(result.output.contains("No Compose previews discovered."), result.output)
+    }
+
     private fun writeAndroidKmpStubPlugin() {
         val stubDir = projectDir.resolve("android-kmp-stub-plugin")
         stubDir.mkdirs()
@@ -299,6 +483,10 @@ class AndroidAutoWiringFunctionalTest {
                     create("androidKmpStub") {
                         id = "com.android.kotlin.multiplatform.library"
                         implementationClass = "stub.AndroidKmpStubPlugin"
+                    }
+                    create("kotlinMultiplatformStub") {
+                        id = "org.jetbrains.kotlin.multiplatform"
+                        implementationClass = "stub.KotlinMultiplatformStubPlugin"
                     }
                 }
             }
@@ -336,22 +524,31 @@ class AndroidAutoWiringFunctionalTest {
 
             import com.android.build.api.variant.ScopedArtifacts;
             import org.gradle.api.Action;
+            import org.gradle.api.Named;
             import org.gradle.api.Plugin;
             import org.gradle.api.Project;
             import org.gradle.api.artifacts.Configuration;
+            import org.gradle.api.file.FileCollection;
+            import org.gradle.api.NamedDomainObjectContainer;
+            import org.gradle.api.provider.ListProperty;
+            import org.gradle.api.provider.Provider;
             import org.gradle.api.tasks.TaskProvider;
+            import java.util.Locale;
+            import kotlin.jvm.functions.Function1;
 
             public final class AndroidKmpStubPlugin implements Plugin<Project> {
                 @Override
                 public void apply(Project project) {
                     Configuration runtimeClasspath = project.getConfigurations().create("androidMainRuntimeClasspath");
-                    project.getExtensions().add("androidComponents", new AndroidComponents(runtimeClasspath));
+                    project.getExtensions().add("androidComponents", new AndroidComponents(project, runtimeClasspath));
                 }
 
                 public static final class AndroidComponents {
+                    private final Project project;
                     private final Configuration runtimeClasspath;
 
-                    AndroidComponents(Configuration runtimeClasspath) {
+                    AndroidComponents(Project project, Configuration runtimeClasspath) {
+                        this.project = project;
                         this.runtimeClasspath = runtimeClasspath;
                     }
 
@@ -360,7 +557,7 @@ class AndroidAutoWiringFunctionalTest {
                     }
 
                     public void onVariants(Selector selector, Action<Object> action) {
-                        action.execute(new Variant(runtimeClasspath));
+                        action.execute(new Variant(project, runtimeClasspath));
                     }
                 }
 
@@ -371,9 +568,11 @@ class AndroidAutoWiringFunctionalTest {
                 }
 
                 public static final class Variant {
+                    private final Project project;
                     private final Configuration runtimeClasspath;
 
-                    Variant(Configuration runtimeClasspath) {
+                    Variant(Project project, Configuration runtimeClasspath) {
+                        this.project = project;
                         this.runtimeClasspath = runtimeClasspath;
                     }
 
@@ -386,20 +585,143 @@ class AndroidAutoWiringFunctionalTest {
                     }
 
                     public Artifacts getArtifacts() {
-                        return new Artifacts();
+                        return new Artifacts(project);
                     }
                 }
 
                 public static final class Artifacts {
+                    private final Project project;
+                    private ScopedArtifacts.Scope scope;
+                    private TaskProvider<?> taskProvider;
+
+                    Artifacts(Project project) {
+                        this.project = project;
+                    }
+
                     public Artifacts forScope(ScopedArtifacts.Scope scope) {
+                        this.scope = scope;
                         return this;
                     }
 
                     public Artifacts use(TaskProvider<?> taskProvider) {
+                        this.taskProvider = taskProvider;
                         return this;
                     }
 
                     public void toGet(Object classesArtifact, Object jarsProperty, Object dirsProperty) {
+                        @SuppressWarnings("unchecked")
+                        ListProperty<Object> dirs = (ListProperty<Object>) ((Function1<Object, Object>) dirsProperty).invoke(taskProvider.get());
+                        Provider<?> stubClasses = project.getLayout().getBuildDirectory().dir(
+                            "stub-classes/" + scope.name().toLowerCase(Locale.ROOT)
+                        );
+                        dirs.add((Provider<Object>) stubClasses);
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
+        stubDir.resolve("src/main/java/stub/KotlinMultiplatformStubPlugin.java").writeTextCreatingParents(
+            """
+            package stub;
+
+            import org.gradle.api.Named;
+            import org.gradle.api.NamedDomainObjectContainer;
+            import org.gradle.api.Plugin;
+            import org.gradle.api.Project;
+            import org.gradle.api.artifacts.Configuration;
+            import org.gradle.api.file.FileCollection;
+            import org.gradle.api.tasks.TaskProvider;
+
+            public final class KotlinMultiplatformStubPlugin implements Plugin<Project> {
+                @Override
+                public void apply(Project project) {
+                    Configuration runtimeClasspath = project.getConfigurations().create("fallbackRuntimeClasspath");
+                    TaskProvider<?> compileTask = project.getTasks().register("compileFallbackKotlinAndroid");
+                    project.getExtensions().add("kotlin", new KotlinExtension(project, runtimeClasspath, compileTask));
+                }
+
+                public static final class KotlinExtension {
+                    private final NamedDomainObjectContainer<Target> targets;
+
+                    KotlinExtension(Project project, Configuration runtimeClasspath, TaskProvider<?> compileTask) {
+                        this.targets = project.container(Target.class, name -> new Target(name, project, runtimeClasspath, compileTask));
+                        this.targets.add(new Target("android", project, runtimeClasspath, compileTask));
+                    }
+
+                    public NamedDomainObjectContainer<Target> getTargets() {
+                        return targets;
+                    }
+                }
+
+                public static final class Target implements Named {
+                    private final String name;
+                    private final NamedDomainObjectContainer<Compilation> compilations;
+
+                    Target(String name, Project project, Configuration runtimeClasspath, TaskProvider<?> compileTask) {
+                        this.name = name;
+                        this.compilations = project.container(Compilation.class, compilationName -> new Compilation(compilationName, project, runtimeClasspath, compileTask));
+                        this.compilations.add(new Compilation("main", project, runtimeClasspath, compileTask));
+                    }
+
+                    @Override
+                    public String getName() {
+                        return name;
+                    }
+
+                    public Object getPlatformType() {
+                        return new Object() {
+                            @Override
+                            public String toString() {
+                                return "androidJvm";
+                            }
+                        };
+                    }
+
+                    public NamedDomainObjectContainer<Compilation> getCompilations() {
+                        return compilations;
+                    }
+                }
+
+                public static final class Compilation implements Named {
+                    private final String name;
+                    private final Output output;
+                    private final Configuration runtimeClasspath;
+                    private final TaskProvider<?> compileTask;
+
+                    Compilation(String name, Project project, Configuration runtimeClasspath, TaskProvider<?> compileTask) {
+                        this.name = name;
+                        this.output = new Output(project.files(project.getLayout().getBuildDirectory().dir("fallback-classes")));
+                        this.runtimeClasspath = runtimeClasspath;
+                        this.compileTask = compileTask;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return name;
+                    }
+
+                    public Output getOutput() {
+                        return output;
+                    }
+
+                    public FileCollection getRuntimeDependencyFiles() {
+                        return runtimeClasspath;
+                    }
+
+                    public TaskProvider<?> getCompileTaskProvider() {
+                        return compileTask;
+                    }
+                }
+
+                public static final class Output {
+                    private final FileCollection classesDirs;
+
+                    Output(FileCollection classesDirs) {
+                        this.classesDirs = classesDirs;
+                    }
+
+                    public FileCollection getClassesDirs() {
+                        return classesDirs;
                     }
                 }
             }

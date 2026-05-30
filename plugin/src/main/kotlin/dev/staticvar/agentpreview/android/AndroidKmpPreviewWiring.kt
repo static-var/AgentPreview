@@ -36,23 +36,37 @@ internal class AndroidKmpPreviewWiring(
 
     private fun Named.isAndroidKmpFallbackCandidate(): Boolean =
         !AndroidVariantPreviewWiring.hasStandardAndroidPlugin(project) &&
+            !AndroidVariantPreviewWiring.hasAndroidKmpComponents(project) &&
             platformTypeName() == ANDROID_PLATFORM_TYPE
 
     private fun wireCompilation(compilation: Named) {
         val classesDirs = compilation.outputClassesDirs() ?: return
         val runtimeDependencyFiles = compilation.runtimeDependencyFiles()
         val compileTaskProvider = compilation.compileTaskProvider()
+        val fallbackClassesDirs = fallbackOnly(classesDirs)
+        val fallbackRuntimeDependencyFiles = runtimeDependencyFiles?.let(::fallbackOnly)
+        val fallbackCompileTask =
+            project.provider {
+                if (AndroidVariantPreviewWiring.hasAndroidKmpComponents(project)) emptyList() else listOfNotNull(compileTaskProvider)
+            }
         listComposePreviews.configure { task ->
-            task.previewClassesDirs.from(classesDirs)
-            runtimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
-            compileTaskProvider?.let { provider -> task.dependsOn(provider) }
+            task.previewClassesDirs.from(fallbackClassesDirs)
+            fallbackRuntimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
+            task.dependsOn(fallbackCompileTask)
         }
         captureComposePreviews.configure { task ->
-            task.previewClassesDirs.from(classesDirs)
-            runtimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
-            compileTaskProvider?.let { provider -> task.dependsOn(provider) }
+            task.previewClassesDirs.from(fallbackClassesDirs)
+            fallbackRuntimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
+            task.dependsOn(fallbackCompileTask)
         }
     }
+
+    private fun fallbackOnly(files: FileCollection): FileCollection =
+        project.files(
+            project.provider {
+                if (AndroidVariantPreviewWiring.hasAndroidKmpComponents(project)) emptyList() else files.files
+            },
+        )
 
     private fun Any.getNamedCollection(methodName: String): NamedDomainObjectCollection<Named>? {
         val collection = invoke(methodName) as? NamedDomainObjectCollection<*> ?: return null

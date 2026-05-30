@@ -176,5 +176,7 @@ internal class AndroidVariantPreviewWiring(
         fun hasStandardAndroidPlugin(project: Project): Boolean =
             project.plugins.hasPlugin(ANDROID_APPLICATION_PLUGIN_ID) ||
                 project.plugins.hasPlugin(ANDROID_LIBRARY_PLUGIN_ID)
+
+        fun hasAndroidKmpComponents(project: Project): Boolean = project.plugins.hasPlugin(ANDROID_KMP_LIBRARY_PLUGIN_ID)
     }
 }
