@@ -40,6 +40,9 @@ jobs:
       - name: Smoke test CMP sample fake captures
         run: ./gradlew -p samples/cmp-compose-app :composeApp:listComposePreviews :composeApp:captureComposePreviews -PagentPreview.fakeRenderer=true
 
+      - name: Smoke test KMP design-system sample fake captures
+        run: ./gradlew -p samples/kmp-design-system :designSystem:listComposePreviews :designSystem:captureComposePreviews -PagentPreview.fakeRenderer=true
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4

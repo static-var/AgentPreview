@@ -5,60 +5,94 @@
  */
 package dev.staticvar.agentpreview.android
 
-import dev.staticvar.agentpreview.AgentPreviewExtension
+import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
+import org.gradle.api.Named
+import org.gradle.api.NamedDomainObjectCollection
 import org.gradle.api.Project
-import org.gradle.api.Task
 import org.gradle.api.file.FileCollection
-import java.io.File
+import org.gradle.api.tasks.TaskProvider
 
 internal class AndroidKmpPreviewWiring(
     private val project: Project,
-    private val extension: AgentPreviewExtension,
-) : AndroidPreviewWiringStrategy {
-    override fun canWire(): Boolean {
-        val hasRuntimeClasspath = project.configurations.findByName(ANDROID_KMP_RUNTIME_CLASSPATH) != null
-        val hasCompileTask = project.tasks.findByName(ANDROID_KMP_COMPILE_TASK_NAME) != null
-        val classesDir = androidKmpClassesDir().get().asFile
-        val hasClassesDir = classesDir.isDirectory
-        if (hasClassesDir && !hasRuntimeClasspath && !hasCompileTask) {
-            project.logger.warn(
-                "AgentPreview detected Android KMP previews from existing build output at ${classesDir.absolutePath}. " +
-                    "This may be stale; run a clean build if preview discovery looks incorrect.",
-            )
-        }
-        return hasRuntimeClasspath || hasCompileTask || hasClassesDir
-    }
-
-    override fun wire() {
-        val classesDir = androidKmpClassesDir().get().asFile
-        if (!classesDir.isDirectory) {
-            project.logger.info(
-                "AgentPreview inferred Android KMP class directory is absent: ${classesDir.absolutePath}",
-            )
-        }
-        // Future pass: replace this hard-coded KMP output path with provider-backed Kotlin/Android Components APIs when available.
-        extension.previewClassesDirs.from(androidKmpClassesDir().map { it.asFile })
-        extension.previewRuntimeClasspath.from(androidKmpRuntimeClasspath())
-        project.tasks.findByName(ANDROID_KMP_COMPILE_TASK_NAME)?.let(::wireDiscoveryTasksTo)
-    }
-
-    private fun androidKmpClassesDir() = project.layout.buildDirectory.dir(ANDROID_KMP_CLASSES_DIR)
-
-    private fun androidKmpRuntimeClasspath(): FileCollection =
-        project.files(project.configurations.findByName(ANDROID_KMP_RUNTIME_CLASSPATH))
-
-    private fun wireDiscoveryTasksTo(task: Task) {
-        AGENT_PREVIEW_TASK_NAMES.forEach { taskName ->
-            project.tasks.named(taskName).configure { previewTask ->
-                previewTask.dependsOn(task)
+    private val listComposePreviews: TaskProvider<ListComposePreviewsTask>,
+    private val captureComposePreviews: TaskProvider<CaptureComposePreviewsTask>,
+) {
+    fun configure() {
+        project.plugins.withId(KOTLIN_MULTIPLATFORM_PLUGIN_ID) {
+            val kotlin = project.extensions.findByName("kotlin") ?: return@withId
+            val targets = kotlin.getNamedCollection("getTargets") ?: return@withId
+            targets.configureEach { target ->
+                if (target.isAndroidKmpFallbackCandidate()) {
+                    target.getNamedCollection("getCompilations")?.configureEach { compilation ->
+                        if (compilation.name == MAIN_COMPILATION_NAME) {
+                            wireCompilation(compilation)
+                        }
+                    }
+                }
             }
         }
     }
 
+    private fun Named.isAndroidKmpFallbackCandidate(): Boolean =
+        !AndroidVariantPreviewWiring.hasStandardAndroidPlugin(project) &&
+            !AndroidVariantPreviewWiring.hasAndroidKmpComponents(project) &&
+            platformTypeName() == ANDROID_PLATFORM_TYPE
+
+    private fun wireCompilation(compilation: Named) {
+        val classesDirs = compilation.outputClassesDirs() ?: return
+        val runtimeDependencyFiles = compilation.runtimeDependencyFiles()
+        val compileTaskProvider = compilation.compileTaskProvider()
+        val fallbackClassesDirs = fallbackOnly(classesDirs)
+        val fallbackRuntimeDependencyFiles = runtimeDependencyFiles?.let(::fallbackOnly)
+        val fallbackCompileTask =
+            project.provider {
+                if (AndroidVariantPreviewWiring.hasAndroidKmpComponents(project)) emptyList() else listOfNotNull(compileTaskProvider)
+            }
+        listComposePreviews.configure { task ->
+            task.previewClassesDirs.from(fallbackClassesDirs)
+            fallbackRuntimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
+            task.dependsOn(fallbackCompileTask)
+        }
+        captureComposePreviews.configure { task ->
+            task.previewClassesDirs.from(fallbackClassesDirs)
+            fallbackRuntimeDependencyFiles?.let { files -> task.previewRuntimeClasspath.from(files) }
+            task.dependsOn(fallbackCompileTask)
+        }
+    }
+
+    private fun fallbackOnly(files: FileCollection): FileCollection =
+        project.files(
+            project.provider {
+                if (AndroidVariantPreviewWiring.hasAndroidKmpComponents(project)) emptyList() else files.files
+            },
+        )
+
+    private fun Any.getNamedCollection(methodName: String): NamedDomainObjectCollection<Named>? {
+        val collection = invoke(methodName) as? NamedDomainObjectCollection<*> ?: return null
+        @Suppress("UNCHECKED_CAST")
+        return collection as NamedDomainObjectCollection<Named>
+    }
+
+    private fun Any.platformTypeName(): String? = invoke("getPlatformType")?.toString()
+
+    private fun Any.runtimeDependencyFiles(): FileCollection? = invoke("getRuntimeDependencyFiles") as? FileCollection
+
+    private fun Any.compileTaskProvider(): TaskProvider<*>? = invoke("getCompileTaskProvider") as? TaskProvider<*>
+
+    private fun Any.outputClassesDirs(): FileCollection? =
+        invoke("getOutput")?.let { output -> output.invoke("getClassesDirs") as? FileCollection }
+
+    private fun Any.invoke(methodName: String): Any? =
+        runCatching {
+            javaClass.methods
+                .firstOrNull { method -> method.name == methodName && method.parameterCount == 0 }
+                ?.invoke(this)
+        }.getOrNull()
+
     private companion object {
-        const val ANDROID_KMP_CLASSES_DIR = "classes/kotlin/android/main"
-        const val ANDROID_KMP_COMPILE_TASK_NAME = "compileAndroidMain"
-        const val ANDROID_KMP_RUNTIME_CLASSPATH = "androidRuntimeClasspath"
-        val AGENT_PREVIEW_TASK_NAMES = setOf("listComposePreviews", "captureComposePreviews")
+        const val KOTLIN_MULTIPLATFORM_PLUGIN_ID = "org.jetbrains.kotlin.multiplatform"
+        const val MAIN_COMPILATION_NAME = "main"
+        const val ANDROID_PLATFORM_TYPE = "androidJvm"
     }
 }

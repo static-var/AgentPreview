@@ -139,13 +139,14 @@ agentPreview {
 
 ### Android KMP library wiring
 
-For Android Kotlin Multiplatform library-shaped modules, apply the plugin to the module with the Android target. AgentPreview auto-wires common Android KMP outputs when it finds `compileAndroidMain`, `androidRuntimeClasspath`, or `build/classes/kotlin/android/main`.
+For Android Kotlin Multiplatform library-shaped modules, apply the plugin to the module with the Android target. AgentPreview wires Android-backed previews from Gradle providers: Android Components variant artifacts/runtime configurations for Android KMP plugin modules, and Kotlin compilation outputs/runtime dependency files only for Kotlin MPP Android-shaped targets that do not apply the Android KMP plugin. It does not rely on stale build output directories being present before the task graph is created.
 
 ```kotlin
 plugins {
     id("com.android.kotlin.multiplatform.library")
     id("org.jetbrains.kotlin.multiplatform")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.compose")
     id("dev.staticvar.agentpreview")
 }
 
@@ -161,6 +162,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.ui)
+            implementation("androidx.compose.ui:ui-tooling-preview:1.11.2")
         }
     }
 }
@@ -181,8 +183,8 @@ If auto-wiring misses a custom module shape, wire it manually:
 
 ```kotlin
 agentPreview {
-    previewClassesDirs.from(layout.buildDirectory.dir("classes/kotlin/android/main"))
-    previewRuntimeClasspath.from(configurations.named("androidRuntimeClasspath"))
+    previewClassesDirs.from(tasks.named("generatePreviewClasses"))
+    previewRuntimeClasspath.from(configurations.named("debugRuntimeClasspath"))
 }
 ```
 

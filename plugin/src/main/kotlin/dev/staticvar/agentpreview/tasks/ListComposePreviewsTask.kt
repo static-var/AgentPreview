@@ -11,6 +11,8 @@ import dev.staticvar.agentpreview.model.PreviewParameterDescriptor
 import dev.staticvar.agentpreview.scanner.discovery.PreviewScanDiagnostic
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.Directory
+import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
@@ -42,6 +44,22 @@ abstract class ListComposePreviewsTask :
     /** Primary bytecode scan roots; when empty, listing falls back to the generated preview index input. */
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
+
+    /** Android Components project class directories from ScopedArtifact.CLASSES. */
+    @get:Classpath
+    abstract val androidProjectClassDirs: ListProperty<Directory>
+
+    /** Android Components project class jars from ScopedArtifact.CLASSES. */
+    @get:Classpath
+    abstract val androidProjectClassJars: ListProperty<RegularFile>
+
+    /** Android Components all-scope class directories used only as runtime support. */
+    @get:Classpath
+    abstract val androidRuntimeClassDirs: ListProperty<Directory>
+
+    /** Android Components all-scope class jars used only as runtime support. */
+    @get:Classpath
+    abstract val androidRuntimeClassJars: ListProperty<RegularFile>
 
     /** Consumer runtime classpath used for scanner metadata and preview-parameter provider counting. */
     @get:Classpath
@@ -127,10 +145,10 @@ abstract class ListComposePreviewsTask :
     }
 
     private fun previewSupportClasspathIfAndroidBacked(): Set<File> =
-        if (previewClassesDirs.files.isEmpty()) emptySet() else previewSupportClasspath.files
+        if (effectivePreviewClasses().isEmpty()) emptySet() else previewSupportClasspath.files
 
     private fun logEffectiveRenderingClasspath() {
-        if (previewClassesDirs.files.isEmpty()) return
+        if (effectivePreviewClasses().isEmpty()) return
         logger.debug(
             "AgentPreview list variant ${selectedVariant.get()} runtime artifacts: " +
                 materializedDiscoveryClasspath().joinToString(", ") { it.name },
@@ -138,12 +156,23 @@ abstract class ListComposePreviewsTask :
     }
 
     private fun materializedDiscoveryClasspath(): List<File> =
-        AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + previewSupportClasspathIfAndroidBacked())
+        AarClasspathMaterializer().materialize(
+            previewRuntimeClasspath.files + androidRuntimeClasses() + previewSupportClasspathIfAndroidBacked(),
+        )
 
     private fun selectionService(): PreviewSelectionService =
         PreviewSelectionService(
             projectPath = projectPath.get(),
-            classesDirs = previewClassesDirs.files.toList(),
+            classesDirs = effectivePreviewClasses().toList(),
             discoveryClasspath = materializedDiscoveryClasspath(),
         )
+
+    private fun effectivePreviewClasses(): Set<File> =
+        previewClassesDirs.files +
+            androidProjectClassDirs.get().map { directory -> directory.asFile } +
+            androidProjectClassJars.get().map { jar -> jar.asFile }
+
+    private fun androidRuntimeClasses(): Set<File> =
+        androidRuntimeClassDirs.get().map { directory -> directory.asFile }.toSet() +
+            androidRuntimeClassJars.get().map { jar -> jar.asFile }
 }

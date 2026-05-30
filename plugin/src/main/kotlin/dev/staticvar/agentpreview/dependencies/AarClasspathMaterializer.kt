@@ -16,8 +16,9 @@ import java.util.zip.ZipFile
 /** Materializes Android AAR artifacts into entries that are loadable by a plain Java classpath. */
 internal class AarClasspathMaterializer(
     private val outputDir: File = File(System.getProperty("java.io.tmpdir"), "agentpreview-aar-classpath"),
+    private val syntheticRJarWriter: SyntheticRJarWriter = SyntheticRJarWriter(),
 ) {
-    private val cacheVersion = "v2"
+    private val cacheVersion = "v3"
 
     fun materialize(classpath: Iterable<File>): List<File> =
         classpath.flatMap { file ->
@@ -28,29 +29,37 @@ internal class AarClasspathMaterializer(
             }
         }
 
-    private fun materializeAar(aar: File): List<File> =
-        ZipFile(aar).use { zip ->
-            zip
-                .entries()
-                .asSequence()
-                .filter { entry ->
-                    !entry.isDirectory && (entry.name == "classes.jar" || (entry.name.startsWith("libs/") && entry.name.endsWith(".jar")))
-                }.sortedBy { entry -> entry.name }
-                .map { entry ->
-                    val output = outputFile(aar, entry.name)
-                    output.parentFile.mkdirs()
-                    if (!output.exists()) {
-                        val temp = Files.createTempFile(output.parentFile.toPath(), "${output.name}.", ".tmp")
-                        try {
-                            zip.getInputStream(entry).use { input -> Files.newOutputStream(temp).use(input::copyTo) }
-                            moveAtomically(temp.toFile(), output)
-                        } finally {
-                            Files.deleteIfExists(temp)
+    private fun materializeAar(aar: File): List<File> {
+        var classesJar: File? = null
+        val jars =
+            ZipFile(aar).use { zip ->
+                zip
+                    .entries()
+                    .asSequence()
+                    .filter { entry ->
+                        !entry.isDirectory &&
+                            (entry.name == "classes.jar" || (entry.name.startsWith("libs/") && entry.name.endsWith(".jar")))
+                    }.sortedBy { entry -> entry.name }
+                    .map { entry ->
+                        val output = outputFile(aar, entry.name)
+                        output.parentFile.mkdirs()
+                        if (!output.exists()) {
+                            val temp = Files.createTempFile(output.parentFile.toPath(), "${output.name}.", ".tmp")
+                            try {
+                                zip.getInputStream(entry).use { input -> Files.newOutputStream(temp).use(input::copyTo) }
+                                moveAtomically(temp.toFile(), output)
+                            } finally {
+                                Files.deleteIfExists(temp)
+                            }
                         }
-                    }
-                    output
-                }.toList()
-        }
+                        if (entry.name == "classes.jar") {
+                            classesJar = output
+                        }
+                        output
+                    }.toList()
+            }
+        return jars + listOfNotNull(classesJar?.let { syntheticRJarWriter.writeForAar(aar, it) })
+    }
 
     private fun outputFile(
         aar: File,
