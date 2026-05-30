@@ -22,52 +22,78 @@ import java.util.zip.ZipFile
 import javax.tools.JavaCompiler
 import javax.tools.ToolProvider
 
-class DefaultRenderProcessRunner : RenderProcessRunner {
+/**
+ * Runs Android Compose preview rendering across an explicit process boundary.
+ *
+ * Target preview code executes in an isolated child JVM whose classpath contains the plugin runtime,
+ * the Android SDK android.jar (when available), and the selected preview runtime classpath. This keeps
+ * app/preview classes out of the Gradle daemon/plugin classloader while still using the consumer
+ * project's runtime artifacts for rendering.
+ */
+class DefaultRenderProcessRunner(
+    private val environment: AndroidRendererEnvironment = AndroidRendererEnvironment(),
+    private val processService: RenderProcessService = RenderProcessService(),
+) : RenderProcessRunner {
     override fun run(
         request: AndroidComposeRenderRequest,
         previewClasspath: List<File>,
     ): RenderProcessResult {
-        val classpath = materializeClasspath(currentPluginClasspath() + androidJar(request.robolectricSdk) + previewClasspath)
+        val javaExecutable = environment.javaExecutable()
+        if (javaExecutable.diagnostic != null) {
+            return RenderProcessResult.Failure(RenderProcessFailureKind.HarnessFailure, javaExecutable.diagnostic)
+        }
+        val androidJar = environment.androidJar(request.robolectricSdk)
+        val classpath = materializeClasspath(currentPluginClasspath() + androidJar.files + previewClasspath)
         val harnessResultFile = File.createTempFile("agentpreview-render-harness-", ".properties")
         harnessResultFile.delete()
+        val harnessCommand =
+            RenderHarnessCommand(
+                className = request.className,
+                methodName = request.methodName,
+                widthPx = request.widthPx,
+                heightPx = request.heightPx,
+                density = request.density,
+                robolectricSdk = request.robolectricSdk,
+                outputFile = request.outputFile,
+                semanticsOutputFile = request.semanticsOutputFile,
+                layoutTreeOutputFile = request.layoutTreeOutputFile,
+                includeUnmergedSemantics = request.includeUnmergedSemantics,
+                locale = request.locale,
+                uiMode = request.uiMode,
+                fontScale = request.fontScale,
+                showBackground = request.showBackground,
+                backgroundColor = request.backgroundColor,
+                previewParameterProviderClassName = request.previewParameterProviderClassName,
+                previewParameterIndex = request.previewParameterIndex,
+                resultFile = harnessResultFile,
+            )
         val command =
             listOf(
-                javaExecutable(),
+                javaExecutable.path,
                 "-cp",
                 classpath.joinToString(File.pathSeparator) { it.absolutePath },
                 AndroidComposeRenderHarness::class.java.name,
-                request.className,
-                request.methodName,
-                request.widthPx.toString(),
-                request.heightPx.toString(),
-                request.density.toString(),
-                request.robolectricSdk.toString(),
-                request.outputFile.absolutePath,
-                request.semanticsOutputFile.absolutePath,
-                request.layoutTreeOutputFile.absolutePath,
-                request.includeUnmergedSemantics.toString(),
-                request.locale.orEmpty(),
-                request.uiMode?.toString().orEmpty(),
-                request.fontScale?.toString().orEmpty(),
-                request.showBackground.toString(),
-                request.backgroundColor?.toString().orEmpty(),
-                request.previewParameterProviderClassName.orEmpty(),
-                request.previewParameterIndex?.toString().orEmpty(),
-                harnessResultFile.absolutePath,
-            )
-        val process =
-            ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-        val output = process.inputStream.bufferedReader().readText()
-        val exitCode = process.waitFor()
-        if (exitCode == 0) {
+            ) + harnessCommand.toArgs()
+        val execution =
+            try {
+                processService.run(command)
+            } catch (e: java.io.IOException) {
+                val message =
+                    "Failed to start Android Compose preview renderer using java executable '${javaExecutable.path}'. " +
+                        "Set agentpreview.java.executable to an executable java binary or configure java.home correctly. ${e.message.orEmpty()}"
+                harnessResultFile.delete()
+                return RenderProcessResult.Failure(RenderProcessFailureKind.HarnessFailure, message)
+            }
+        val output = listOfNotNull(androidJar.diagnostic, execution.output.takeIf { it.isNotBlank() }).joinToString("\n")
+        if (execution.exitCode == 0) {
+            androidJar.diagnostic?.let { diagnostic -> System.err.println("AgentPreview: $diagnostic") }
             harnessResultFile.delete()
             return RenderProcessResult.Success
         }
+        val exitDescription = if (execution.timedOut) "after timeout" else "with exit code ${execution.exitCode}"
         val message =
             "Android Compose preview rendering failed for ${request.className}.${request.methodName} " +
-                "with exit code $exitCode.\n$output"
+                "$exitDescription.\n$output"
         val failureKind = RenderHarnessResultFile.readFailureKind(harnessResultFile)
         harnessResultFile.delete()
         return RenderProcessResult.Failure(
@@ -337,20 +363,4 @@ class DefaultRenderProcessRunner : RenderProcessRunner {
         val type: String,
         val name: String,
     )
-
-    private fun androidJar(sdk: Int): List<File> {
-        val sdkRoot = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: return emptyList()
-        val requested = File(sdkRoot, "platforms/android-$sdk/android.jar")
-        if (requested.isFile) return listOf(requested)
-        return File(sdkRoot, "platforms")
-            .listFiles { file -> file.isDirectory && file.name.startsWith("android-") }
-            ?.maxByOrNull { file -> file.name.removePrefix("android-").toIntOrNull() ?: 0 }
-            ?.resolve("android.jar")
-            ?.takeIf { it.isFile }
-            ?.let(::listOf)
-            ?: emptyList()
-    }
-
-    private fun javaExecutable(): String =
-        System.getProperty("agentpreview.java.executable") ?: File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
 }

@@ -7,10 +7,14 @@ package dev.staticvar.agentpreview.render
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.PrintStream
 import java.lang.reflect.Method
+import java.time.Duration
 import java.util.jar.JarFile
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -194,6 +198,168 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `render harness command round trips named fields`() {
+        val command =
+            RenderHarnessCommand(
+                className = "dev.example.PreviewKt",
+                methodName = "Preview",
+                widthPx = 10,
+                heightPx = 20,
+                density = 1.5f,
+                robolectricSdk = 35,
+                outputFile = tempDir.resolve("preview.png"),
+                semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
+                layoutTreeOutputFile = tempDir.resolve("preview.layout.json"),
+                includeUnmergedSemantics = true,
+                locale = "fr-rFR",
+                uiMode = 32,
+                fontScale = 1.3f,
+                showBackground = true,
+                backgroundColor = 4279312947,
+                previewParameterProviderClassName = "dev.example.Provider",
+                previewParameterIndex = 2,
+                resultFile = tempDir.resolve("result.properties"),
+            )
+
+        assertEquals(command, RenderHarnessCommand.fromArgs(command.toArgs().toTypedArray()))
+    }
+
+    @Test
+    fun `render process times out and captures bounded output`() {
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                python3 - <<'PY'
+                print('x' * 2000)
+                PY
+                sleep 5
+                """.trimIndent(),
+                timeoutMillis = 200,
+                maxOutputBytes = 128,
+            )
+
+        assertTrue(result is RenderProcessResult.Failure)
+        val failure = result as RenderProcessResult.Failure
+        assertTrue(failure.message.contains("after timeout"))
+        assertTrue(failure.message.contains("truncated"))
+        assertTrue(failure.message.length < 1000)
+    }
+
+    @Test
+    fun `invalid configured java executable returns actionable render failure`() {
+        val missingJava = tempDir.resolve("missing-java")
+        val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
+        try {
+            System.setProperty("agentpreview.java.executable", missingJava.absolutePath)
+
+            val result = DefaultRenderProcessRunner().run(defaultRequest(), previewClasspath = emptyList())
+
+            assertTrue(result is RenderProcessResult.Failure)
+            val failure = result as RenderProcessResult.Failure
+            assertEquals(RenderProcessFailureKind.HarnessFailure, failure.kind)
+            assertTrue(failure.message.contains("agentpreview.java.executable"), failure.message)
+            assertTrue(failure.message.contains(missingJava.absolutePath), failure.message)
+            assertTrue(failure.message.contains("does not exist"), failure.message)
+        } finally {
+            if (originalJavaExecutable == null) {
+                System.clearProperty("agentpreview.java.executable")
+            } else {
+                System.setProperty("agentpreview.java.executable", originalJavaExecutable)
+            }
+        }
+    }
+
+    @Test
+    fun `render process timeout kills descendants`() {
+        assumeTrue(File("/bin/sh").canExecute(), "/bin/sh is required for descendant kill test")
+        val descendantPidFile = tempDir.resolve("descendant.pid")
+        val script =
+            tempDir.resolve("spawn-descendant.sh").also { file ->
+                file.writeText(
+                    """
+                    #!/bin/sh
+                    DESCENDANT_PID_FILE="${descendantPidFile.absolutePath}" python3 - <<'PY' &
+                    import os
+                    import time
+
+                    with open(os.environ["DESCENDANT_PID_FILE"], "w") as pid_file:
+                        pid_file.write(str(os.getpid()))
+                        pid_file.flush()
+                    time.sleep(30)
+                    PY
+                    sleep 30
+                    """.trimIndent(),
+                )
+                file.setExecutable(true)
+            }
+
+        val execution = RenderProcessService(timeout = Duration.ofMillis(200)).run(listOf(script.absolutePath))
+
+        assertTrue(execution.timedOut)
+        assertTrue(descendantPidFile.exists(), "descendant process did not start")
+        val descendantPid = descendantPidFile.readText().trim().toLong()
+        val deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos()
+        while (isProcessAlive(descendantPid) && System.nanoTime() < deadline) {
+            Thread.sleep(50)
+        }
+        assertTrue(!isProcessAlive(descendantPid), "descendant process survived timeout: pid=$descendantPid")
+    }
+
+    @Test
+    fun `android renderer environment reports missing sdk variables`() {
+        val resolution = AndroidRendererEnvironment(env = emptyMap()).androidJar(35)
+
+        assertEquals(emptyList<File>(), resolution.files)
+        assertTrue(resolution.diagnostic.orEmpty().contains("ANDROID_HOME or ANDROID_SDK_ROOT is not set"))
+    }
+
+    @Test
+    fun `android renderer environment reports missing requested platform and falls back`() {
+        val sdkRoot = tempDir.resolve("sdk")
+        val androidJar = sdkRoot.resolve("platforms/android-34/android.jar")
+        androidJar.parentFile.mkdirs()
+        androidJar.writeText("")
+
+        val resolution = AndroidRendererEnvironment(env = mapOf("ANDROID_HOME" to sdkRoot.absolutePath)).androidJar(35)
+
+        assertEquals(listOf(androidJar), resolution.files)
+        assertTrue(resolution.diagnostic.orEmpty().contains("platform android-35 was not found"))
+    }
+
+    @Test
+    fun `successful render surfaces android sdk fallback diagnostic`() {
+        val sdkRoot = tempDir.resolve("sdk")
+        val androidJar = sdkRoot.resolve("platforms/android-34/android.jar")
+        androidJar.parentFile.mkdirs()
+        androidJar.writeText("")
+        val stderr = ByteArrayOutputStream()
+        val originalErr = System.err
+        try {
+            System.setErr(PrintStream(stderr))
+
+            val result =
+                runWithFakeJava(
+                    """
+                    #!/bin/sh
+                    cat > "${'$'}{21}" <<'EOF'
+                    status=success
+                    EOF
+                    exit 0
+                    """.trimIndent(),
+                    environment = AndroidRendererEnvironment(env = mapOf("ANDROID_HOME" to sdkRoot.absolutePath)),
+                )
+
+            assertEquals(RenderProcessResult.Success, result)
+            val output = stderr.toString()
+            assertTrue(output.contains("platform android-35 was not found"), output)
+            assertTrue(output.contains("using android-34 instead"), output)
+        } finally {
+            System.setErr(originalErr)
+        }
+    }
+
+    @Test
     fun `structured resource loading gap result is classified as diagnostic fallback`() {
         val result =
             runWithFakeJava(
@@ -221,6 +387,9 @@ class DefaultRenderProcessRunnerTest {
         showBackground: Boolean = false,
         backgroundColor: Long? = null,
         previewClasspath: List<File> = emptyList(),
+        timeoutMillis: Long? = null,
+        maxOutputBytes: Int? = null,
+        environment: AndroidRendererEnvironment = AndroidRendererEnvironment(),
     ): RenderProcessResult {
         val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
         val javaExecutable = tempDir.resolve("fake-java-home/bin/java")
@@ -229,18 +398,16 @@ class DefaultRenderProcessRunnerTest {
         javaExecutable.setExecutable(true)
         return try {
             System.setProperty("agentpreview.java.executable", javaExecutable.absolutePath)
-            DefaultRenderProcessRunner().run(
+            DefaultRenderProcessRunner(
+                environment = environment,
+                processService =
+                    RenderProcessService(
+                        timeout = timeoutMillis?.let(Duration::ofMillis) ?: RenderProcessService.defaultTimeout(),
+                        maxOutputBytes = maxOutputBytes ?: RenderProcessService.defaultMaxOutputBytes(),
+                    ),
+            ).run(
                 request =
-                    AndroidComposeRenderRequest(
-                        className = "dev.example.PreviewKt",
-                        methodName = "Preview",
-                        widthPx = 10,
-                        heightPx = 10,
-                        density = 1.0f,
-                        robolectricSdk = 35,
-                        outputFile = tempDir.resolve("preview.png"),
-                        semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
-                        layoutTreeOutputFile = tempDir.resolve("preview.layout-tree.json"),
+                    defaultRequest(
                         includeUnmergedSemantics = includeUnmergedSemantics,
                         locale = locale,
                         uiMode = uiMode,
@@ -258,6 +425,38 @@ class DefaultRenderProcessRunnerTest {
             }
         }
     }
+
+    private fun defaultRequest(
+        includeUnmergedSemantics: Boolean = false,
+        locale: String? = null,
+        uiMode: Int? = null,
+        fontScale: Float? = null,
+        showBackground: Boolean = false,
+        backgroundColor: Long? = null,
+    ): AndroidComposeRenderRequest =
+        AndroidComposeRenderRequest(
+            className = "dev.example.PreviewKt",
+            methodName = "Preview",
+            widthPx = 10,
+            heightPx = 10,
+            density = 1.0f,
+            robolectricSdk = 35,
+            outputFile = tempDir.resolve("preview.png"),
+            semanticsOutputFile = tempDir.resolve("preview.semantics.json"),
+            layoutTreeOutputFile = tempDir.resolve("preview.layout-tree.json"),
+            includeUnmergedSemantics = includeUnmergedSemantics,
+            locale = locale,
+            uiMode = uiMode,
+            fontScale = fontScale,
+            showBackground = showBackground,
+            backgroundColor = backgroundColor,
+        )
+
+    private fun isProcessAlive(pid: Long): Boolean =
+        ProcessHandle
+            .of(pid)
+            .map(ProcessHandle::isAlive)
+            .orElse(false)
 
     private fun materializeAarRClassesJarMethod(): Method =
         DefaultRenderProcessRunner::class.java
