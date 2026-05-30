@@ -225,6 +225,8 @@ Useful capture flags:
 | `-PagentPreview.maxCaptures=10` | Fail before rendering if the plan is too broad. Use `0` to assert no captures. |
 | `-PagentPreview.continueOnError=true` | Keep rendering other previews after a failure. |
 | `-PagentPreview.maxParallelRenders=2` | Render concurrently. Start with `1`; raise only when renders are stable. |
+| `-PagentPreview.cropToContent=false` | Disable default content cropping and export the full render viewport. |
+| `-PagentPreview.cropPaddingDp=12` | Override the default 20dp crop padding for this invocation. |
 | `-PagentPreview.fakeRenderer=true` | Debug discovery/index wiring only; screenshots and nodes are placeholders. |
 
 Configure defaults in Gradle when you want stable agent behavior:
@@ -238,6 +240,12 @@ agentPreview {
     maxCaptures.set(8)
     maxParallelRenders.set(1)
     continueOnError.set(true)
+    android {
+        screenshot {
+            cropToContent.set(true) // default
+            cropPaddingDp.set(20)   // default
+        }
+    }
 }
 ```
 
@@ -251,7 +259,7 @@ python3 -m json.tool app/build/agentPreviewReports/capture-report.json
 python3 -m json.tool app/build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/snapshot.json
 ```
 
-Open `screenshot.png` for visual state. Read `snapshot.json` for machine-checkable structure. Schema details are in [snapshot-schema.md](snapshot-schema.md).
+Open `screenshot.png` for visual state. Real rendered screenshots crop to meaningful layout/semantics content by default with 20dp padding. When bounds are unavailable or effectively the full viewport, AgentPreview exports the full viewport instead. Fake-renderer captures currently always export the full viewport. Read `snapshot.json` for machine-checkable structure and crop metadata. Schema details are in [snapshot-schema.md](snapshot-schema.md).
 
 Important `snapshot.json` fields:
 
@@ -263,7 +271,9 @@ Important `snapshot.json` fields:
 | `preview.source`, `preview.sourceSet` | Best-effort preview source location. |
 | `preview.previewParameter` | Provider class, parameter type, cap/limit, and expanded value index. |
 | `viewport.platform`, `viewport.name` | Render target, e.g. `android` + `phone`. |
-| `viewport.width`, `viewport.height`, `viewport.density` | Rendered viewport dimensions. `@Preview(widthDp/heightDp)` overrides configured viewport dimensions. |
+| `viewport.width`, `viewport.height`, `viewport.density` | Original render viewport dimensions. `@Preview(widthDp/heightDp)` overrides configured viewport dimensions. |
+| `screenshot.width`, `screenshot.height` | Exported PNG dimensions after crop/fallback. |
+| `screenshot.crop` | Crop settings, original-viewport crop rectangle when cropped, or fallback reason such as `disabled` or `ambiguous-content-bounds`. |
 | `render.mode` | Renderer used: usually `robolectric`; `fake` means discovery-only placeholder output. |
 | `nodes` | Semantics nodes: text/content descriptions, roles, bounds, actions, tags, optional source. Use this for accessibility and interaction assertions. |
 | `layoutTree` | Experimental layout nodes with bounds and Compose/source hints. Use as a clue, not ground truth. |

@@ -5,6 +5,8 @@
  */
 package dev.staticvar.agentpreview.config
 
+import org.gradle.api.Action
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
@@ -12,7 +14,9 @@ import javax.inject.Inject
 /** Android-specific defaults used by AgentPreview discovery and rendering tasks. */
 abstract class AndroidPreviewConfig
     @Inject
-    constructor() {
+    constructor(
+        objects: ObjectFactory,
+    ) {
         /** Robolectric SDK API level used in the isolated render JVM. */
         abstract val robolectricSdk: Property<Int>
 
@@ -26,10 +30,18 @@ abstract class AndroidPreviewConfig
         /** Named Android viewport presets expanded by `captureComposePreviews` unless viewport filters apply. */
         abstract val viewports: ListProperty<ConfiguredViewport>
 
+        /** Screenshot export options for Android-backed captures. */
+        val screenshot: AndroidScreenshotConfig = objects.newInstance(AndroidScreenshotConfig::class.java)
+
         init {
             robolectricSdk.convention(AndroidPreviewConfigDefaults.ROBOLECTRIC_SDK)
             variant.convention(AndroidPreviewConfigDefaults.VARIANT)
             viewports.convention(AndroidPreviewConfigDefaults.viewports)
+        }
+
+        /** Configures screenshot export behavior. */
+        fun screenshot(action: Action<in AndroidScreenshotConfig>) {
+            action.execute(screenshot)
         }
 
         /** Adds a named Android viewport preset in dp for capture expansion. */
@@ -48,5 +60,21 @@ abstract class AndroidPreviewConfig
                     density = density,
                 ),
             )
+        }
+    }
+
+/** Android screenshot export configuration. */
+abstract class AndroidScreenshotConfig
+    @Inject
+    constructor() {
+        /** Crop screenshots to detected content bounds when reliable bounds exist. */
+        abstract val cropToContent: Property<Boolean>
+
+        /** Padding added around detected content before cropping, in dp. */
+        abstract val cropPaddingDp: Property<Int>
+
+        init {
+            cropToContent.convention(AndroidPreviewConfigDefaults.CROP_TO_CONTENT)
+            cropPaddingDp.convention(AndroidPreviewConfigDefaults.CROP_PADDING_DP)
         }
     }

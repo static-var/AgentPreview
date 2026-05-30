@@ -44,15 +44,31 @@ class SnapshotSerializationTest {
                         ),
                     ),
                 render = SnapshotRenderMetadata(mode = "robolectric"),
+                screenshot =
+                    ScreenshotMetadata(
+                        width = 320,
+                        height = 180,
+                        crop =
+                            ScreenshotCropMetadata(
+                                enabled = true,
+                                fallback = false,
+                                x = 36,
+                                y = 120,
+                                width = 320,
+                                height = 180,
+                                paddingDp = 20,
+                            ),
+                    ),
             )
 
         val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
 
         assertTrue(encoded.contains("\"schemaVersion\": 2"))
-        assertTrue(encoded.contains("\"screenshot\"").not())
+        assertTrue(encoded.contains("\"screenshot\""))
         assertTrue(encoded.contains("\"rawSemantics\"").not())
         assertTrue(encoded.contains("\"render\""))
         assertTrue(encoded.contains("\"mode\": \"robolectric\""))
+        assertTrue(encoded.contains("\"fallback\": false"))
         assertEquals(snapshot, json.decodeFromString(PreviewSnapshot.serializer(), encoded))
     }
 
@@ -142,6 +158,7 @@ class SnapshotSerializationTest {
         val snapshot = json.decodeFromString(PreviewSnapshot.serializer(), encoded)
 
         assertEquals(null, snapshot.render)
+        assertEquals(null, snapshot.screenshot)
         assertEquals(emptyList<SnapshotLayoutNode>(), snapshot.layoutTree)
     }
 }

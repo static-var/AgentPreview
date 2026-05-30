@@ -6,6 +6,8 @@
 package dev.staticvar.agentpreview
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.testkit.runner.GradleRunner
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import javax.imageio.ImageIO
 
+@Suppress("LargeClass")
 class AgentPreviewPluginFunctionalTest {
     @TempDir
     lateinit var projectDir: File
@@ -409,6 +412,13 @@ class AgentPreviewPluginFunctionalTest {
                 .getValue("mode")
                 .jsonPrimitive.content,
         )
+        val screenshotMetadata = snapshotJson.getValue("screenshot").jsonObject
+        assertEquals(393, screenshotMetadata.getValue("width").jsonPrimitive.int)
+        assertEquals(852, screenshotMetadata.getValue("height").jsonPrimitive.int)
+        val cropMetadata = screenshotMetadata.getValue("crop").jsonObject
+        assertEquals(true, cropMetadata.getValue("enabled").jsonPrimitive.boolean)
+        assertEquals(true, cropMetadata.getValue("fallback").jsonPrimitive.boolean)
+        assertEquals("ambiguous-content-bounds", cropMetadata.getValue("reason").jsonPrimitive.content)
     }
 
     @Test

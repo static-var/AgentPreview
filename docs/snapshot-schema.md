@@ -13,7 +13,7 @@ snapshot.json
 
 Current snapshots are emitted with `schemaVersion: 2`.
 
-Version 2 adds preview parameter metadata, optional layout tree data, and optional render metadata to the original compact snapshot shape. Consumers should ignore unknown fields so additive fields can be introduced without breaking older readers. The plugin still decodes older v1 snapshots that omit `preview.previewParameter`, `layoutTree`, and `render`.
+Version 2 adds preview parameter metadata, optional layout tree data, optional render metadata, and screenshot crop metadata to the original compact snapshot shape. Consumers should ignore unknown fields so additive fields can be introduced without breaking older readers. The plugin still decodes older v1 snapshots that omit `preview.previewParameter`, `layoutTree`, `render`, and `screenshot`.
 
 ## JSON Shape
 
@@ -79,6 +79,19 @@ Version 2 adds preview parameter metadata, optional layout tree data, and option
   ],
   "render": {
     "mode": "robolectric"
+  },
+  "screenshot": {
+    "width": 320,
+    "height": 180,
+    "crop": {
+      "enabled": true,
+      "fallback": false,
+      "x": 36,
+      "y": 120,
+      "width": 320,
+      "height": 180,
+      "paddingDp": 20
+    }
   }
 }
 ```
@@ -89,9 +102,28 @@ Optional fields are omitted when no value is available. In fake-renderer mode, `
 
 Parameterized previews are expanded during capture. The listed parent preview id remains filterable, and each captured value uses an expanded id with `:previewParam-N` appended. The `preview.previewParameter.index` field identifies which provider value produced the snapshot.
 
-## Viewports
+## Viewports and Screenshot Crop
 
 Production captures identify the platform and named viewport used for rendering. If an Android `@Preview` omits `widthDp` or `heightDp`, the production renderer renders the preview once for each configured Android viewport, such as `android-phone` and `android-tablet`. If the annotation specifies positive dimensions, those dimensions win and the viewport name is `preview`.
+
+`snapshot.viewport` always describes the original render viewport. `screenshot.png` may be smaller because real rendered screenshots crop to detected layout-tree or semantics content by default with 20dp padding. `screenshot.width` and `screenshot.height` describe the exported PNG. When cropping succeeds, `screenshot.crop.x/y/width/height` map the exported PNG back into original viewport pixel coordinates.
+
+If cropping is disabled or bounds are ambiguous, AgentPreview exports the full viewport and records a fallback:
+
+```json
+"screenshot": {
+  "width": 393,
+  "height": 852,
+  "crop": {
+    "enabled": true,
+    "fallback": true,
+    "reason": "ambiguous-content-bounds",
+    "paddingDp": 20
+  }
+}
+```
+
+When disabled with `-PagentPreview.cropToContent=false` or `agentPreview { android { screenshot { cropToContent.set(false) } } }`, the fallback reason is `disabled`. Override padding with `-PagentPreview.cropPaddingDp=12` or `cropPaddingDp.set(12)`. CLI properties override DSL values for the current invocation.
 
 Future desktop and web renderers should use separate platform-specific viewport configuration instead of reusing Android viewport settings.
 

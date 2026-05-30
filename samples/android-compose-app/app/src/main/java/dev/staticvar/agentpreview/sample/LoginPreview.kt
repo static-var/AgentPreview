@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -85,6 +86,18 @@ fun LoginPreview() {
 @Composable
 fun ResponsiveLoginPreview() {
     LoginCard()
+}
+
+@Preview(name = "Small Crop", group = "Crop", widthDp = 200, heightDp = 200, showBackground = true)
+@Composable
+fun SmallCropPreview() {
+    Box(
+        modifier =
+            Modifier
+                .padding(start = 80.dp, top = 70.dp)
+                .size(width = 40.dp, height = 30.dp)
+                .background(Color(0xFFB3261E)),
+    )
 }
 
 class LoginEmailProvider : PreviewParameterProvider<String> {

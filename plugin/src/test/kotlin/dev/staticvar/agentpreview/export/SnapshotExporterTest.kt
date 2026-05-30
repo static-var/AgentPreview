@@ -14,10 +14,12 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.awt.image.BufferedImage
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import javax.imageio.ImageIO
 
 class SnapshotExporterTest {
     @TempDir
@@ -90,6 +92,32 @@ class SnapshotExporterTest {
         val snapshotJson = dir.resolve("out/app-LoginPreview/snapshot.json").readText()
         assertTrue(snapshotJson.contains("\"schemaVersion\": 2"))
         assertTrue(snapshotJson.contains("\"Hello\""))
+    }
+
+    @Test
+    fun `exports cropped screenshot when crop plan is not fallback`() {
+        val screenshot = dir.resolve("source.png")
+        ImageIO.write(BufferedImage(100, 80, BufferedImage.TYPE_INT_ARGB), "png", screenshot)
+        val snapshot = snapshot(":app:CroppedPreview")
+
+        SnapshotExporter().export(
+            previewId = snapshot.preview.id,
+            screenshotFile = screenshot,
+            snapshot = snapshot,
+            outputRoot = dir.resolve("out"),
+            cropPlan =
+                ScreenshotCropPlan(
+                    enabled = true,
+                    fallback = false,
+                    reason = null,
+                    rect = ScreenshotCropRect(x = 10, y = 20, width = 30, height = 25),
+                    paddingDp = 20,
+                ),
+        )
+
+        val exported = ImageIO.read(dir.resolve("out/app-CroppedPreview/screenshot.png"))
+        assertEquals(30, exported.width)
+        assertEquals(25, exported.height)
     }
 
     private fun snapshot(previewId: String): PreviewSnapshot =
