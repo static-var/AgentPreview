@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.render
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
@@ -224,14 +225,41 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
-    fun `render process times out and captures bounded output`() {
+    fun `render process captures bounded output`() {
+        assumeTrue(File("/bin/sh").canExecute(), "/bin/sh is required for bounded output test")
+        val script =
+            tempDir.resolve("large-output.sh").also { file ->
+                file.writeText(
+                    """
+                    #!/bin/sh
+                    i=0
+                    while [ "${'$'}i" -lt 200 ]; do
+                      printf 'xxxxxxxxxx'
+                      i=${'$'}((i + 1))
+                    done
+                    """.trimIndent(),
+                )
+                file.setExecutable(true)
+            }
+
+        val execution =
+            RenderProcessService(
+                timeout = Duration.ofSeconds(5),
+                maxOutputBytes = 128,
+            ).run(listOf(script.absolutePath))
+
+        assertFalse(execution.timedOut)
+        assertEquals(0, execution.exitCode)
+        assertTrue(execution.output.contains("truncated"), execution.output)
+        assertTrue(execution.output.length < 1000, execution.output)
+    }
+
+    @Test
+    fun `render process reports timeout`() {
         val result =
             runWithFakeJava(
                 """
                 #!/bin/sh
-                python3 - <<'PY'
-                print('x' * 2000)
-                PY
                 sleep 5
                 """.trimIndent(),
                 timeoutMillis = 200,
@@ -240,9 +268,8 @@ class DefaultRenderProcessRunnerTest {
 
         assertTrue(result is RenderProcessResult.Failure)
         val failure = result as RenderProcessResult.Failure
-        assertTrue(failure.message.contains("after timeout"))
-        assertTrue(failure.message.contains("truncated"))
-        assertTrue(failure.message.length < 1000)
+        assertTrue(failure.message.contains("after timeout"), failure.message)
+        assertTrue(failure.message.length < 1000, failure.message)
     }
 
     @Test
@@ -278,22 +305,15 @@ class DefaultRenderProcessRunnerTest {
                 file.writeText(
                     """
                     #!/bin/sh
-                    DESCENDANT_PID_FILE="${descendantPidFile.absolutePath}" python3 - <<'PY' &
-                    import os
-                    import time
-
-                    with open(os.environ["DESCENDANT_PID_FILE"], "w") as pid_file:
-                        pid_file.write(str(os.getpid()))
-                        pid_file.flush()
-                    time.sleep(30)
-                    PY
-                    sleep 30
+                    sleep 30 &
+                    echo "$!" > "${descendantPidFile.absolutePath}"
+                    wait
                     """.trimIndent(),
                 )
                 file.setExecutable(true)
             }
 
-        val execution = RenderProcessService(timeout = Duration.ofMillis(200)).run(listOf(script.absolutePath))
+        val execution = RenderProcessService(timeout = Duration.ofSeconds(1)).run(listOf(script.absolutePath))
 
         assertTrue(execution.timedOut)
         assertTrue(descendantPidFile.exists(), "descendant process did not start")

@@ -45,7 +45,13 @@ class PreviewParameterExpander(
             return PreviewParameterExpansionResult(listOf(preview))
         }
         val diagnostics = resolvedCount?.diagnostics.orEmpty().map { message -> warning(message) }
-        val indexes = indexesToExpand(parameter, resolvedCount?.count)
+        val indexes =
+            PreviewParameterExpansionSpec(
+                parameter = parameter,
+                resolvedCount = resolvedCount?.count,
+                defaultCap = defaultCap,
+                requestedIndexes = requestedIndexes,
+            ).indexesToExpand()
         if (indexes.isEmpty()) return PreviewParameterExpansionResult(previews = emptyList(), diagnostics = diagnostics)
 
         return PreviewParameterExpansionResult(
@@ -58,25 +64,6 @@ class PreviewParameterExpander(
                 },
             diagnostics = diagnostics,
         )
-    }
-
-    private fun indexesToExpand(
-        parameter: PreviewParameterDescriptor,
-        resolvedCount: Int?,
-    ): List<Int> {
-        val effectiveCount =
-            when {
-                resolvedCount != null -> resolvedCount
-                parameter.limit != null -> parameter.limit.coerceAtMost(defaultCap)
-                requestedIndexes.isNotEmpty() -> defaultCap
-                else -> 0
-            }
-        if (effectiveCount <= 0) return emptyList()
-
-        if (requestedIndexes.isNotEmpty()) {
-            return requestedIndexes.filter { index -> index in 0 until effectiveCount }.sorted()
-        }
-        return (0 until effectiveCount).toList()
     }
 
     private fun warning(message: String): PreviewScanDiagnostic =

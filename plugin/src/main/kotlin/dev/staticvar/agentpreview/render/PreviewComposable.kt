@@ -5,6 +5,8 @@
  */
 package dev.staticvar.agentpreview.render
 
+import dev.staticvar.agentpreview.discovery.PreviewParameterProviderAdapter
+
 class PreviewComposable(
     private val className: String,
     private val methodName: String,
@@ -32,27 +34,7 @@ class PreviewComposable(
     private fun previewArguments(): Array<Any?> {
         val providerClassName = previewParameterProviderClassName ?: return emptyArray()
         val index = previewParameterIndex ?: return emptyArray()
-        val providerClass = Class.forName(providerClassName)
-        val constructor = providerClass.getDeclaredConstructor()
-        if (!constructor.canAccess(null)) constructor.isAccessible = true
-        val provider = constructor.newInstance()
-        val values = providerClass.methods.first { it.name == "getValues" && it.parameterTypes.isEmpty() }.invoke(provider)
-        val iterator =
-            when (values) {
-                is Sequence<*> -> {
-                    values.iterator()
-                }
-
-                is Iterable<*> -> {
-                    values.iterator()
-                }
-
-                else -> {
-                    values.javaClass.methods
-                        .first { it.name == "iterator" && it.parameterTypes.isEmpty() }
-                        .invoke(values) as Iterator<*>
-                }
-            }
+        val iterator = PreviewParameterProviderAdapter(javaClass.classLoader).iterator(providerClassName)
         repeat(index) {
             check(iterator.hasNext()) { "PreviewParameterProvider $providerClassName has fewer than ${index + 1} values." }
             iterator.next()
