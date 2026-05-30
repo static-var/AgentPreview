@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview.render
 
+import dev.staticvar.agentpreview.dependencies.SyntheticRJarWriter
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files

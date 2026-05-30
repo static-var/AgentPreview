@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
-package dev.staticvar.agentpreview.render
+package dev.staticvar.agentpreview.dependencies
 
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
@@ -51,7 +51,7 @@ internal class SyntheticRJarWriter {
         classesDir: File,
     ): Boolean {
         val compiler = ToolProvider.getSystemJavaCompiler() ?: return false
-        val args = listOf("--release", "8", "-d", classesDir.absolutePath)
+        val args = listOf("--release", "8", "-Xlint:-options", "-d", classesDir.absolutePath)
         return runJavac(compiler, args, sourceFile)
     }
 

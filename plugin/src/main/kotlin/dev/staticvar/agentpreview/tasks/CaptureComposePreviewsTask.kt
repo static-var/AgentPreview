@@ -23,7 +23,9 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
@@ -122,6 +124,22 @@ abstract class CaptureComposePreviewsTask :
     /** Primary bytecode scan roots; when empty, capture falls back to the generated preview index input. */
     @get:Classpath
     abstract val previewClassesDirs: ConfigurableFileCollection
+
+    /** Android Components project class directories from ScopedArtifact.CLASSES. */
+    @get:Classpath
+    abstract val androidProjectClassDirs: ListProperty<Directory>
+
+    /** Android Components project class jars from ScopedArtifact.CLASSES. */
+    @get:Classpath
+    abstract val androidProjectClassJars: ListProperty<RegularFile>
+
+    /** Android Components all-scope class directories used only as runtime support. */
+    @get:Classpath
+    abstract val androidRuntimeClassDirs: ListProperty<Directory>
+
+    /** Android Components all-scope class jars used only as runtime support. */
+    @get:Classpath
+    abstract val androidRuntimeClassJars: ListProperty<RegularFile>
 
     /** Consumer runtime classpath used for scanner metadata, preview-parameter providers, and target preview classes. */
     @get:Classpath
@@ -414,7 +432,7 @@ abstract class CaptureComposePreviewsTask :
 
     private fun previewClasspath(): List<File> =
         AarClasspathMaterializer().materialize(
-            previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked(),
+            effectivePreviewClasses() + androidRuntimeClasses() + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked(),
         )
 
     private fun effectiveMaxPreviewParameterValues(): Int =
@@ -471,13 +489,14 @@ abstract class CaptureComposePreviewsTask :
             }
 
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
-        if (previewClassesDirs.files.isEmpty()) emptySet() else rendererRuntimeClasspath.files
+        if (effectivePreviewClasses().isEmpty()) emptySet() else rendererRuntimeClasspath.files
 
     private fun logEffectiveRenderingClasspath() {
-        if (previewClassesDirs.files.isEmpty()) return
+        if (effectivePreviewClasses().isEmpty()) return
         logger.lifecycle(
             "AgentPreview capture variant ${selectedVariant.get()} runtime artifacts: " +
                 (previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked())
+                    .plus(androidRuntimeClasses())
                     .joinToString(", ") { it.name },
         )
     }
@@ -495,9 +514,20 @@ abstract class CaptureComposePreviewsTask :
     private fun selectionService(): PreviewSelectionService =
         PreviewSelectionService(
             projectPath = projectPath.get(),
-            classesDirs = previewClassesDirs.files.toList(),
+            classesDirs = effectivePreviewClasses().toList(),
             discoveryClasspath =
-                AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
+                AarClasspathMaterializer().materialize(
+                    previewRuntimeClasspath.files + androidRuntimeClasses() + rendererRuntimeClasspathIfAndroidBacked(),
+                ),
             previewParameterClasspath = previewClasspath(),
         )
+
+    private fun effectivePreviewClasses(): Set<File> =
+        previewClassesDirs.files +
+            androidProjectClassDirs.get().map { directory -> directory.asFile } +
+            androidProjectClassJars.get().map { jar -> jar.asFile }
+
+    private fun androidRuntimeClasses(): Set<File> =
+        androidRuntimeClassDirs.get().map { directory -> directory.asFile }.toSet() +
+            androidRuntimeClassJars.get().map { jar -> jar.asFile }
 }

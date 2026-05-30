@@ -31,89 +31,120 @@ class AgentPreviewPlugin : Plugin<Project> {
                 project,
             )
 
-        AndroidPreviewAutoWiring(project, extension).configure()
         val previewIndexFile = project.layout.buildDirectory.file("agentPreview/discovered-previews.json")
         val selectedVariant = extension.android.variant
+        val variantRuntimeConfigurations = mutableMapOf<String, Configuration>()
 
-        project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
-            it.group = "agent preview"
-            it.description = "Lists Compose previews discoverable by Preview For Agents."
-            it.previewIndexFile.set(
-                project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
-            )
-            it.projectPath.set(project.path)
-            it.previewNameFilter.set(extension.previewNameFilter)
-            it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
-            it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
-            it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
-            it.previewClassesDirs.from(extension.previewClassesDirs)
-            it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.previewSupportClasspath.from(
-                project.provider { resolveRendererClasspath(project, selectedVariant.get()).previewSupportFiles },
-            )
-            it.selectedVariant.set(selectedVariant)
-            it.robolectricSdk.set(extension.android.robolectricSdk)
-            it.javaMajorVersion.set(javaMajorVersion(project))
-        }
+        val listComposePreviews =
+            project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
+                it.group = "agent preview"
+                it.description = "Lists Compose previews discoverable by Preview For Agents."
+                it.previewIndexFile.set(
+                    project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
+                )
+                it.projectPath.set(project.path)
+                it.previewNameFilter.set(extension.previewNameFilter)
+                it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
+                it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
+                it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
+                it.previewClassesDirs.from(extension.previewClassesDirs)
+                it.androidProjectClassDirs.convention(emptyList())
+                it.androidProjectClassJars.convention(emptyList())
+                it.androidRuntimeClassDirs.convention(emptyList())
+                it.androidRuntimeClassJars.convention(emptyList())
+                it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+                it.previewSupportClasspath.from(
+                    project.provider {
+                        resolveRendererClasspath(
+                            project = project,
+                            variant = selectedVariant.get(),
+                            providerBackedRuntimeConfiguration = variantRuntimeConfigurations[selectedVariant.get()],
+                        ).previewSupportFiles
+                    },
+                )
+                it.selectedVariant.set(selectedVariant)
+                it.robolectricSdk.set(extension.android.robolectricSdk)
+                it.javaMajorVersion.set(javaMajorVersion(project))
+            }
 
-        project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
-            it.group = "agent preview"
-            it.description = "Captures Compose previews into screenshot.png and snapshot.json bundles."
-            it.previewIndexFile.set(
-                project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
-            )
-            it.projectPath.set(project.path)
-            it.outputDirectory.set(extension.outputDirectory)
-            it.reportDirectory.set(project.layout.buildDirectory.dir("agentPreviewReports"))
-            it.renderOutputDirectory.set(project.layout.buildDirectory.dir("agentPreview/render"))
-            it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
-            it.previewNameFilter.set(extension.previewNameFilter)
-            it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
-            it.viewportNameFilter.set(extension.viewportNameFilter)
-            it.viewportNameFilter.addAll(csvGradleProperty(project, "agentPreview.viewportFilter"))
-            it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
-            it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
-            it.maxCaptures.set(extension.maxCaptures)
-            it.cliMaxCaptures.set(project.providers.gradleProperty("agentPreview.maxCaptures"))
-            it.maxParallelRenders.set(extension.maxParallelRenders)
-            it.cliMaxParallelRenders.set(project.providers.gradleProperty("agentPreview.maxParallelRenders"))
-            it.dryRun.set(false)
-            it.cliDryRun.set(project.providers.gradleProperty("agentPreview.dryRun"))
-            it.continueOnError.set(extension.continueOnError)
-            it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
-            it.previewClassesDirs.from(extension.previewClassesDirs)
-            it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
-            it.rendererRuntimeClasspath.from(
-                project.provider { resolveRendererClasspath(project, selectedVariant.get()).rendererRuntimeFiles },
-            )
-            it.selectedVariant.set(selectedVariant)
-            it.androidViewportsJson.set(
-                project.provider {
-                    Json.encodeToString(
-                        ListSerializer(ConfiguredViewport.serializer()),
-                        extension.android.viewports.get(),
-                    )
-                },
-            )
-            it.robolectricSdk.set(extension.android.robolectricSdk)
-            it.javaMajorVersion.set(javaMajorVersion(project))
-            it.fakeRenderer.set(
-                project.providers
-                    .gradleProperty("agentPreview.fakeRenderer")
-                    .map(String::toBoolean)
-                    .orElse(false),
-            )
-        }
+        val captureComposePreviews =
+            project.tasks.register("captureComposePreviews", CaptureComposePreviewsTask::class.java) {
+                it.group = "agent preview"
+                it.description = "Captures Compose previews into screenshot.png and snapshot.json bundles."
+                it.previewIndexFile.set(
+                    project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
+                )
+                it.projectPath.set(project.path)
+                it.outputDirectory.set(extension.outputDirectory)
+                it.reportDirectory.set(project.layout.buildDirectory.dir("agentPreviewReports"))
+                it.renderOutputDirectory.set(project.layout.buildDirectory.dir("agentPreview/render"))
+                it.includeUnmergedSemantics.set(extension.includeUnmergedSemantics)
+                it.previewNameFilter.set(extension.previewNameFilter)
+                it.previewNameFilter.addAll(csvGradleProperty(project, "agentPreview.previewNameFilter"))
+                it.viewportNameFilter.set(extension.viewportNameFilter)
+                it.viewportNameFilter.addAll(csvGradleProperty(project, "agentPreview.viewportFilter"))
+                it.maxPreviewParameterValues.set(extension.maxPreviewParameterValues)
+                it.cliMaxPreviewParameterValues.set(project.providers.gradleProperty("agentPreview.maxPreviewParameterValues"))
+                it.maxCaptures.set(extension.maxCaptures)
+                it.cliMaxCaptures.set(project.providers.gradleProperty("agentPreview.maxCaptures"))
+                it.maxParallelRenders.set(extension.maxParallelRenders)
+                it.cliMaxParallelRenders.set(project.providers.gradleProperty("agentPreview.maxParallelRenders"))
+                it.dryRun.set(false)
+                it.cliDryRun.set(project.providers.gradleProperty("agentPreview.dryRun"))
+                it.continueOnError.set(extension.continueOnError)
+                it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
+                it.previewClassesDirs.from(extension.previewClassesDirs)
+                it.androidProjectClassDirs.convention(emptyList())
+                it.androidProjectClassJars.convention(emptyList())
+                it.androidRuntimeClassDirs.convention(emptyList())
+                it.androidRuntimeClassJars.convention(emptyList())
+                it.previewRuntimeClasspath.from(extension.previewRuntimeClasspath)
+                it.rendererRuntimeClasspath.from(
+                    project.provider {
+                        resolveRendererClasspath(
+                            project = project,
+                            variant = selectedVariant.get(),
+                            providerBackedRuntimeConfiguration = variantRuntimeConfigurations[selectedVariant.get()],
+                        ).rendererRuntimeFiles
+                    },
+                )
+                it.selectedVariant.set(selectedVariant)
+                it.androidViewportsJson.set(
+                    project.provider {
+                        Json.encodeToString(
+                            ListSerializer(ConfiguredViewport.serializer()),
+                            extension.android.viewports.get(),
+                        )
+                    },
+                )
+                it.robolectricSdk.set(extension.android.robolectricSdk)
+                it.javaMajorVersion.set(javaMajorVersion(project))
+                it.fakeRenderer.set(
+                    project.providers
+                        .gradleProperty("agentPreview.fakeRenderer")
+                        .map(String::toBoolean)
+                        .orElse(false),
+                )
+            }
+
+        AndroidPreviewAutoWiring(
+            project = project,
+            extension = extension,
+            listComposePreviews = listComposePreviews,
+            captureComposePreviews = captureComposePreviews,
+            registerRuntimeConfiguration = { variant, configuration -> variantRuntimeConfigurations[variant] = configuration },
+        ).configure()
     }
 
     private fun resolveRendererClasspath(
         project: Project,
         variant: String,
+        providerBackedRuntimeConfiguration: Configuration?,
     ): ResolvedRendererClasspath {
         RendererDependencyPolicy.requireSupportedVariant(variant)
         val runtimeProvider = VariantRuntimeClasspathProvider(project)
         val inspectedConfigurations = runtimeProvider.inspectedConfigurationNames(variant)
-        val variantRuntimeConfiguration = runtimeProvider.configurationFor(variant)
+        val variantRuntimeConfiguration = providerBackedRuntimeConfiguration ?: runtimeProvider.configurationFor(variant)
         val runtimeArtifacts = variantRuntimeConfiguration.resolvedArtifacts()
         val resolution =
             RendererSupportClasspathResolver().resolve(

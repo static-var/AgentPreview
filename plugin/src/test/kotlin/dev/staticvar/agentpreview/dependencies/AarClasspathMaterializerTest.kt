@@ -38,10 +38,30 @@ class AarClasspathMaterializerTest {
         assertTrue(materialized.any { containsEntry(it, "androidx/compose/ui/tooling/data/Group.class") })
     }
 
+    @Test
+    fun `materializes synthetic R jar for aar binary resource references`() {
+        val classesJar =
+            tempDir.resolve("classes-source.jar").also {
+                writeJar(
+                    it,
+                    "androidx/example/lib/UsesR.class",
+                    "constant pool reference to androidx/example/lib/R${'$'}id".toByteArray(),
+                )
+            }
+        val embeddedJar = tempDir.resolve("embedded-source.jar").also { writeJar(it, "androidx/example/lib/Embedded.class") }
+        val aar = tempDir.resolve("example.aar")
+        writeAar(aar, classesJar, embeddedJar, rTxt = "int id action_button 0x0\n")
+
+        val materialized = AarClasspathMaterializer(tempDir.resolve("materialized")).materialize(listOf(aar))
+
+        assertTrue(materialized.any { containsEntry(it, "androidx/example/lib/R${'$'}id.class") })
+    }
+
     private fun writeAar(
         aar: File,
         classesJar: File,
         embeddedJar: File,
+        rTxt: String? = null,
     ) {
         ZipOutputStream(aar.outputStream()).use { zip ->
             zip.putNextEntry(ZipEntry("classes.jar"))
@@ -50,16 +70,22 @@ class AarClasspathMaterializerTest {
             zip.putNextEntry(ZipEntry("libs/embedded.jar"))
             embeddedJar.inputStream().use { it.copyTo(zip) }
             zip.closeEntry()
+            if (rTxt != null) {
+                zip.putNextEntry(ZipEntry("R.txt"))
+                zip.write(rTxt.toByteArray())
+                zip.closeEntry()
+            }
         }
     }
 
     private fun writeJar(
         jar: File,
         entryName: String,
+        bytes: ByteArray = byteArrayOf(0),
     ) {
         JarOutputStream(jar.outputStream()).use { output ->
             output.putNextEntry(ZipEntry(entryName))
-            output.write(byteArrayOf(0))
+            output.write(bytes)
             output.closeEntry()
         }
     }
