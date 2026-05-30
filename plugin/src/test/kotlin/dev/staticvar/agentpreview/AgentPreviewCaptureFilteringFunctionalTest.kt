@@ -353,6 +353,27 @@ class AgentPreviewCaptureFilteringFunctionalTest {
     }
 
     @Test
+    fun `parallel default rendering fails fast without continue on error`() {
+        writeSettings()
+        writeBuildFile()
+        writeThreePreviewIndex()
+
+        val result = runCaptureAndFail("-PagentPreview.maxParallelRenders=2")
+
+        assertTrue(result.output.contains("parallel render workers: 2"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:LoginPreview"), result.output)
+        assertTrue(result.output.contains(":app:commonMain:SettingsPreview"), result.output)
+        assertFalse(result.output.contains(":app:commonMain:QueuedPreview"), result.output)
+        assertTrue(result.output.contains("AgentPreview capture failed"), result.output)
+        val reportText = projectDir.resolve("build/agentPreviewReports/capture-report.json").readText()
+        assertFalse(reportText.contains("\":app:commonMain:QueuedPreview\""), reportText)
+        val reportJson = Json.parseToJsonElement(reportText).jsonObject
+        assertEquals("false", reportJson.getValue("continueOnError").jsonPrimitive.content)
+        assertEquals("2", reportJson.getValue("maxParallelRenders").jsonPrimitive.content)
+        assertEquals("2", reportJson.getValue("failedViewportCaptureCount").jsonPrimitive.content)
+    }
+
+    @Test
     fun `continue on error attempts remaining captures and reports failures`() {
         writeSettings()
         writeBuildFile()
@@ -597,6 +618,22 @@ class AgentPreviewCaptureFilteringFunctionalTest {
             )
         }
     }
+
+    private fun writeThreePreviewIndex() {
+        projectDir.resolve("build/agentPreview/discovered-previews.json").apply {
+            parentFile.mkdirs()
+            writeText(
+                listOf(
+                    previewJson("Login"),
+                    previewJson("Settings"),
+                    previewJson("Queued"),
+                ).joinToString(prefix = "[", postfix = "]"),
+            )
+        }
+    }
+
+    private fun previewJson(name: String): String =
+        """{"id":":app:commonMain:${name}Preview","name":"$name","sourceSet":"commonMain","fullyQualifiedFunctionName":"dev.staticvar.${name}PreviewKt.${name}Preview","sourceFile":"${name}Preview.kt","widthDp":393,"heightDp":852}"""
 
     private fun writeParameterizedIndex(
         id: String,

@@ -34,6 +34,12 @@ jobs:
       - name: Run quality gates and tests
         run: ./gradlew spotlessCheck detekt :plugin:test :preview-scanner:test
 
+      - name: Smoke test Android sample fake captures
+        run: ./gradlew -p samples/android-compose-app :app:listComposePreviews :app:captureComposePreviews -PagentPreview.fakeRenderer=true
+
+      - name: Smoke test CMP sample fake captures
+        run: ./gradlew -p samples/cmp-compose-app :composeApp:listComposePreviews :composeApp:captureComposePreviews -PagentPreview.fakeRenderer=true
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v4

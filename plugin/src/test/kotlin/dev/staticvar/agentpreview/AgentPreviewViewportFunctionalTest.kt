@@ -5,7 +5,11 @@
  */
 package dev.staticvar.agentpreview
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.testkit.runner.GradleRunner
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -35,9 +39,9 @@ class AgentPreviewViewportFunctionalTest {
         val tabletSnapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-ResponsivePreview/android-tablet/snapshot.json")
         assertTrue(phoneSnapshot.isFile)
         assertTrue(tabletSnapshot.isFile)
-        assertTrue(phoneSnapshot.readText().contains("\"platform\": \"android\""))
-        assertTrue(phoneSnapshot.readText().contains("\"name\": \"phone\""))
-        assertTrue(tabletSnapshot.readText().contains("\"width\": 800"))
+        assertEquals("android", phoneSnapshot.viewportString("platform"))
+        assertEquals("phone", phoneSnapshot.viewportString("name"))
+        assertEquals(800, tabletSnapshot.viewportInt("width"))
     }
 
     @Test
@@ -81,8 +85,8 @@ class AgentPreviewViewportFunctionalTest {
 
         val snapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-FixedPreview/android-preview/snapshot.json")
         assertTrue(snapshot.isFile)
-        assertTrue(snapshot.readText().contains("\"name\": \"preview\""))
-        assertTrue(snapshot.readText().contains("\"width\": 320"))
+        assertEquals("preview", snapshot.viewportString("name"))
+        assertEquals(320, snapshot.viewportInt("width"))
         assertFalse(projectDir.resolve("build/agentPreviewSnapshots/app-main-FixedPreview/android-phone").exists())
     }
 
@@ -103,10 +107,10 @@ class AgentPreviewViewportFunctionalTest {
 
         val phoneSnapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-WidthOnlyPreview/android-phone/snapshot.json")
         val tabletSnapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-WidthOnlyPreview/android-tablet/snapshot.json")
-        assertTrue(phoneSnapshot.readText().contains("\"width\": 320"))
-        assertTrue(phoneSnapshot.readText().contains("\"height\": 852"))
-        assertTrue(tabletSnapshot.readText().contains("\"width\": 320"))
-        assertTrue(tabletSnapshot.readText().contains("\"height\": 1280"))
+        assertEquals(320, phoneSnapshot.viewportInt("width"))
+        assertEquals(852, phoneSnapshot.viewportInt("height"))
+        assertEquals(320, tabletSnapshot.viewportInt("width"))
+        assertEquals(1280, tabletSnapshot.viewportInt("height"))
     }
 
     @Test
@@ -126,10 +130,10 @@ class AgentPreviewViewportFunctionalTest {
 
         val phoneSnapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-HeightOnlyPreview/android-phone/snapshot.json")
         val tabletSnapshot = projectDir.resolve("build/agentPreviewSnapshots/app-main-HeightOnlyPreview/android-tablet/snapshot.json")
-        assertTrue(phoneSnapshot.readText().contains("\"width\": 393"))
-        assertTrue(phoneSnapshot.readText().contains("\"height\": 640"))
-        assertTrue(tabletSnapshot.readText().contains("\"width\": 800"))
-        assertTrue(tabletSnapshot.readText().contains("\"height\": 640"))
+        assertEquals(393, phoneSnapshot.viewportInt("width"))
+        assertEquals(640, phoneSnapshot.viewportInt("height"))
+        assertEquals(800, tabletSnapshot.viewportInt("width"))
+        assertEquals(640, tabletSnapshot.viewportInt("height"))
     }
 
     private fun writeBasicSettings() {
@@ -191,6 +195,17 @@ class AgentPreviewViewportFunctionalTest {
             )
         }
     }
+
+    private fun File.viewportString(key: String): String =
+        Json
+            .parseToJsonElement(readText())
+            .jsonObject
+            .getValue("viewport")
+            .jsonObject
+            .getValue(key)
+            .jsonPrimitive.content
+
+    private fun File.viewportInt(key: String): Int = viewportString(key).toInt()
 
     private fun runCapture() {
         GradleRunner

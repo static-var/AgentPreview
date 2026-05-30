@@ -5,6 +5,9 @@
  */
 package dev.staticvar.agentpreview
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -382,14 +385,30 @@ class AgentPreviewPluginFunctionalTest {
         assertEquals(852, image.height)
         assertFalse(staleBundle.exists())
         val snapshotJson =
-            projectDir
-                .resolve(
-                    "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
-                ).readText()
-        assertTrue(snapshotJson.contains("\"Login\""))
-        assertTrue(snapshotJson.contains("\"schemaVersion\": 2"))
-        assertTrue(snapshotJson.contains("\"render\""))
-        assertTrue(snapshotJson.contains("\"mode\": \"fake\""))
+            Json
+                .parseToJsonElement(
+                    projectDir
+                        .resolve(
+                            "build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/snapshot.json",
+                        ).readText(),
+                ).jsonObject
+        assertEquals("2", snapshotJson.getValue("schemaVersion").jsonPrimitive.content)
+        assertEquals(
+            "Login",
+            snapshotJson
+                .getValue("preview")
+                .jsonObject
+                .getValue("name")
+                .jsonPrimitive.content,
+        )
+        assertEquals(
+            "fake",
+            snapshotJson
+                .getValue("render")
+                .jsonObject
+                .getValue("mode")
+                .jsonPrimitive.content,
+        )
     }
 
     @Test
