@@ -49,6 +49,8 @@ Capture previews:
 ./gradlew :app:captureComposePreviews
 ```
 
+Real rendered screenshots crop to detected Compose content by default with 20dp padding. If layout/semantics bounds are ambiguous, AgentPreview keeps the full viewport and records the fallback in `snapshot.json`.
+
 For a focused capture while iterating:
 
 ```bash
@@ -57,6 +59,8 @@ For a focused capture while iterating:
   -PagentPreview.viewportFilter=phone \
   -PagentPreview.maxCaptures=4
 ```
+
+Use `-PagentPreview.cropToContent=false` for full-viewport diagnostic captures, or `-PagentPreview.cropPaddingDp=12` to override the default crop padding for one run.
 
 Outputs are written under:
 

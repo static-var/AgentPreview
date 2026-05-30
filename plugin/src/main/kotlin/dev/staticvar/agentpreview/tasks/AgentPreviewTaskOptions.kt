@@ -6,6 +6,9 @@
 package dev.staticvar.agentpreview.tasks
 
 object AgentPreviewTaskOptions {
+    private const val CROP_TO_CONTENT_ERROR =
+        "agentPreview.cropToContent must be true or false. Pass -PagentPreview.cropToContent=true|false."
+
     fun maxPreviewParameterValues(
         defaultValue: Int,
         cliValue: String?,
@@ -54,6 +57,25 @@ object AgentPreviewTaskOptions {
         return value ?: defaultValue
     }
 
+    fun cropToContent(
+        defaultValue: Boolean,
+        cliValue: String?,
+    ): Boolean {
+        val value = cliValue?.toBooleanStrictOrNull()
+        require(cliValue == null || value != null) { CROP_TO_CONTENT_ERROR }
+        return value ?: defaultValue
+    }
+
+    fun cropPaddingDp(
+        defaultValue: Int,
+        cliValue: String?,
+    ): Int {
+        val value = cliValue?.toIntOrNull() ?: defaultValue
+        require(cliValue == null || cliValue.toIntOrNull() != null) { cropPaddingDpError() }
+        require(value >= 0) { cropPaddingDpError() }
+        return value
+    }
+
     private fun maxPreviewParameterValuesError(): String =
         "agentPreview.maxPreviewParameterValues must be a positive integer. " +
             "Configure agentPreview { maxPreviewParameterValues.set(n) } or pass -PagentPreview.maxPreviewParameterValues=n."
@@ -73,4 +95,8 @@ object AgentPreviewTaskOptions {
     private fun continueOnErrorError(): String =
         "agentPreview.continueOnError must be true or false. " +
             "Configure agentPreview { continueOnError.set(true|false) } or pass -PagentPreview.continueOnError=true|false."
+
+    private fun cropPaddingDpError(): String =
+        "agentPreview.cropPaddingDp must be a non-negative integer. " +
+            "Configure agentPreview { android { screenshot { cropPaddingDp.set(n) } } } or pass -PagentPreview.cropPaddingDp=n."
 }

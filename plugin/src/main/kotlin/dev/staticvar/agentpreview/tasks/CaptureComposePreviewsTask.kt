@@ -9,11 +9,13 @@ import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.export.PreviewSnapshotMapper
+import dev.staticvar.agentpreview.export.ScreenshotCropPlanner
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.export.SnapshotOutputPath
 import dev.staticvar.agentpreview.model.CaptureFailure
 import dev.staticvar.agentpreview.model.CaptureReport
 import dev.staticvar.agentpreview.model.PreviewDescriptor
+import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
@@ -35,6 +37,7 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import javax.imageio.ImageIO
 
 abstract class CaptureComposePreviewsTask :
     DefaultTask(),
@@ -112,6 +115,24 @@ abstract class CaptureComposePreviewsTask :
     @get:Input
     @get:Optional
     abstract val cliContinueOnError: Property<String>
+
+    /** Crop screenshots to detected content bounds when reliable bounds exist. */
+    @get:Input
+    abstract val cropToContent: Property<Boolean>
+
+    /** CLI scalar override for [cropToContent]. */
+    @get:Input
+    @get:Optional
+    abstract val cliCropToContent: Property<String>
+
+    /** Padding added around detected content before cropping, in dp. */
+    @get:Input
+    abstract val cropPaddingDp: Property<Int>
+
+    /** CLI scalar override for [cropPaddingDp]. */
+    @get:Input
+    @get:Optional
+    abstract val cliCropPaddingDp: Property<String>
 
     /** Use the deterministic fake renderer for wiring tests instead of launching the real Android renderer. */
     @get:Input
@@ -297,12 +318,38 @@ abstract class CaptureComposePreviewsTask :
         try {
             val renderer = CaptureRenderer(renderSettings)
             val renderResult = renderer.render(request.preview, request.viewport, request.scratchDirectory)
+            val screenshot =
+                ImageIO.read(renderResult.screenshotFile)
+                    ?: error("AgentPreview renderer did not produce a readable PNG at ${renderResult.screenshotFile.absolutePath}.")
+            val semanticsNodes = renderResult.rawSemantics as? List<*> ?: emptyList<Any>()
+            val cropSemanticsNodes =
+                semanticsNodes
+                    .filterIsInstance<SnapshotNode>()
+                    .takeUnless { renderSettings.useFakeRenderer }
+                    .orEmpty()
+            val cropPlan =
+                ScreenshotCropPlanner().plan(
+                    bitmapWidth = screenshot.width,
+                    bitmapHeight = screenshot.height,
+                    density = renderResult.viewport.density,
+                    cropToContent = renderSettings.cropToContent,
+                    cropPaddingDp = renderSettings.cropPaddingDp,
+                    layoutTree = renderResult.layoutTree.takeUnless { renderSettings.useFakeRenderer }.orEmpty(),
+                    semanticsNodes = cropSemanticsNodes,
+                )
             SnapshotExporter().export(
                 previewId = request.preview.id,
                 screenshotFile = renderResult.screenshotFile,
-                snapshot = PreviewSnapshotMapper().map(request.preview, renderResult, renderSettings.useFakeRenderer),
+                snapshot =
+                    PreviewSnapshotMapper().map(
+                        preview = request.preview,
+                        renderResult = renderResult,
+                        useFakeRenderer = renderSettings.useFakeRenderer,
+                        cropPlan = cropPlan,
+                    ),
                 outputRoot = renderSettings.outputRoot,
                 viewport = request.viewport,
+                cropPlan = cropPlan,
             )
             SingleCaptureResult.Captured(request.preview.id, request.viewport, renderResult.renderMode.logLabel)
         } catch (exception: Exception) {
@@ -380,6 +427,8 @@ abstract class CaptureComposePreviewsTask :
         val robolectricSdk: Int,
         val previewClasspath: List<File>,
         val includeUnmergedSemantics: Boolean,
+        val cropToContent: Boolean,
+        val cropPaddingDp: Int,
     )
 
     private fun renderSettings() =
@@ -390,6 +439,8 @@ abstract class CaptureComposePreviewsTask :
             robolectricSdk = robolectricSdk.get(),
             previewClasspath = previewClasspath(),
             includeUnmergedSemantics = includeUnmergedSemantics.get(),
+            cropToContent = effectiveCropToContent(),
+            cropPaddingDp = effectiveCropPaddingDp(),
         )
 
     private class CaptureRenderer(
@@ -463,6 +514,18 @@ abstract class CaptureComposePreviewsTask :
         AgentPreviewTaskOptions.continueOnError(
             defaultValue = continueOnError.get(),
             cliValue = cliContinueOnError.orNull,
+        )
+
+    private fun effectiveCropToContent(): Boolean =
+        AgentPreviewTaskOptions.cropToContent(
+            defaultValue = cropToContent.get(),
+            cliValue = cliCropToContent.orNull,
+        )
+
+    private fun effectiveCropPaddingDp(): Int =
+        AgentPreviewTaskOptions.cropPaddingDp(
+            defaultValue = cropPaddingDp.get(),
+            cliValue = cliCropPaddingDp.orNull,
         )
 
     private fun captureSummary(

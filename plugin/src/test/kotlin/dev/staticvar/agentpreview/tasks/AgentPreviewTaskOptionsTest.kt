@@ -17,6 +17,8 @@ class AgentPreviewTaskOptionsTest {
         assertEquals(12, AgentPreviewTaskOptions.maxCaptures(defaultValue = 4, cliValue = "12"))
         assertEquals(true, AgentPreviewTaskOptions.dryRun(defaultValue = false, cliValue = "true"))
         assertEquals(true, AgentPreviewTaskOptions.continueOnError(defaultValue = false, cliValue = "true"))
+        assertEquals(false, AgentPreviewTaskOptions.cropToContent(defaultValue = true, cliValue = "false"))
+        assertEquals(12, AgentPreviewTaskOptions.cropPaddingDp(defaultValue = 20, cliValue = "12"))
     }
 
     @Test
@@ -26,6 +28,8 @@ class AgentPreviewTaskOptionsTest {
         assertEquals(null, AgentPreviewTaskOptions.maxCaptures(defaultValue = null, cliValue = null))
         assertEquals(false, AgentPreviewTaskOptions.dryRun(defaultValue = false, cliValue = null))
         assertEquals(false, AgentPreviewTaskOptions.continueOnError(defaultValue = false, cliValue = null))
+        assertEquals(true, AgentPreviewTaskOptions.cropToContent(defaultValue = true, cliValue = null))
+        assertEquals(20, AgentPreviewTaskOptions.cropPaddingDp(defaultValue = 20, cliValue = null))
     }
 
     @Test
@@ -41,6 +45,19 @@ class AgentPreviewTaskOptionsTest {
             "agentPreview.dryRun must be true or false. Pass -PagentPreview.dryRun=true|false.",
             assertThrows(IllegalArgumentException::class.java) {
                 AgentPreviewTaskOptions.dryRun(defaultValue = false, cliValue = "yes")
+            }.message,
+        )
+        assertEquals(
+            "agentPreview.cropToContent must be true or false. Pass -PagentPreview.cropToContent=true|false.",
+            assertThrows(IllegalArgumentException::class.java) {
+                AgentPreviewTaskOptions.cropToContent(defaultValue = true, cliValue = "yes")
+            }.message,
+        )
+        assertEquals(
+            "agentPreview.cropPaddingDp must be a non-negative integer. " +
+                "Configure agentPreview { android { screenshot { cropPaddingDp.set(n) } } } or pass -PagentPreview.cropPaddingDp=n.",
+            assertThrows(IllegalArgumentException::class.java) {
+                AgentPreviewTaskOptions.cropPaddingDp(defaultValue = 20, cliValue = "-1")
             }.message,
         )
     }

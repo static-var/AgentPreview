@@ -17,4 +17,5 @@ data class PreviewSnapshot(
     val nodes: List<SnapshotNode>,
     val layoutTree: List<SnapshotLayoutNode> = emptyList(),
     val render: SnapshotRenderMetadata? = null,
+    val screenshot: ScreenshotMetadata? = null,
 )
