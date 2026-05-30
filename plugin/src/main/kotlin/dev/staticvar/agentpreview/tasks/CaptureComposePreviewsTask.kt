@@ -8,11 +8,6 @@ package dev.staticvar.agentpreview.tasks
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
-import dev.staticvar.agentpreview.discovery.IsolatedPreviewParameterCountResolver
-import dev.staticvar.agentpreview.discovery.JsonIndexPreviewDiscovery
-import dev.staticvar.agentpreview.discovery.PreviewDiscovery
-import dev.staticvar.agentpreview.discovery.PreviewDiscoveryResult
-import dev.staticvar.agentpreview.discovery.PreviewParameterExpander
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.model.CURRENT_SNAPSHOT_SCHEMA_VERSION
 import dev.staticvar.agentpreview.model.CaptureFailure
@@ -170,31 +165,22 @@ abstract class CaptureComposePreviewsTask :
     private fun capturePlan(): CapturePlan {
         val filters = previewNameFilter.get().toSet()
         val viewportFilters = viewportNameFilter.get().toSet()
-        val discoveryResult = discoverPreviews(previewIndexFileOrNull())
-        val expansionCandidates =
-            discoveryResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesBeforePreviewParameterExpansion(filters) }
-        val expansionResult = expandPreviewParameters(expansionCandidates, effectiveMaxPreviewParameterValues())
-        logDiagnostics(discoveryResult.diagnostics + expansionResult.diagnostics)
-        val previews =
-            expansionResult.previews
-                .filter { preview -> filters.isEmpty() || preview.matchesAfterPreviewParameterExpansion(filters) }
-        val plannedCaptures = plannedCaptures(previews, viewportFilters)
-        return CapturePlan(
-            discoveredPreviewCount = discoveryResult.previews.size,
-            expandedPreviewCount = expansionResult.previews.size,
-            selectedPreviewCount = previews.size,
-            plannedCaptures = plannedCaptures,
-            skippedByPreviewFilterCount =
-                (discoveryResult.previews.size - expansionCandidates.size) +
-                    (expansionResult.previews.size - previews.size),
-            skippedByViewportFilterCount = plannedCaptures.sumOf { it.skippedByViewportFilter },
+        val selection =
+            selectionService().select(
+                indexFile = previewIndexFileOrNull(),
+                filters = filters,
+                maxPreviewParameterValues = effectiveMaxPreviewParameterValues(),
+                mode = PreviewSelectionService.Mode.CAPTURE,
+            )
+        logDiagnostics(selection.diagnostics)
+        return CapturePlanBuilder(androidViewports()).build(
+            selection = selection,
+            viewportFilters = viewportFilters,
             dryRun = effectiveDryRun(),
             continueOnError = effectiveContinueOnError(),
             maxCaptures = effectiveMaxCaptures(),
             maxParallelRenders = effectiveMaxParallelRenders(),
-            previewFilters = filters.toList().sorted(),
-            viewportFilters = viewportFilters.toList().sorted(),
+            previewFilters = filters,
         )
     }
 
@@ -385,20 +371,6 @@ abstract class CaptureComposePreviewsTask :
         }
     }
 
-    private fun plannedCaptures(
-        previews: List<PreviewDescriptor>,
-        viewportFilters: Set<String>,
-    ): List<PlannedPreviewCapture> =
-        previews.map { preview ->
-            val resolvedViewports = viewportsFor(preview)
-            val selectedViewports = resolvedViewports.filter { viewport -> viewportFilters.isEmpty() || viewport.matches(viewportFilters) }
-            PlannedPreviewCapture(
-                preview = preview,
-                viewports = selectedViewports,
-                skippedByViewportFilter = resolvedViewports.size - selectedViewports.size,
-            )
-        }
-
     private fun writeReport(report: CaptureReport) {
         val reportFile = reportFile()
         reportFile.parentFile.mkdirs()
@@ -408,12 +380,6 @@ abstract class CaptureComposePreviewsTask :
     private fun reportFile(): File = reportDirectory.get().asFile.resolve("capture-report.json")
 
     private fun Viewport.label(): String = "$platform-$name"
-
-    private data class PlannedPreviewCapture(
-        val preview: PreviewDescriptor,
-        val viewports: List<Viewport>,
-        val skippedByViewportFilter: Int,
-    )
 
     private data class CaptureResult(
         val capturedViewportCount: Int,
@@ -444,44 +410,6 @@ abstract class CaptureComposePreviewsTask :
         data class Failed(
             val failure: CaptureFailure,
         ) : SingleCaptureResult
-    }
-
-    private data class CapturePlan(
-        val discoveredPreviewCount: Int,
-        val expandedPreviewCount: Int,
-        val selectedPreviewCount: Int,
-        val plannedCaptures: List<PlannedPreviewCapture>,
-        val skippedByPreviewFilterCount: Int,
-        val skippedByViewportFilterCount: Int,
-        val dryRun: Boolean,
-        val continueOnError: Boolean,
-        val maxCaptures: Int?,
-        val maxParallelRenders: Int,
-        val previewFilters: List<String>,
-        val viewportFilters: List<String>,
-    ) {
-        val plannedViewportCaptureCount: Int = plannedCaptures.sumOf { it.viewports.size }
-
-        fun report(
-            capturedViewportCount: Int = 0,
-            failures: List<CaptureFailure> = emptyList(),
-        ) = CaptureReport(
-            discoveredPreviewCount = discoveredPreviewCount,
-            expandedPreviewCount = expandedPreviewCount,
-            selectedPreviewCount = selectedPreviewCount,
-            plannedViewportCaptureCount = plannedViewportCaptureCount,
-            capturedViewportCaptureCount = capturedViewportCount,
-            failedViewportCaptureCount = failures.size,
-            skippedByPreviewFilterCount = skippedByPreviewFilterCount,
-            skippedByViewportFilterCount = skippedByViewportFilterCount,
-            dryRun = dryRun,
-            continueOnError = continueOnError,
-            maxCaptures = maxCaptures,
-            maxParallelRenders = maxParallelRenders,
-            previewFilters = previewFilters,
-            viewportFilters = viewportFilters,
-            failures = failures,
-        )
     }
 
     private fun renderSettings() =
@@ -517,39 +445,6 @@ abstract class CaptureComposePreviewsTask :
             }
     }
 
-    private fun viewportsFor(preview: PreviewDescriptor): List<Viewport> =
-        if (preview.hasExplicitWidth() && preview.hasExplicitHeight()) {
-            listOf(
-                Viewport(
-                    platform = "android",
-                    name = "preview",
-                    width = requireNotNull(preview.widthDp),
-                    height = requireNotNull(preview.heightDp),
-                    density = 1.0f,
-                ),
-            )
-        } else {
-            androidViewports().map { configured ->
-                Viewport(
-                    platform = configured.platform,
-                    name = configured.name,
-                    width = preview.widthDp.takeIf { preview.hasExplicitWidth() } ?: configured.width,
-                    height = preview.heightDp.takeIf { preview.hasExplicitHeight() } ?: configured.height,
-                    density = configured.density,
-                )
-            }
-        }
-
-    private fun Viewport.matches(filters: Set<String>): Boolean =
-        filters.any { filter ->
-            name.matchesPreviewFilter(filter) ||
-                "$platform-$name" == filter
-        }
-
-    private fun PreviewDescriptor.hasExplicitWidth(): Boolean = widthDp != null && widthDp > 0
-
-    private fun PreviewDescriptor.hasExplicitHeight(): Boolean = heightDp != null && heightDp > 0
-
     private fun androidViewports(): List<ConfiguredViewport> =
         Json.decodeFromString(
             ListSerializer(ConfiguredViewport.serializer()),
@@ -568,23 +463,6 @@ abstract class CaptureComposePreviewsTask :
         AarClasspathMaterializer().materialize(
             previewClassesDirs.files + previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked(),
         )
-
-    private fun expandPreviewParameters(
-        previews: List<PreviewDescriptor>,
-        maxPreviewParameterValues: Int,
-    ) = PreviewParameterExpander(
-        resolver =
-            if (previewClassesDirs.files.isEmpty()) {
-                null
-            } else {
-                IsolatedPreviewParameterCountResolver(
-                    previewClasspath = previewClasspath(),
-                    defaultCap = maxPreviewParameterValues,
-                )
-            },
-        defaultCap = maxPreviewParameterValues,
-        requestedIndexes = previewNameFilter.get().toSet().previewParameterFilterIndexes(),
-    ).expand(previews)
 
     private fun effectiveMaxPreviewParameterValues(): Int =
         AgentPreviewTaskOptions.maxPreviewParameterValues(
@@ -661,21 +539,14 @@ abstract class CaptureComposePreviewsTask :
         }
     }
 
-    private fun discoverPreviews(indexFile: File?): PreviewDiscoveryResult =
-        if (previewClassesDirs.files.isNotEmpty()) {
-            PreviewDiscovery(
-                projectPath = projectPath.get(),
-                sourceSetName = "main",
-                classesDirs = previewClassesDirs.files.toList(),
-                runtimeClasspath =
-                    AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
-            ).discoverWithDiagnostics()
-        } else {
-            PreviewDiscoveryResult(
-                previews = indexFile?.let { JsonIndexPreviewDiscovery(it).discover() }.orEmpty(),
-                diagnostics = emptyList(),
-            )
-        }
+    private fun selectionService(): PreviewSelectionService =
+        PreviewSelectionService(
+            projectPath = projectPath.get(),
+            classesDirs = previewClassesDirs.files.toList(),
+            discoveryClasspath =
+                AarClasspathMaterializer().materialize(previewRuntimeClasspath.files + rendererRuntimeClasspathIfAndroidBacked()),
+            previewParameterClasspath = previewClasspath(),
+        )
 
     private fun sourceLabel(preview: PreviewDescriptor): String =
         if (preview.sourceLine == null) preview.sourceFile else "${preview.sourceFile}:${preview.sourceLine}"
