@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2026 Shreyansh Lodha
  */
+import org.gradle.plugin.compatibility.compatibility
 plugins {
     `java-gradle-plugin`
     alias(libs.plugins.kotlin.jvm)
@@ -27,6 +28,11 @@ gradlePlugin {
             displayName = "Preview For Agents"
             description = "Captures Compose previews into agent-readable screenshot and snapshot artifacts."
             tags.set(listOf("compose", "android", "preview", "screenshots", "ai-agents"))
+            compatibility {
+                features {
+                    configurationCache.set(true)
+                }
+            }
         }
     }
 }
