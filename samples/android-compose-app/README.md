@@ -2,6 +2,8 @@
 
 This sample validates AgentPreview against a real Android Compose application module.
 
+The sample uses `includeBuild("../..")` so it exercises this repository checkout. Published users should apply `id("dev.staticvar.agentpreview") version "0.1.0"` in their Android app or library module instead.
+
 Run from the repository root with the root Gradle wrapper:
 
 ```bash
