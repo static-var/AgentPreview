@@ -27,27 +27,7 @@ class BoundedPreviewParameterValueCounter(
 
     private fun countOrThrow(parameter: PreviewParameterDescriptor): PreviewParameterCount {
         val effectiveLimit = effectiveLimit(parameter)
-        val providerClass = Class.forName(parameter.providerClassName, true, classLoader)
-        val constructor = providerClass.getDeclaredConstructor()
-        if (!constructor.canAccess(null)) constructor.isAccessible = true
-        val provider = constructor.newInstance()
-        val values = providerClass.methods.first { it.name == "getValues" && it.parameterTypes.isEmpty() }.invoke(provider)
-        val iterator =
-            when (values) {
-                is Sequence<*> -> {
-                    values.iterator()
-                }
-
-                is Iterable<*> -> {
-                    values.iterator()
-                }
-
-                else -> {
-                    values.javaClass.methods
-                        .first { it.name == "iterator" && it.parameterTypes.isEmpty() }
-                        .invoke(values) as Iterator<*>
-                }
-            }
+        val iterator = PreviewParameterProviderAdapter(classLoader).iterator(parameter.providerClassName)
 
         var count = 0
         while (count < effectiveLimit && iterator.hasNext()) {
