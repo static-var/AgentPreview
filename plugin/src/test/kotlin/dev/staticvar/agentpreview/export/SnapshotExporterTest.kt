@@ -67,7 +67,7 @@ class SnapshotExporterTest {
         val screenshot = dir.resolve("source.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }
         val snapshot =
             PreviewSnapshot(
-                schemaVersion = 2,
+                schemaVersion = 1,
                 preview = PreviewMetadata(id = ":app:LoginPreview", name = "Login"),
                 viewport = Viewport(width = 100, height = 200, density = 1.0f),
                 nodes =
@@ -90,7 +90,7 @@ class SnapshotExporterTest {
 
         assertTrue(dir.resolve("out/app-LoginPreview/screenshot.png").isFile)
         val snapshotJson = dir.resolve("out/app-LoginPreview/snapshot.json").readText()
-        assertTrue(snapshotJson.contains("\"schemaVersion\": 2"))
+        assertTrue(snapshotJson.contains("\"schemaVersion\": 1"))
         assertTrue(snapshotJson.contains("\"Hello\""))
     }
 
@@ -122,7 +122,7 @@ class SnapshotExporterTest {
 
     private fun snapshot(previewId: String): PreviewSnapshot =
         PreviewSnapshot(
-            schemaVersion = 2,
+            schemaVersion = 1,
             preview = PreviewMetadata(id = previewId, name = "Login"),
             viewport = Viewport(width = 100, height = 200, density = 1.0f),
             nodes =

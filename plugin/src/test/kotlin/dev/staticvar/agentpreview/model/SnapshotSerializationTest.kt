@@ -21,7 +21,7 @@ class SnapshotSerializationTest {
     fun `snapshot serializes compact agent model`() {
         val snapshot =
             PreviewSnapshot(
-                schemaVersion = 2,
+                schemaVersion = 1,
                 preview =
                     PreviewMetadata(
                         id = ":app:commonMain:LoginPreview",
@@ -63,7 +63,7 @@ class SnapshotSerializationTest {
 
         val encoded = json.encodeToString(PreviewSnapshot.serializer(), snapshot)
 
-        assertTrue(encoded.contains("\"schemaVersion\": 2"))
+        assertTrue(encoded.contains("\"schemaVersion\": 1"))
         assertTrue(encoded.contains("\"screenshot\""))
         assertTrue(encoded.contains("\"rawSemantics\"").not())
         assertTrue(encoded.contains("\"render\""))
@@ -76,7 +76,7 @@ class SnapshotSerializationTest {
     fun `snapshot serializes experimental layout tree when present`() {
         val snapshot =
             PreviewSnapshot(
-                schemaVersion = 2,
+                schemaVersion = 1,
                 preview =
                     PreviewMetadata(
                         id = "Preview",
@@ -132,7 +132,7 @@ class SnapshotSerializationTest {
     }
 
     @Test
-    fun `snapshot decodes without render metadata or layout tree for backwards compatibility`() {
+    fun `snapshot decodes when optional metadata fields are omitted`() {
         val encoded =
             """
             {

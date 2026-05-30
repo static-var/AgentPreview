@@ -11,15 +11,15 @@ snapshot.json
 
 ## Versioning
 
-Current snapshots are emitted with `schemaVersion: 2`.
+Current snapshots are emitted with `schemaVersion: 1`.
 
-Version 2 adds preview parameter metadata, optional layout tree data, optional render metadata, and screenshot crop metadata to the original compact snapshot shape. Consumers should ignore unknown fields so additive fields can be introduced without breaking older readers. The plugin still decodes older v1 snapshots that omit `preview.previewParameter`, `layoutTree`, `render`, and `screenshot`.
+`schemaVersion` identifies the current snapshot shape and gives consumers a stable field to check if the schema changes in the future. Consumers should ignore unknown fields so additive fields can be introduced without breaking older readers.
 
 ## JSON Shape
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "preview": {
     "id": ":app:commonMain:LoginPreview:previewParam-0",
     "name": "Login",
