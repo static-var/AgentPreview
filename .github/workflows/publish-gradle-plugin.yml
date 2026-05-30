@@ -1,0 +1,57 @@
+name: Publish Gradle Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, for example 0.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Gradle Plugin Portal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Validate release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo "Invalid release version: $RELEASE_VERSION" >&2
+            echo "Expected a semantic version like 0.1.0 or 0.1.0-rc.1." >&2
+            exit 1
+          fi
+
+      - name: Run quality gates
+        run: ./gradlew spotlessCheck detekt :plugin:test :preview-scanner:test validatePlugins
+
+      - name: Validate release dependency graph
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: ./gradlew :plugin:compileKotlin "-PVERSION_NAME=$RELEASE_VERSION"
+
+      - name: Publish plugin to Gradle Plugin Portal
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: ./gradlew publishPlugins "-PVERSION_NAME=$RELEASE_VERSION"

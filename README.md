@@ -12,9 +12,17 @@ Preview ids are sanitized for file paths: `:app:main:LoginPreview` becomes `app-
 
 Use it when an agent is editing Compose UI and needs a quick screenshot plus structured preview data without driving the full app.
 
-## Local setup
+## Setup
 
-The plugin is not published yet. Add this checkout as an included build in the target project's `settings.gradle.kts`:
+Use the published Gradle Plugin Portal plugin in the target module that owns the previews:
+
+```kotlin
+plugins {
+    id("dev.staticvar.agentpreview") version "0.1.0"
+}
+```
+
+For local development against this checkout, add it as an included build in the target project's `settings.gradle.kts` and omit the version where the plugin is applied:
 
 ```kotlin
 pluginManagement {
@@ -26,8 +34,6 @@ pluginManagement {
     }
 }
 ```
-
-Apply the plugin to the Android app/library or Compose Multiplatform module that owns the previews:
 
 ```kotlin
 plugins {
