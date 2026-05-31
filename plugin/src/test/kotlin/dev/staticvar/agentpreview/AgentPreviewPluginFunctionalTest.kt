@@ -380,6 +380,10 @@ class AgentPreviewPluginFunctionalTest {
                 .build()
 
         assertTrue(result.output.contains("Captured :app:commonMain:LoginPreview"))
+        assertTrue(result.output.contains("AgentPreview snapshots written to:"), result.output)
+        assertTrue(result.output.contains("/build/agentPreviewSnapshots"), result.output)
+        assertTrue(result.output.contains("AgentPreview report written to:"), result.output)
+        assertTrue(result.output.contains("/build/agentPreviewReports/capture-report.json"), result.output)
         val screenshot = projectDir.resolve("build/agentPreviewSnapshots/app-commonMain-LoginPreview/android-preview/screenshot.png")
         assertTrue(screenshot.isFile)
         val image = ImageIO.read(screenshot)

@@ -191,6 +191,7 @@ abstract class CaptureComposePreviewsTask :
         if (plan.dryRun) {
             writeReport(plan.report())
             logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0)
+            logArtifactLocations(plan, wroteSnapshots = false)
             logNoSelection(plan)
             return
         }
@@ -201,6 +202,7 @@ abstract class CaptureComposePreviewsTask :
         if (plan.selectedPreviewCount == 0) {
             writeReport(plan.report())
             logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0)
+            logArtifactLocations(plan, wroteSnapshots = false)
             logger.lifecycle("No Compose previews selected for capture.")
             return
         }
@@ -208,6 +210,7 @@ abstract class CaptureComposePreviewsTask :
         val result = renderCaptures(plan)
         writeReport(plan.report(result.capturedViewportCount, result.failures))
         logSummary(plan, result.capturedViewportCount, result.failures.size)
+        logArtifactLocations(plan, wroteSnapshots = result.capturedViewportCount > 0)
         if (result.failures.isNotEmpty() && !plan.continueOnError && plan.maxParallelRenders > 1) {
             logger.lifecycle(
                 "AgentPreview stopped scheduling new captures after the first parallel failure; " +
@@ -402,6 +405,17 @@ abstract class CaptureComposePreviewsTask :
                 dryRun = plan.dryRun,
             ),
         )
+    }
+
+    private fun logArtifactLocations(
+        plan: CapturePlan,
+        wroteSnapshots: Boolean,
+    ) {
+        if (wroteSnapshots) {
+            logger.lifecycle("AgentPreview snapshots written to: ${outputDirectory.get().asFile.absolutePath}")
+        }
+        val reportLabel = if (plan.dryRun) "dry-run report" else "report"
+        logger.lifecycle("AgentPreview $reportLabel written to: ${reportFile().absolutePath}")
     }
 
     private fun logNoSelection(plan: CapturePlan) {
