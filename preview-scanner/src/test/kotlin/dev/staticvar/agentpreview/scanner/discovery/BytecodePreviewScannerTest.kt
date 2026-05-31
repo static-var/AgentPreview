@@ -167,7 +167,7 @@ class BytecodePreviewScannerTest {
     private fun scanRealComposeFixtureClasses(): PreviewScanResult =
         BytecodePreviewScanner().scan(
             PreviewScanInput(
-                projectPath = ":compose-fixtures",
+                projectPath = ":preview-scanner:compose-fixtures",
                 sourceSetName = "main",
                 classesDirs = listOf(realComposeFixtureLocation()),
                 runtimeClasspath = emptyList(),

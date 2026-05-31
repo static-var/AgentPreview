@@ -12,7 +12,7 @@ dependencies {
     implementation(libs.asm)
 
     testImplementation(libs.junit.jupiter)
-    testImplementation(project(":preview-scanner-compose-fixtures"))
+    testImplementation(project(":preview-scanner:compose-fixtures"))
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
