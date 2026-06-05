@@ -38,7 +38,7 @@ class AgentPreviewPlugin : Plugin<Project> {
         val listComposePreviews =
             project.tasks.register("listComposePreviews", ListComposePreviewsTask::class.java) {
                 it.group = "agent preview"
-                it.description = "Lists Compose previews discoverable by Preview For Agents."
+                it.description = "Lists Compose previews discoverable by AgentPreview."
                 it.previewIndexFile.set(
                     project.provider { previewIndexFile.get().takeIf { file -> file.asFile.isFile } },
                 )

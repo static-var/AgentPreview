@@ -11,7 +11,7 @@ ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew -p samples/kmp-design-system :d
 ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew -p samples/kmp-design-system :designSystem:captureComposePreviews
 ```
 
-Adjust `ANDROID_HOME` for your local Android SDK location. Add `-PagentPreview.fakeRenderer=true` to the capture command only for discovery/debugging; do not use fake-renderer output as visual evidence.
+SDK lookup also checks `ANDROID_SDK_ROOT` and root `local.properties` `sdk.dir`. Install `platforms;android-35`. Add `-PagentPreview.fakeRenderer=true` only for discovery/debugging; do not use fake or diagnostic-fallback output as visual evidence.
 
 Expected outputs are written under:
 
