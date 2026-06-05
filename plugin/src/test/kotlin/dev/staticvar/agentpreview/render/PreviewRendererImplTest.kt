@@ -20,7 +20,9 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.awt.image.BufferedImage
 import java.io.File
+import javax.imageio.ImageIO
 
 class PreviewRendererImplTest {
     @TempDir
@@ -35,6 +37,8 @@ class PreviewRendererImplTest {
         androidJar.writeText("")
         projectDir.mkdirs()
         projectDir.resolve("local.properties").writeText("sdk.dir=${sdkRoot.absolutePath}\n")
+        val sourcePng = tempDir.resolve("source.png")
+        ImageIO.write(BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), "png", sourcePng)
         val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
         val javaExecutable = tempDir.resolve("fake-java/bin/java")
         javaExecutable.parentFile.mkdirs()
@@ -45,7 +49,7 @@ class PreviewRendererImplTest {
               *"${androidJar.absolutePath}"*) ;;
               *) echo "classpath did not contain supplied-base android.jar: $2"; exit 42 ;;
             esac
-            printf '\211PNG\0\0\0\0\0' > "${'$'}{10}"
+            cp "${sourcePng.absolutePath}" "${'$'}{10}"
             cat > "${'$'}{21}" <<'EOF'
             status=success
             EOF
