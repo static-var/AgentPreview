@@ -27,12 +27,19 @@ object AndroidComposeRendererInRobolectric {
         backgroundColor: Long? = null,
         previewParameterProviderClassName: String? = null,
         previewParameterIndex: Int? = null,
+        androidAssetsDir: File? = null,
+        androidAssetApk: File? = null,
+        fontProbe: Boolean = false,
     ) {
         outputFile.parentFile.mkdirs()
         semanticsOutputFile.parentFile.mkdirs()
         layoutTreeOutputFile.parentFile.mkdirs()
 
         val activity = RobolectricActivityHost().createActivity(density, fontScale, locale, uiMode)
+        androidAssetApk?.let { addAssetPath(activity, it) }
+        if (fontProbe) {
+            androidAssetsDir?.let { AndroidFontAssetProbe.probe(activity, it) }
+        }
         val toolingRecord = ToolingCompositionRecord.createOrNull()
         setContent(activity, className, methodName, previewParameterProviderClassName, previewParameterIndex, toolingRecord)
         val view =
@@ -99,6 +106,30 @@ object AndroidComposeRendererInRobolectric {
         } else {
             backgroundColor.toInt()
         }
+
+    internal fun addAssetPath(
+        activity: Any,
+        assetApk: File,
+    ): Boolean {
+        val assets =
+            runCatching { activity.javaClass.getMethod("getAssets").invoke(activity) }
+                .getOrElse { throwable ->
+                    System.err.println(
+                        "AgentPreview asset apk: failed to read Activity.assets for ${assetApk.absolutePath}: ${throwable.javaClass.name}: ${throwable.message}",
+                    )
+                    return false
+                }
+        return runCatching {
+            val cookie = assets.javaClass.getMethod("addAssetPath", String::class.java).invoke(assets, assetApk.absolutePath) as? Int ?: 0
+            System.err.println("AgentPreview asset apk: addAssetPath(${assetApk.absolutePath}) returned $cookie")
+            cookie != 0
+        }.getOrElse { throwable ->
+            System.err.println(
+                "AgentPreview asset apk: failed to add ${assetApk.absolutePath}: ${throwable.javaClass.name}: ${throwable.message}",
+            )
+            false
+        }
+    }
 
     private fun setContent(
         activity: Any,

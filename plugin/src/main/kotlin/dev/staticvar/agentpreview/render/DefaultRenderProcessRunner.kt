@@ -24,6 +24,10 @@ internal class DefaultRenderProcessRunner(
     private val processService: RenderProcessService = RenderProcessService(),
     private val classpathMaterializer: ClasspathMaterializer = AarClasspathMaterializer(),
 ) : RenderProcessRunner {
+    private companion object {
+        const val FONT_PROBE_PREFIX = "AgentPreview font probe:"
+    }
+
     override fun run(
         request: AndroidComposeRenderRequest,
         previewClasspath: List<File>,
@@ -33,7 +37,19 @@ internal class DefaultRenderProcessRunner(
             return RenderProcessResult.Failure(RenderProcessFailureKind.HarnessFailure, javaExecutable.diagnostic)
         }
         val androidJar = environment.androidJar(request.robolectricSdk)
-        val classpath = classpathMaterializer.materialize(currentPluginClasspath() + androidJar.files + previewClasspath)
+        val robolectricConfigClasspath =
+            request.androidAssetsDir?.let { assetsDir ->
+                val configRoot = request.outputFile.parentFile.resolve("robolectric-test-config")
+                RobolectricTestConfigWriter().write(configRoot, assetsDir)
+            }
+        val androidAssetApk =
+            request.androidAssetApk
+                ?: request.androidAssetsDir?.let { assetsDir ->
+                    AndroidAssetApkWriter().write(assetsDir, request.outputFile.parentFile.resolve("agentpreview-assets.apk"))
+                }
+        val classpath =
+            listOfNotNull(robolectricConfigClasspath) +
+                classpathMaterializer.materialize(currentPluginClasspath() + androidJar.files + previewClasspath)
         val harnessResultFile = File.createTempFile("agentpreview-render-harness-", ".properties")
         harnessResultFile.delete()
         val harnessCommand =
@@ -56,6 +72,9 @@ internal class DefaultRenderProcessRunner(
                 previewParameterProviderClassName = request.previewParameterProviderClassName,
                 previewParameterIndex = request.previewParameterIndex,
                 resultFile = harnessResultFile,
+                androidAssetsDir = request.androidAssetsDir,
+                androidAssetApk = androidAssetApk,
+                fontProbe = request.fontProbe,
             )
         val command =
             listOf(
@@ -77,6 +96,9 @@ internal class DefaultRenderProcessRunner(
         val output = listOfNotNull(androidJar.diagnostic, execution.output.takeIf { it.isNotBlank() }).joinToString("\n")
         if (execution.exitCode == 0) {
             androidJar.diagnostic?.let { diagnostic -> System.err.println("AgentPreview: $diagnostic") }
+            if (request.fontProbe) {
+                printFontProbeDiagnostics(execution.output)
+            }
             harnessResultFile.delete()
             return RenderProcessResult.Success
         }
@@ -95,6 +117,13 @@ internal class DefaultRenderProcessRunner(
                 },
             message = message,
         )
+    }
+
+    private fun printFontProbeDiagnostics(output: String) {
+        output
+            .lineSequence()
+            .filter { it.startsWith(FONT_PROBE_PREFIX) }
+            .forEach { System.err.println(it) }
     }
 
     private fun currentPluginClasspath(): List<File> {

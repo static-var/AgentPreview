@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.render
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -94,6 +95,25 @@ class AndroidComposeRendererInRobolectricTest {
         val backgroundColor = AndroidComposeRendererInRobolectric.effectiveBackgroundColor(backgroundColor = 0xFF112233)
 
         assertEquals(0xFF112233.toInt(), backgroundColor)
+    }
+
+    @Test
+    fun `add asset path reflection invokes activity assets`() {
+        val assets = FakeAssetManager()
+        val activity = FakeActivity(assets)
+        val apk = tempDir.resolve("assets.apk")
+
+        val added = AndroidComposeRendererInRobolectric.addAssetPath(activity, apk)
+
+        assertTrue(added)
+        assertEquals(apk.absolutePath, assets.paths.single())
+    }
+
+    @Test
+    fun `add asset path reflection returns false when method is unavailable`() {
+        val added = AndroidComposeRendererInRobolectric.addAssetPath(Any(), tempDir.resolve("assets.apk"))
+
+        assertFalse(added)
     }
 
     @Test
@@ -532,6 +552,21 @@ class AndroidComposeRendererInRobolectricTest {
         @JvmField
         var uiMode: Int,
     )
+
+    class FakeActivity(
+        private val assets: FakeAssetManager,
+    ) {
+        fun getAssets(): FakeAssetManager = assets
+    }
+
+    class FakeAssetManager {
+        val paths = mutableListOf<String>()
+
+        fun addAssetPath(path: String): Int {
+            paths += path
+            return 1
+        }
+    }
 
     private fun captureStderr(block: () -> Unit): String {
         val originalErr = System.err

@@ -34,6 +34,7 @@ class PreviewRendererImplTest {
                 robolectricSdk = 35,
                 previewClasspath = listOf(File("app/classes"), File("app/runtime.jar")),
                 includeUnmergedSemantics = true,
+                androidAssetsDir = File("app/merged-assets"),
                 processRunner = processRunner,
             )
         val preview =
@@ -77,6 +78,7 @@ class PreviewRendererImplTest {
                 fontScale = 1.3f,
                 showBackground = true,
                 backgroundColor = 0xFF112233,
+                androidAssetsDir = File("app/merged-assets"),
             ),
             processRunner.request,
         )

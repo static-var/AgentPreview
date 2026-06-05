@@ -95,6 +95,16 @@ internal class AndroidVariantPreviewWiring(
             jarsProperty = CaptureComposePreviewsTask::androidRuntimeClassJars,
             dirsProperty = CaptureComposePreviewsTask::androidRuntimeClassDirs,
         )
+        wireMergedAssets(artifacts)
+    }
+
+    private fun wireMergedAssets(artifacts: Any) {
+        val assetsArtifact =
+            artifacts.javaClass.classLoader.objectInstanceOrNull("com.android.build.api.artifact.SingleArtifact\$ASSETS") ?: return
+        val mergedAssets = artifacts.invokeIfPresentReturning("get", assetsArtifact) ?: return
+        captureComposePreviews.configure { task ->
+            task.androidAssetsDirs.from(mergedAssets)
+        }
     }
 
     private fun <T : Task> wireScopedClasses(
@@ -133,16 +143,23 @@ internal class AndroidVariantPreviewWiring(
         methodName: String,
         vararg args: Any,
     ): Boolean {
-        val method = matchingMethod(methodName, args) ?: return false
-        runCatching {
-            method.invoke(this, *args)
+        invokeIfPresentReturning(methodName, *args) ?: return false
+        return true
+    }
+
+    private fun Any.invokeIfPresentReturning(
+        methodName: String,
+        vararg args: Any,
+    ): Any? {
+        val method = matchingMethod(methodName, args) ?: return null
+        return runCatching {
+            method.invoke(this, *args) ?: Unit
         }.getOrElse { exception ->
             error(
                 "AgentPreview could not invoke Android Components API '$methodName' on ${javaClass.name}: " +
                     exception.message.orEmpty(),
             )
         }
-        return true
     }
 
     private fun Any.matchingMethod(
@@ -164,6 +181,8 @@ internal class AndroidVariantPreviewWiring(
     }
 
     private fun ClassLoader.objectInstance(className: String): Any = loadClass(className).getField("INSTANCE").get(null)
+
+    private fun ClassLoader.objectInstanceOrNull(className: String): Any? = runCatching { objectInstance(className) }.getOrNull()
 
     internal companion object {
         const val ANDROID_APPLICATION_PLUGIN_ID = "com.android.application"

@@ -248,6 +248,78 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
+    fun `wires Android library merged assets into capture task when artifact API is available`() {
+        writeSettings(requireAndroidSdk = true)
+        projectDir.resolve("src/main/assets/standard.txt").writeTextCreatingParents("standard asset")
+        projectDir.resolve("build.gradle.kts").writeText(
+            androidLibraryBuildScript(
+                """
+                tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                    doFirst {
+                        val effectiveAssetFiles = effectiveAndroidAssetsDirs.files.flatMap { root ->
+                            root.walkTopDown()
+                                .filter { it.isFile }
+                                .map { it.relativeTo(root).invariantSeparatorsPath }
+                                .toList()
+                        }.sorted()
+                        println("effectiveAndroidAssetsDirs=" + effectiveAndroidAssetsDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                        println("effectiveAndroidAssetFiles=" + effectiveAssetFiles.joinToString("|"))
+                    }
+                }
+                """.trimIndent(),
+            ),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.dryRun=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":mergeDebugAssets")?.outcome)
+        assertTrue(result.output.contains("effectiveAndroidAssetsDirs="), result.output)
+        assertTrue(result.output.contains("effectiveAndroidAssetFiles=standard.txt"), result.output)
+    }
+
+    @Test
+    fun `wires Android KMP merged assets into capture task when artifact API is available`() {
+        writeSettings(includeAndroidKmpStub = true)
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+
+            plugins {
+                id("com.android.kotlin.multiplatform.library")
+                id("dev.staticvar.agentpreview")
+            }
+
+            tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                doFirst {
+                    println("androidAssetsDirs=" + androidAssetsDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                    println("effectiveAndroidAssetsDirs=" + effectiveAndroidAssetsDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+        writeAndroidKmpStubPlugin()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("stub-assets/merged"), result.output)
+        assertTrue(result.output.contains("effectiveAndroidAssetsDirs="), result.output)
+    }
+
+    @Test
     fun `wires Android KMP components under configuration cache`() {
         writeSettings(includeAndroidKmpStub = true)
         projectDir.resolve("android-kmp-runtime.jar").writeText("runtime")
@@ -518,6 +590,20 @@ class AndroidAutoWiringFunctionalTest {
             }
             """.trimIndent(),
         )
+        stubDir.resolve("src/main/java/com/android/build/api/artifact/SingleArtifact.java").writeTextCreatingParents(
+            """
+            package com.android.build.api.artifact;
+
+            public final class SingleArtifact {
+                public static final class ASSETS {
+                    public static final ASSETS INSTANCE = new ASSETS();
+
+                    private ASSETS() {
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
         stubDir.resolve("src/main/java/stub/AndroidKmpStubPlugin.java").writeTextCreatingParents(
             """
             package stub;
@@ -615,6 +701,10 @@ class AndroidAutoWiringFunctionalTest {
                             "stub-classes/" + scope.name().toLowerCase(Locale.ROOT)
                         );
                         dirs.add((Provider<Object>) stubClasses);
+                    }
+
+                    public Provider<?> get(Object singleArtifact) {
+                        return project.getLayout().getBuildDirectory().dir("stub-assets/merged");
                     }
                 }
             }
@@ -751,6 +841,7 @@ class AndroidAutoWiringFunctionalTest {
 
     private fun androidLibraryBuildScript(body: String): String =
         """
+        import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
         import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
 
         plugins {

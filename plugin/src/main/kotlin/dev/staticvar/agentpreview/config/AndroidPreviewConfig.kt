@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.config
 
 import org.gradle.api.Action
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
@@ -29,6 +30,9 @@ abstract class AndroidPreviewConfig
 
         /** Named Android viewport presets expanded by `captureComposePreviews` unless viewport filters apply. */
         abstract val viewports: ListProperty<ConfiguredViewport>
+
+        /** Android asset source directories merged for real Android-backed captures. */
+        val assetsDirs: ConfigurableFileCollection = objects.fileCollection()
 
         /** Screenshot export options for Android-backed captures. */
         val screenshot: AndroidScreenshotConfig = objects.newInstance(AndroidScreenshotConfig::class.java)

@@ -66,6 +66,103 @@ class AgentPreviewPluginFunctionalTest {
     }
 
     @Test
+    fun `capture task sdk lookup base dir defaults to root project directory`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+            }
+
+            tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                doFirst {
+                    println("sdkLookupBaseDir=" + sdkLookupBaseDir.get())
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.output.contains("sdkLookupBaseDir=${projectDir.canonicalPath}"), result.output)
+    }
+
+    @Test
+    fun `fake renderer capture ignores configured android asset inputs`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("src/main/assets").mkdirs()
+        val assetFile = projectDir.resolve("src/main/assets/data.txt")
+        assetFile.writeText("first")
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+                android {
+                    assetsDirs.from(files("src/main/assets"))
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val firstResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+        assertEquals(TaskOutcome.SUCCESS, firstResult.task(":captureComposePreviews")?.outcome)
+
+        assetFile.writeText("second")
+        val secondResult =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, secondResult.task(":captureComposePreviews")?.outcome)
+        assertFalse(projectDir.resolve("build/agentPreview/render/merged-assets").exists())
+    }
+
+    @Test
     fun `capture filter accepts listed parent id for all preview parameter values`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
@@ -230,6 +327,48 @@ class AgentPreviewPluginFunctionalTest {
         assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
         assertTrue(result.output.contains("parameterizedPreview:previewParam-0"), result.output)
         assertTrue(result.output.contains("parameterizedPreview:previewParam-1"), result.output)
+    }
+
+    @Test
+    fun `fake capture accepts android assets DSL without materializing assets`() {
+        val assetsDir = projectDir.resolve("src/main/assets").apply { mkdirs() }
+        assetsDir.resolve("fixture.txt").writeText("asset")
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            agentPreview {
+                previewClassesDirs.from(files("${testClassesDir().invariantSeparatorsPath}"))
+                android {
+                    assetsDirs.from(files("${assetsDir.invariantSeparatorsPath}"))
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.fakeRenderer=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertFalse(projectDir.resolve("build/agentPreview/render/merged-assets").exists())
     }
 
     @Test
