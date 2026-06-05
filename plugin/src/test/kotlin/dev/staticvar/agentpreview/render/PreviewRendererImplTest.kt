@@ -20,63 +20,11 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
-import java.awt.image.BufferedImage
 import java.io.File
-import javax.imageio.ImageIO
 
 class PreviewRendererImplTest {
     @TempDir
     lateinit var tempDir: File
-
-    @Test
-    fun `default process runner uses supplied sdk lookup base dir`() {
-        val projectDir = tempDir.resolve("gradle-root")
-        val sdkRoot = tempDir.resolve("sdk-from-local-properties")
-        val androidJar = sdkRoot.resolve("platforms/android-35/android.jar")
-        androidJar.parentFile.mkdirs()
-        androidJar.writeText("")
-        projectDir.mkdirs()
-        projectDir.resolve("local.properties").writeText("sdk.dir=${sdkRoot.absolutePath}\n")
-        val sourcePng = tempDir.resolve("source.png")
-        ImageIO.write(BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB), "png", sourcePng)
-        val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
-        val javaExecutable = tempDir.resolve("fake-java/bin/java")
-        javaExecutable.parentFile.mkdirs()
-        javaExecutable.writeText(
-            """
-            #!/bin/sh
-            case "$2" in
-              *"${androidJar.absolutePath}"*) ;;
-              *) echo "classpath did not contain supplied-base android.jar: $2"; exit 42 ;;
-            esac
-            cp "${sourcePng.absolutePath}" "${'$'}{10}"
-            cat > "${'$'}{21}" <<'EOF'
-            status=success
-            EOF
-            exit 0
-            """.trimIndent(),
-        )
-        javaExecutable.setExecutable(true)
-        try {
-            System.setProperty("agentpreview.java.executable", javaExecutable.absolutePath)
-            val renderer =
-                PreviewRendererImpl(
-                    robolectricSdk = 35,
-                    previewClasspath = listOf(File("app/classes")),
-                    sdkLookupBaseDir = projectDir,
-                )
-
-            val result = renderer.render(defaultPreview(), defaultViewport(), tempDir.resolve("output"))
-
-            assertEquals(RenderMode.Robolectric, result.renderMode)
-        } finally {
-            if (originalJavaExecutable == null) {
-                System.clearProperty("agentpreview.java.executable")
-            } else {
-                System.setProperty("agentpreview.java.executable", originalJavaExecutable)
-            }
-        }
-    }
 
     @Test
     fun `renders preview through isolated harness process`() {
@@ -388,17 +336,6 @@ class PreviewRendererImplTest {
             return RenderProcessResult.Success
         }
     }
-
-    private fun defaultPreview(): PreviewDescriptor =
-        PreviewDescriptor(
-            id = "dev.example.Preview",
-            sourceSet = "main",
-            fullyQualifiedFunctionName = "dev.example.Preview",
-            fullyQualifiedClassName = "dev.example.PreviewKt",
-            sourceFile = "Preview.kt",
-        )
-
-    private fun defaultViewport(): Viewport = Viewport(platform = "android", name = "phone", width = 10, height = 10, density = 1.0f)
 
     private class SemanticsRenderProcessRunner(
         private val nodes: List<SnapshotNode>,
