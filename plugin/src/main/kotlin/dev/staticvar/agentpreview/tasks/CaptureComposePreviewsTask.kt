@@ -186,6 +186,10 @@ abstract class CaptureComposePreviewsTask :
     @get:Internal
     abstract val androidResourceApk: RegularFileProperty
 
+    /** Android linked binary resource artifact directories from AGP, used when no local-test APK exists. */
+    @get:Internal
+    abstract val androidLinkedResourceApkDirs: ConfigurableFileCollection
+
     /** Android merged manifest from AGP, used by Robolectric for app package metadata. */
     @get:Internal
     abstract val androidMergedManifest: RegularFileProperty
@@ -205,13 +209,17 @@ abstract class CaptureComposePreviewsTask :
             },
         )
 
-    /** Effective Android resource APK; fake captures must not snapshot or materialize Android resources. */
+    /** Effective Android resource APK artifacts; fake captures must not snapshot or materialize Android resources. */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
     val effectiveAndroidResourceApk: FileCollection =
         project.objects.fileCollection().from(
             fakeRenderer.map { isFake ->
-                if (isFake || !androidResourceApk.isPresent) project.files() else project.files(androidResourceApk)
+                if (isFake) {
+                    project.files()
+                } else {
+                    project.files(optionalDirectAndroidResourceApkFileCollection(), androidLinkedResourceApkDirs)
+                }
             },
         )
 
@@ -221,7 +229,11 @@ abstract class CaptureComposePreviewsTask :
     val effectiveAndroidMergedManifest: FileCollection =
         project.objects.fileCollection().from(
             fakeRenderer.map { isFake ->
-                if (isFake || !androidMergedManifest.isPresent) project.files() else project.files(androidMergedManifest)
+                if (isFake) {
+                    project.files()
+                } else {
+                    optionalAndroidMergedManifest()?.let { file -> project.files(file) } ?: project.files()
+                }
             },
         )
 
@@ -662,13 +674,27 @@ abstract class CaptureComposePreviewsTask :
 
     private fun materializedAndroidResourceApk(): File? {
         if (fakeRenderer.get()) return null
-        return androidResourceApk.orNull?.asFile?.takeIf { it.isFile }
+        return AndroidResourceApkResolver.resolve(
+            directApk = optionalDirectAndroidResourceApk(),
+            linkedResourceApkDirs = androidLinkedResourceApkDirs.files,
+        )
     }
+
+    private fun optionalDirectAndroidResourceApkFileCollection(): FileCollection =
+        optionalDirectAndroidResourceApk()?.let { file -> project.files(file) } ?: project.files()
+
+    private fun optionalDirectAndroidResourceApk(): File? =
+        runCatching { androidResourceApk.orNull?.asFile }
+            .getOrNull()
 
     private fun materializedAndroidMergedManifest(): File? {
         if (fakeRenderer.get()) return null
-        return androidMergedManifest.orNull?.asFile?.takeIf { it.isFile }
+        return optionalAndroidMergedManifest()?.takeIf { it.isFile }
     }
+
+    private fun optionalAndroidMergedManifest(): File? =
+        runCatching { androidMergedManifest.orNull?.asFile }
+            .getOrNull()
 
     private fun logEffectiveRenderingClasspath() {
         if (effectivePreviewClasses().isEmpty()) return

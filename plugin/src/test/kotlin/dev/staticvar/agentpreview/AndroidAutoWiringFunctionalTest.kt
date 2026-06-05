@@ -298,15 +298,10 @@ class AndroidAutoWiringFunctionalTest {
         projectDir.resolve("build.gradle.kts").writeText(
             androidApplicationBuildScript(
                 """
-                android {
-                    testOptions {
-                        unitTests.isIncludeAndroidResources = true
-                    }
-                }
-
                 tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
                     doFirst {
                         println("androidResourceApk=" + androidResourceApk.orNull?.asFile?.invariantSeparatorsPath)
+                        println("androidLinkedResourceApkDirs=" + androidLinkedResourceApkDirs.files.joinToString("|") { it.invariantSeparatorsPath })
                         println("androidMergedManifest=" + androidMergedManifest.orNull?.asFile?.invariantSeparatorsPath)
                         println("androidCustomPackage=" + androidCustomPackage.orNull)
                     }
@@ -325,8 +320,12 @@ class AndroidAutoWiringFunctionalTest {
                 .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
-        assertTrue(result.output.contains("androidResourceApk="), result.output)
-        assertTrue(result.output.contains(".ap_") || result.output.contains(".apk"), result.output)
+        assertTrue(
+            result.output.lineSequence().any { line ->
+                line.startsWith("androidLinkedResourceApkDirs=") && line.contains("linked_resources_binary_format")
+            },
+            result.output,
+        )
         assertTrue(result.output.contains("androidMergedManifest="), result.output)
         assertTrue(result.output.contains("AndroidManifest.xml"), result.output)
         assertTrue(result.output.contains("androidCustomPackage=dev.staticvar.agentpreview.test"), result.output)

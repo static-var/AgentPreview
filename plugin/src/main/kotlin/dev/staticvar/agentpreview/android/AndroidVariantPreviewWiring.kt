@@ -129,15 +129,26 @@ internal class AndroidVariantPreviewWiring(
         val manifestClassLoader = artifacts.javaClass.classLoader
         val resourceApkArtifact =
             resourceClassLoader.objectInstanceOrNull("com.android.build.gradle.internal.scope.InternalArtifactType\$APK_FOR_LOCAL_TEST")
+        val linkedResourceApkArtifact =
+            if (project.plugins.hasPlugin(ANDROID_APPLICATION_PLUGIN_ID)) {
+                manifestClassLoader.objectInstanceOrNull(
+                    "com.android.build.gradle.internal.scope.InternalArtifactType\$LINKED_RESOURCES_BINARY_FORMAT",
+                )
+            } else {
+                null
+            }
         val mergedManifestArtifact =
             manifestClassLoader.objectInstanceOrNull("com.android.build.api.artifact.SingleArtifact\$MERGED_MANIFEST")
         val resourceApk = resourceApkArtifact?.let { resourceArtifacts.invokeIfPresentReturningOrNull("get", it) }
+        val linkedResourceApk = linkedResourceApkArtifact?.let { artifacts.invokeIfPresentReturningOrNull("get", it) }
         val mergedManifest = mergedManifestArtifact?.let { artifacts.invokeIfPresentReturningOrNull("get", it) }
         val namespace = variant.invokeIfPresentReturningOrNull("getNamespace")
 
         captureComposePreviews.configure { task ->
             @Suppress("UNCHECKED_CAST")
             (resourceApk as? Provider<RegularFile>)?.let { task.androidResourceApk.set(it) }
+            @Suppress("UNCHECKED_CAST")
+            (linkedResourceApk as? Provider<Directory>)?.let { task.androidLinkedResourceApkDirs.from(it) }
             @Suppress("UNCHECKED_CAST")
             (mergedManifest as? Provider<RegularFile>)?.let { task.androidMergedManifest.set(it) }
             when (namespace) {
