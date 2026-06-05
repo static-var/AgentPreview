@@ -19,6 +19,9 @@ internal class PreviewRendererImpl(
     private val previewClasspath: List<File> = emptyList(),
     private val includeUnmergedSemantics: Boolean = false,
     private val androidAssetsDir: File? = null,
+    private val androidResourceApk: File? = null,
+    private val androidMergedManifest: File? = null,
+    private val androidCustomPackage: String? = null,
     private val sdkLookupBaseDir: File = File(System.getProperty("user.dir")),
     private val processRunner: RenderProcessRunner =
         DefaultRenderProcessRunner(
@@ -64,6 +67,9 @@ internal class PreviewRendererImpl(
                 previewParameterProviderClassName = preview.previewParameter?.providerClassName,
                 previewParameterIndex = preview.previewParameter?.index,
                 androidAssetsDir = androidAssetsDir,
+                androidResourceApk = androidResourceApk,
+                androidMergedManifest = androidMergedManifest,
+                androidCustomPackage = androidCustomPackage,
                 fontProbe = System.getProperty("agentpreview.fontProbe") == "true",
             )
         val renderMode =

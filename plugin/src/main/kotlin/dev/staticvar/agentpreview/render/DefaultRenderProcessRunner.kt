@@ -38,9 +38,19 @@ internal class DefaultRenderProcessRunner(
         }
         val androidJar = environment.androidJar(request.robolectricSdk)
         val robolectricConfigClasspath =
-            request.androidAssetsDir?.let { assetsDir ->
+            if (request.androidAssetsDir != null || request.androidResourceApk != null) {
                 val configRoot = request.outputFile.parentFile.resolve("robolectric-test-config")
-                RobolectricTestConfigWriter().write(configRoot, assetsDir)
+                RobolectricTestConfigWriter().write(
+                    configRoot,
+                    RobolectricTestConfig(
+                        resourceApk = request.androidResourceApk,
+                        mergedAssetsDir = request.androidAssetsDir,
+                        mergedManifest = request.androidMergedManifest,
+                        customPackage = request.androidCustomPackage,
+                    ),
+                )
+            } else {
+                null
             }
         val androidAssetApk =
             request.androidAssetApk

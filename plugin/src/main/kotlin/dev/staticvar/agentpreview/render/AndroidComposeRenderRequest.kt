@@ -27,5 +27,8 @@ data class AndroidComposeRenderRequest(
     val previewParameterIndex: Int? = null,
     val androidAssetsDir: File? = null,
     val androidAssetApk: File? = null,
+    val androidResourceApk: File? = null,
+    val androidMergedManifest: File? = null,
+    val androidCustomPackage: String? = null,
     val fontProbe: Boolean = false,
 )

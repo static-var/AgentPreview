@@ -30,6 +30,7 @@ import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFile
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
@@ -181,6 +182,18 @@ abstract class CaptureComposePreviewsTask :
     @get:Internal
     abstract val androidAssetsDirs: ConfigurableFileCollection
 
+    /** Android compiled resource APK from AGP, used by Robolectric for app resources. */
+    @get:Internal
+    abstract val androidResourceApk: RegularFileProperty
+
+    /** Android merged manifest from AGP, used by Robolectric for app package metadata. */
+    @get:Internal
+    abstract val androidMergedManifest: RegularFileProperty
+
+    /** Android namespace/custom package from AGP, used by Robolectric for resource lookup. */
+    @get:Internal
+    abstract val androidCustomPackage: Property<String>
+
     /** Effective Android asset source directories; fake captures must not snapshot or materialize assets. */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
@@ -191,6 +204,33 @@ abstract class CaptureComposePreviewsTask :
                 if (isFake) project.files() else androidAssetsDirs
             },
         )
+
+    /** Effective Android resource APK; fake captures must not snapshot or materialize Android resources. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    val effectiveAndroidResourceApk: FileCollection =
+        project.objects.fileCollection().from(
+            fakeRenderer.map { isFake ->
+                if (isFake || !androidResourceApk.isPresent) project.files() else project.files(androidResourceApk)
+            },
+        )
+
+    /** Effective Android merged manifest; fake captures must not snapshot or materialize Android resources. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    val effectiveAndroidMergedManifest: FileCollection =
+        project.objects.fileCollection().from(
+            fakeRenderer.map { isFake ->
+                if (isFake || !androidMergedManifest.isPresent) project.files() else project.files(androidMergedManifest)
+            },
+        )
+
+    /** Effective Android namespace/custom package; fake captures must not snapshot Android resources. */
+    @get:Input
+    val effectiveAndroidCustomPackage =
+        fakeRenderer.flatMap { isFake ->
+            if (isFake) project.providers.provider { "" } else androidCustomPackage.orElse("")
+        }
 
     /** Serialized Android viewport DSL used as a task input for viewport planning. */
     @get:Input
@@ -470,6 +510,9 @@ abstract class CaptureComposePreviewsTask :
         val cropToContent: Boolean,
         val cropPaddingDp: Int,
         val androidAssetsDir: File?,
+        val androidResourceApk: File?,
+        val androidMergedManifest: File?,
+        val androidCustomPackage: String?,
         val sdkLookupBaseDir: File,
     )
 
@@ -484,6 +527,9 @@ abstract class CaptureComposePreviewsTask :
             cropToContent = effectiveCropToContent(),
             cropPaddingDp = effectiveCropPaddingDp(),
             androidAssetsDir = materializedAndroidAssetsDir(),
+            androidResourceApk = materializedAndroidResourceApk(),
+            androidMergedManifest = materializedAndroidMergedManifest(),
+            androidCustomPackage = effectiveAndroidCustomPackage.get().ifBlank { null },
             sdkLookupBaseDir = File(sdkLookupBaseDir.get()),
         )
 
@@ -497,6 +543,9 @@ abstract class CaptureComposePreviewsTask :
                 previewClasspath = settings.previewClasspath,
                 includeUnmergedSemantics = settings.includeUnmergedSemantics,
                 androidAssetsDir = settings.androidAssetsDir,
+                androidResourceApk = settings.androidResourceApk,
+                androidMergedManifest = settings.androidMergedManifest,
+                androidCustomPackage = settings.androidCustomPackage,
                 sdkLookupBaseDir = settings.sdkLookupBaseDir,
             )
         }
@@ -609,6 +658,16 @@ abstract class CaptureComposePreviewsTask :
             inputRoots = assetRoots,
             outputRoot = renderOutputDirectory.get().asFile.resolve("merged-assets"),
         )
+    }
+
+    private fun materializedAndroidResourceApk(): File? {
+        if (fakeRenderer.get()) return null
+        return androidResourceApk.orNull?.asFile?.takeIf { it.isFile }
+    }
+
+    private fun materializedAndroidMergedManifest(): File? {
+        if (fakeRenderer.get()) return null
+        return androidMergedManifest.orNull?.asFile?.takeIf { it.isFile }
     }
 
     private fun logEffectiveRenderingClasspath() {
