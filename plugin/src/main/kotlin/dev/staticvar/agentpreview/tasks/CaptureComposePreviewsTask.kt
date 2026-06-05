@@ -209,33 +209,22 @@ abstract class CaptureComposePreviewsTask :
             },
         )
 
+    private val emptyAndroidResourceInputs: FileCollection = project.files()
+    private val realAndroidResourceApkInputs: FileCollection =
+        project.files(providerBackedFileCollection(androidResourceApk), androidLinkedResourceApkDirs)
+    private val realAndroidMergedManifestInputs: FileCollection = project.files(providerBackedFileCollection(androidMergedManifest))
+
     /** Effective Android resource APK artifacts; fake captures must not snapshot or materialize Android resources. */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    val effectiveAndroidResourceApk: FileCollection =
-        project.objects.fileCollection().from(
-            fakeRenderer.map { isFake ->
-                if (isFake) {
-                    project.files()
-                } else {
-                    project.files(optionalDirectAndroidResourceApkFileCollection(), androidLinkedResourceApkDirs)
-                }
-            },
-        )
+    val effectiveAndroidResourceApk: FileCollection
+        get() = if (fakeRenderer.get()) emptyAndroidResourceInputs else realAndroidResourceApkInputs
 
     /** Effective Android merged manifest; fake captures must not snapshot or materialize Android resources. */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.RELATIVE)
-    val effectiveAndroidMergedManifest: FileCollection =
-        project.objects.fileCollection().from(
-            fakeRenderer.map { isFake ->
-                if (isFake) {
-                    project.files()
-                } else {
-                    optionalAndroidMergedManifest()?.let { file -> project.files(file) } ?: project.files()
-                }
-            },
-        )
+    val effectiveAndroidMergedManifest: FileCollection
+        get() = if (fakeRenderer.get()) emptyAndroidResourceInputs else realAndroidMergedManifestInputs
 
     /** Effective Android namespace/custom package; fake captures must not snapshot Android resources. */
     @get:Input
@@ -680,8 +669,10 @@ abstract class CaptureComposePreviewsTask :
         )
     }
 
-    private fun optionalDirectAndroidResourceApkFileCollection(): FileCollection =
-        optionalDirectAndroidResourceApk()?.let { file -> project.files(file) } ?: project.files()
+    private fun providerBackedFileCollection(file: RegularFileProperty): FileCollection =
+        project.objects
+            .fileCollection()
+            .from(file.asFile.map { selectedFile -> listOf(selectedFile) }.orElse(emptyList()))
 
     private fun optionalDirectAndroidResourceApk(): File? =
         runCatching { androidResourceApk.orNull?.asFile }

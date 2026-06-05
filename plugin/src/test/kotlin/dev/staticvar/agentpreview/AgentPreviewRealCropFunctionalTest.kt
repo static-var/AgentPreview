@@ -21,9 +21,44 @@ import javax.imageio.ImageIO
 
 class AgentPreviewRealCropFunctionalTest {
     @Test
-    fun `real Android capture crops screenshots and honors crop flags`() {
-        assumeTrue(androidSdkAvailable(), "Android SDK not configured; skipping real renderer crop functional test.")
+    fun `real Android capture renders string dimension and vector resources`() {
+        val sdkDir = androidSdkDirOrSkip("Android SDK not configured; skipping real renderer resource functional test.")
         assumeTrue(sampleProjectDir.isDirectory, "Android sample project is unavailable.")
+        writeSampleLocalProperties(sdkDir)
+
+        outputRoot.deleteRecursively()
+        GradleRunner
+            .create()
+            .withProjectDir(sampleProjectDir)
+            .withArguments(
+                ":app:captureComposePreviews",
+                "-PagentPreview.previewNameFilter=AndroidStringResourceValidationPreview,AndroidDimensionResourceValidationPreview,AndroidVectorResourceValidationPreview",
+                "-PagentPreview.maxParallelRenders=1",
+            ).build()
+            .also { result ->
+                assertEquals(TaskOutcome.SUCCESS, result.task(":app:captureComposePreviews")?.outcome, result.output)
+                assertFalse(result.output.contains("diagnostic fallback", ignoreCase = true), result.output)
+            }
+
+        assertResourceSnapshot(
+            previewFunctionName = "AndroidStringResourceValidationPreview",
+            renderedEvidence = "Android resources rendered",
+        )
+        assertResourceSnapshot(
+            previewFunctionName = "AndroidDimensionResourceValidationPreview",
+            renderedEvidence = "\"width\": 18",
+        )
+        assertResourceSnapshot(
+            previewFunctionName = "AndroidVectorResourceValidationPreview",
+            renderedEvidence = "\"contentDescription\": \"Android resources rendered\"",
+        )
+    }
+
+    @Test
+    fun `real Android capture crops screenshots and honors crop flags`() {
+        val sdkDir = androidSdkDirOrSkip("Android SDK not configured; skipping real renderer crop functional test.")
+        assumeTrue(sampleProjectDir.isDirectory, "Android sample project is unavailable.")
+        writeSampleLocalProperties(sdkDir)
 
         val defaultImage = runSmallCropCapture()
         assertTrue(defaultImage.width < 200, "default crop width should be smaller than viewport: ${defaultImage.width}")
@@ -68,8 +103,41 @@ class AgentPreviewRealCropFunctionalTest {
             .getValue("crop")
             .jsonObject
 
-    private fun androidSdkAvailable(): Boolean =
-        System.getenv("ANDROID_HOME")?.isNotBlank() == true || System.getenv("ANDROID_SDK_ROOT")?.isNotBlank() == true
+    private fun assertResourceSnapshot(
+        previewFunctionName: String,
+        renderedEvidence: String,
+    ) {
+        val snapshot = resourceSnapshotFile(previewFunctionName).readText()
+        val snapshotJson = Json.parseToJsonElement(snapshot).jsonObject
+        assertEquals(
+            "robolectric",
+            snapshotJson
+                .getValue("render")
+                .jsonObject
+                .getValue("mode")
+                .jsonPrimitive.content,
+            snapshot,
+        )
+        assertTrue(snapshot.contains(renderedEvidence), snapshot)
+    }
+
+    private fun androidSdkDirOrSkip(message: String): File {
+        val sdkDir = androidSdkDir()
+        assumeTrue(sdkDir != null, message)
+        return sdkDir ?: error(message)
+    }
+
+    private fun androidSdkDir(): File? =
+        listOfNotNull(
+            System.getenv("ANDROID_HOME"),
+            System.getenv("ANDROID_SDK_ROOT"),
+        ).map(::File)
+            .firstOrNull { it.isDirectory }
+            ?: File(System.getProperty("user.home"), "Library/Android/sdk").takeIf { it.isDirectory }
+
+    private fun writeSampleLocalProperties(sdkDir: File) {
+        sampleProjectDir.resolve("local.properties").writeText("sdk.dir=${sdkDir.invariantSeparatorsPath}\n")
+    }
 
     private companion object {
         val sampleProjectDir: File = File("../samples/android-compose-app").canonicalFile
@@ -78,5 +146,8 @@ class AgentPreviewRealCropFunctionalTest {
             outputRoot.resolve("app-main-dev.staticvar.agentpreview.sample.SmallCropPreview/android-preview/screenshot.png")
         val snapshotFile: File =
             outputRoot.resolve("app-main-dev.staticvar.agentpreview.sample.SmallCropPreview/android-preview/snapshot.json")
+
+        fun resourceSnapshotFile(previewFunctionName: String): File =
+            outputRoot.resolve("app-main-dev.staticvar.agentpreview.sample.$previewFunctionName/android-preview/snapshot.json")
     }
 }

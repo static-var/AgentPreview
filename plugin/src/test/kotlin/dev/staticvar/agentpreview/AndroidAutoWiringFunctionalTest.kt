@@ -332,6 +332,70 @@ class AndroidAutoWiringFunctionalTest {
     }
 
     @Test
+    fun `effective Android resource inputs preserve producer task dependencies`() {
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+            import org.gradle.api.DefaultTask
+            import org.gradle.api.file.RegularFileProperty
+            import org.gradle.api.tasks.OutputFile
+            import org.gradle.api.tasks.TaskAction
+
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            abstract class GenerateFileTask : DefaultTask() {
+                @get:OutputFile
+                abstract val outputFile: RegularFileProperty
+
+                @TaskAction
+                fun write() {
+                    outputFile.get().asFile.apply {
+                        parentFile.mkdirs()
+                        writeText("generated")
+                    }
+                }
+            }
+
+            val generateResourceApk = tasks.register<GenerateFileTask>("generateResourceApk") {
+                outputFile.set(layout.buildDirectory.file("generated/resources/resources.ap_"))
+            }
+            val generateMergedManifest = tasks.register<GenerateFileTask>("generateMergedManifest") {
+                outputFile.set(layout.buildDirectory.file("generated/manifest/AndroidManifest.xml"))
+            }
+
+            tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                androidResourceApk.set(generateResourceApk.flatMap { it.outputFile })
+                androidMergedManifest.set(generateMergedManifest.flatMap { it.outputFile })
+                doFirst {
+                    val resourceFiles = effectiveAndroidResourceApk.files
+                    val manifestFiles = effectiveAndroidMergedManifest.files
+                    println("effectiveAndroidResourceApk=" + resourceFiles.joinToString("|") { it.invariantSeparatorsPath + ":" + it.exists() })
+                    println("effectiveAndroidMergedManifest=" + manifestFiles.joinToString("|") { it.invariantSeparatorsPath + ":" + it.exists() })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.dryRun=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":generateResourceApk")?.outcome, result.output)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":generateMergedManifest")?.outcome, result.output)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome, result.output)
+        assertTrue(result.output.contains("resources.ap_:true"), result.output)
+        assertTrue(result.output.contains("AndroidManifest.xml:true"), result.output)
+    }
+
+    @Test
     fun `wires Android KMP merged assets into capture task when artifact API is available`() {
         writeSettings(includeAndroidKmpStub = true)
         projectDir.resolve("build.gradle.kts").writeText(

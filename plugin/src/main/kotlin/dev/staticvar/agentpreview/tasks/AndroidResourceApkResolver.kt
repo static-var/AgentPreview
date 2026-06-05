@@ -12,7 +12,7 @@ internal object AndroidResourceApkResolver {
         directApk: File?,
         linkedResourceApkDirs: Collection<File>,
     ): File? =
-        directApk?.takeIf { it.isFile }
+        directApk
             ?: linkedResourceApkDirs
                 .asSequence()
                 .flatMap { root -> root.resourceApkCandidates() }

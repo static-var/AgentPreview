@@ -33,6 +33,20 @@ class AndroidResourceApkResolverTest {
     }
 
     @Test
+    fun `keeps direct apk for local test preferred when producer has not materialized it yet`() {
+        val directApk = tempDir.resolve("unit-test/resources.ap_")
+        val linkedApk =
+            tempDir.resolve("linked/processDebugResources/linked-resources-binary-format-debug.ap_").also { file ->
+                file.parentFile.mkdirs()
+                file.writeText("linked")
+            }
+
+        val resolved = AndroidResourceApkResolver.resolve(directApk, listOf(linkedApk.parentFile))
+
+        assertEquals(directApk, resolved)
+    }
+
+    @Test
     fun `finds linked binary resource apk inside AGP artifact directory`() {
         val linkedApk =
             tempDir
