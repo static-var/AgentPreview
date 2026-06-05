@@ -6,9 +6,11 @@
 package dev.staticvar.agentpreview.render
 
 import java.io.File
+import java.util.Properties
 
 internal class AndroidRendererEnvironment(
     private val env: Map<String, String> = System.getenv(),
+    private val baseDir: File = File(System.getProperty("user.dir")),
 ) {
     fun javaExecutable(): JavaExecutableResolution {
         val configured = System.getProperty("agentpreview.java.executable")
@@ -40,13 +42,14 @@ internal class AndroidRendererEnvironment(
     }
 
     fun androidJar(sdk: Int): AndroidJarResolution {
-        val sdkRoot = env["ANDROID_HOME"] ?: env["ANDROID_SDK_ROOT"]
+        val sdkRoot = env["ANDROID_HOME"] ?: env["ANDROID_SDK_ROOT"] ?: localPropertiesSdkDir()
         if (sdkRoot.isNullOrBlank()) {
             return AndroidJarResolution(
                 files = emptyList(),
                 diagnostic =
-                    "ANDROID_HOME or ANDROID_SDK_ROOT is not set; renderer classpath will not include android.jar. " +
-                        "Install the Android SDK and set ANDROID_HOME, or set ANDROID_SDK_ROOT, so platform android-$sdk can be located.",
+                    "ANDROID_HOME and ANDROID_SDK_ROOT are not set, and local.properties sdk.dir was not found; " +
+                        "renderer classpath will not include android.jar. Install the Android SDK and set ANDROID_HOME, " +
+                        "set ANDROID_SDK_ROOT, or add sdk.dir to local.properties so platform android-$sdk can be located.",
             )
         }
         val platformsDir = File(sdkRoot, "platforms")
@@ -72,6 +75,14 @@ internal class AndroidRendererEnvironment(
                     "No Android SDK platforms with android.jar were found under $platformsDir. " +
                         "Install platform android-$sdk with sdkmanager 'platforms;android-$sdk'.",
             )
+        }
+    }
+
+    private fun localPropertiesSdkDir(): String? {
+        val localProperties = File(baseDir, "local.properties")
+        if (!localProperties.isFile) return null
+        return localProperties.inputStream().use { input ->
+            Properties().apply { load(input) }.getProperty("sdk.dir")
         }
     }
 }

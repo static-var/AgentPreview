@@ -18,7 +18,12 @@ internal class PreviewRendererImpl(
     private val robolectricSdk: Int = DEFAULT_ROBOLECTRIC_SDK,
     private val previewClasspath: List<File> = emptyList(),
     private val includeUnmergedSemantics: Boolean = false,
-    private val processRunner: RenderProcessRunner = DefaultRenderProcessRunner(),
+    private val androidAssetsDir: File? = null,
+    private val sdkLookupBaseDir: File = File(System.getProperty("user.dir")),
+    private val processRunner: RenderProcessRunner =
+        DefaultRenderProcessRunner(
+            environment = AndroidRendererEnvironment(baseDir = sdkLookupBaseDir),
+        ),
 ) : PreviewRenderer {
     fun render(
         preview: PreviewDescriptor,
@@ -58,6 +63,8 @@ internal class PreviewRendererImpl(
                 backgroundColor = preview.backgroundColor,
                 previewParameterProviderClassName = preview.previewParameter?.providerClassName,
                 previewParameterIndex = preview.previewParameter?.index,
+                androidAssetsDir = androidAssetsDir,
+                fontProbe = System.getProperty("agentpreview.fontProbe") == "true",
             )
         val renderMode =
             when (val result = processRunner.run(request, previewClasspath)) {

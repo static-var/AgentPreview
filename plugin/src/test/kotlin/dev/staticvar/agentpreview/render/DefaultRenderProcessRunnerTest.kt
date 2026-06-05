@@ -87,6 +87,128 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `adds generated robolectric config root before plugin and preview classpath when assets are present`() {
+        val runtimeJar = tempDir.resolve("runtime.jar").also { writeTextZip(it, "runtime.txt" to "runtime") }
+        val previewJar = tempDir.resolve("preview.jar").also { writeTextZip(it, "preview.txt" to "preview") }
+        val assetsDir = tempDir.resolve("merged-assets").also { it.mkdirs() }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" ASSETS_DIR="${assetsDir.absolutePath}" RUNTIME_JAR="${runtimeJar.absolutePath}" PREVIEW_JAR="${previewJar.absolutePath}" python3 - <<'PY'
+                import os, sys
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                runtime_index = entries.index(os.environ['RUNTIME_JAR'])
+                preview_index = entries.index(os.environ['PREVIEW_JAR'])
+                config_entries = [entry for entry in entries if os.path.isfile(os.path.join(entry, 'com/android/tools/test_config.properties'))]
+                if len(config_entries) != 1:
+                    print('expected exactly one generated robolectric config root, got %r in %r' % (config_entries, entries), file=sys.stderr)
+                    sys.exit(1)
+                config_root = config_entries[0]
+                config_index = entries.index(config_root)
+                if config_index != 0:
+                    print('generated robolectric config root must be first classpath entry before plugin/runtime/preview entries; index %d in %r' % (config_index, entries), file=sys.stderr)
+                    sys.exit(1)
+                if not (config_index < runtime_index < preview_index):
+                    print('expected generated config root before runtime and preview jars, got indexes config=%d runtime=%d preview=%d in %r' % (config_index, runtime_index, preview_index, entries), file=sys.stderr)
+                    sys.exit(1)
+                if len(entries) <= 3:
+                    print('expected plugin classpath entries between generated config root and supplied runtime/preview classpath, got %r' % (entries,), file=sys.stderr)
+                    sys.exit(1)
+                if not config_root.startswith(os.path.dirname(os.environ['PREVIEW_JAR'])):
+                    print('config root should be under request scratch/output area: ' + config_root, file=sys.stderr)
+                    sys.exit(1)
+                with open(os.path.join(config_root, 'com/android/tools/test_config.properties')) as fh:
+                    properties = fh.read()
+                if 'android_merged_assets=' + os.environ['ASSETS_DIR'] not in properties:
+                    print('missing android_merged_assets in generated config: ' + properties, file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                previewClasspath = listOf(runtimeJar, previewJar),
+                androidAssetsDir = assetsDir,
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
+    fun `packages merged assets into synthetic apk and passes it to isolated harness`() {
+        val assetsDir = tempDir.resolve("merged-assets").also { it.mkdirs() }
+        assetsDir.resolve("fonts").mkdirs()
+        assetsDir.resolve("fonts/sample.otf").writeText("OTTO")
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                ASSET_APK="${'$'}{23}" python3 - <<'PY'
+                import os, sys, zipfile
+                asset_apk = os.environ['ASSET_APK']
+                if not asset_apk.endswith('agentpreview-assets.apk') or not os.path.isfile(asset_apk):
+                    print('missing synthetic asset apk arg: ' + asset_apk, file=sys.stderr)
+                    sys.exit(1)
+                with zipfile.ZipFile(asset_apk) as zf:
+                    if zf.namelist() != ['assets/fonts/sample.otf']:
+                        print('unexpected entries: %r' % (zf.namelist(),), file=sys.stderr)
+                        sys.exit(1)
+                    if zf.read('assets/fonts/sample.otf') != b'OTTO':
+                        print('unexpected asset payload', file=sys.stderr)
+                        sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                androidAssetsDir = assetsDir,
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
+    fun `does not add robolectric config root to classpath when assets are absent`() {
+        val previewJar = tempDir.resolve("preview.jar").also { writeTextZip(it, "preview.txt" to "preview") }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" python3 - <<'PY'
+                import os, sys
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                config_entries = [entry for entry in entries if os.path.isfile(os.path.join(entry, 'com/android/tools/test_config.properties'))]
+                if config_entries:
+                    print('unexpected robolectric config roots without assets: %r' % (config_entries,), file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                previewClasspath = listOf(previewJar),
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `materializes aar R classes and embedded jars for isolated harness classpath`() {
         val classesJar =
             tempDir.resolve("classes.jar").also { file ->
@@ -219,9 +341,14 @@ class DefaultRenderProcessRunnerTest {
                 previewParameterProviderClassName = "dev.example.Provider",
                 previewParameterIndex = 2,
                 resultFile = tempDir.resolve("result.properties"),
+                androidAssetsDir = tempDir.resolve("assets"),
+                androidAssetApk = tempDir.resolve("assets.apk"),
+                fontProbe = true,
             )
 
         assertEquals(command, RenderHarnessCommand.fromArgs(command.toArgs().toTypedArray()))
+        assertEquals(tempDir.resolve("assets"), RenderHarnessCommand.fromArgs(command.toArgs().toTypedArray()).androidAssetsDir)
+        assertEquals(tempDir.resolve("assets.apk"), RenderHarnessCommand.fromArgs(command.toArgs().toTypedArray()).androidAssetApk)
     }
 
     @Test
@@ -327,10 +454,41 @@ class DefaultRenderProcessRunnerTest {
 
     @Test
     fun `android renderer environment reports missing sdk variables`() {
-        val resolution = AndroidRendererEnvironment(env = emptyMap()).androidJar(35)
+        val isolatedBaseDir = tempDir.resolve("isolated-sdk-lookup").also { it.mkdirs() }
+
+        val resolution = AndroidRendererEnvironment(env = emptyMap(), baseDir = isolatedBaseDir).androidJar(35)
 
         assertEquals(emptyList<File>(), resolution.files)
-        assertTrue(resolution.diagnostic.orEmpty().contains("ANDROID_HOME or ANDROID_SDK_ROOT is not set"))
+        assertTrue(resolution.diagnostic.orEmpty().contains("ANDROID_HOME and ANDROID_SDK_ROOT are not set"))
+    }
+
+    @Test
+    fun `default render process runner resolves android jar from supplied sdk lookup base dir`() {
+        val projectDir = tempDir.resolve("gradle-root")
+        val sdkRoot = tempDir.resolve("sdk-from-local-properties")
+        val androidJar = sdkRoot.resolve("platforms/android-35/android.jar")
+        androidJar.parentFile.mkdirs()
+        androidJar.writeText("")
+        projectDir.mkdirs()
+        projectDir.resolve("local.properties").writeText("sdk.dir=${sdkRoot.absolutePath}\n")
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                case "$2" in
+                  *"${androidJar.absolutePath}"*) ;;
+                  *) echo "classpath did not contain supplied-base android.jar: $2"; exit 42 ;;
+                esac
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                environment = AndroidRendererEnvironment(env = emptyMap(), baseDir = projectDir),
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
     }
 
     @Test
@@ -344,6 +502,70 @@ class DefaultRenderProcessRunnerTest {
 
         assertEquals(listOf(androidJar), resolution.files)
         assertTrue(resolution.diagnostic.orEmpty().contains("platform android-35 was not found"))
+    }
+
+    @Test
+    fun `successful render suppresses font probe diagnostics by default`() {
+        val stderr = ByteArrayOutputStream()
+        val originalErr = System.err
+        try {
+            System.setErr(PrintStream(stderr))
+
+            val result =
+                runWithFakeJava(
+                    """
+                    #!/bin/sh
+                    echo 'AgentPreview font probe: path=composeResources/dev/staticvar/font/foo.ttf header=00010000' >&2
+                    cat > "${'$'}{21}" <<'EOF'
+                    status=success
+                    EOF
+                    exit 0
+                    """.trimIndent(),
+                )
+
+            assertEquals(RenderProcessResult.Success, result)
+            assertFalse(stderr.toString().contains("AgentPreview font probe:"), stderr.toString())
+        } finally {
+            System.setErr(originalErr)
+        }
+    }
+
+    @Test
+    fun `successful render surfaces font probe diagnostics only when enabled`() {
+        val stderr = ByteArrayOutputStream()
+        val originalErr = System.err
+        val originalFontProbe = System.getProperty("agentpreview.fontProbe")
+        try {
+            System.setProperty("agentpreview.fontProbe", "true")
+            System.setErr(PrintStream(stderr))
+
+            val result =
+                runWithFakeJava(
+                    """
+                    #!/bin/sh
+                    echo 'before unrelated noise' >&2
+                    echo 'AgentPreview font probe: path=composeResources/dev/staticvar/font/foo.ttf header=00010000' >&2
+                    echo 'after unrelated noise' >&2
+                    cat > "${'$'}{21}" <<'EOF'
+                    status=success
+                    EOF
+                    exit 0
+                    """.trimIndent(),
+                )
+
+            assertEquals(RenderProcessResult.Success, result)
+            val output = stderr.toString()
+            assertTrue(output.contains("AgentPreview font probe: path=composeResources/dev/staticvar/font/foo.ttf"), output)
+            assertFalse(output.contains("before unrelated noise"), output)
+            assertFalse(output.contains("after unrelated noise"), output)
+        } finally {
+            if (originalFontProbe == null) {
+                System.clearProperty("agentpreview.fontProbe")
+            } else {
+                System.setProperty("agentpreview.fontProbe", originalFontProbe)
+            }
+            System.setErr(originalErr)
+        }
     }
 
     @Test
@@ -409,6 +631,7 @@ class DefaultRenderProcessRunnerTest {
         timeoutMillis: Long? = null,
         maxOutputBytes: Int? = null,
         environment: AndroidRendererEnvironment = AndroidRendererEnvironment(),
+        androidAssetsDir: File? = null,
     ): RenderProcessResult {
         val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
         val javaExecutable = tempDir.resolve("fake-java-home/bin/java")
@@ -433,6 +656,8 @@ class DefaultRenderProcessRunnerTest {
                         fontScale = fontScale,
                         showBackground = showBackground,
                         backgroundColor = backgroundColor,
+                        androidAssetsDir = androidAssetsDir,
+                        fontProbe = System.getProperty("agentpreview.fontProbe") == "true",
                     ),
                 previewClasspath = previewClasspath,
             )
@@ -452,6 +677,8 @@ class DefaultRenderProcessRunnerTest {
         fontScale: Float? = null,
         showBackground: Boolean = false,
         backgroundColor: Long? = null,
+        androidAssetsDir: File? = null,
+        fontProbe: Boolean = false,
     ): AndroidComposeRenderRequest =
         AndroidComposeRenderRequest(
             className = "dev.example.PreviewKt",
@@ -469,6 +696,8 @@ class DefaultRenderProcessRunnerTest {
             fontScale = fontScale,
             showBackground = showBackground,
             backgroundColor = backgroundColor,
+            androidAssetsDir = androidAssetsDir,
+            fontProbe = fontProbe,
         )
 
     private fun isProcessAlive(pid: Long): Boolean =

@@ -25,4 +25,7 @@ data class AndroidComposeRenderRequest(
     val backgroundColor: Long? = null,
     val previewParameterProviderClassName: String? = null,
     val previewParameterIndex: Int? = null,
+    val androidAssetsDir: File? = null,
+    val androidAssetApk: File? = null,
+    val fontProbe: Boolean = false,
 )

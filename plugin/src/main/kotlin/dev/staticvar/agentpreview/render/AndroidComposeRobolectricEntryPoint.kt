@@ -36,6 +36,9 @@ class AndroidComposeRobolectricEntryPoint {
             backgroundColor = optionalProperty("agentpreview.render.backgroundColor")?.toLong(),
             previewParameterProviderClassName = optionalProperty("agentpreview.render.previewParameterProviderClassName"),
             previewParameterIndex = optionalProperty("agentpreview.render.previewParameterIndex")?.toInt(),
+            androidAssetsDir = optionalProperty("agentpreview.render.androidAssetsDir")?.let(::File),
+            androidAssetApk = optionalProperty("agentpreview.render.androidAssetApk")?.let(::File),
+            fontProbe = optionalProperty("agentpreview.render.fontProbe")?.toBoolean() ?: false,
         )
     }
 

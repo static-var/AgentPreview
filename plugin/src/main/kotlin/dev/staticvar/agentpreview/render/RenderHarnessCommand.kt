@@ -32,6 +32,9 @@ data class RenderHarnessCommand(
     val previewParameterProviderClassName: String?,
     val previewParameterIndex: Int?,
     val resultFile: File,
+    val androidAssetsDir: File?,
+    val androidAssetApk: File?,
+    val fontProbe: Boolean = false,
 ) {
     fun toArgs(): List<String> =
         listOf(
@@ -53,6 +56,9 @@ data class RenderHarnessCommand(
             previewParameterProviderClassName.orEmpty(),
             previewParameterIndex?.toString().orEmpty(),
             resultFile.absolutePath,
+            androidAssetsDir?.absolutePath.orEmpty(),
+            androidAssetApk?.absolutePath.orEmpty(),
+            fontProbe.toString(),
         )
 
     fun applyToSystemProperties() {
@@ -73,6 +79,9 @@ data class RenderHarnessCommand(
         setProperty("backgroundColor", backgroundColor?.toString().orEmpty())
         setProperty("previewParameterProviderClassName", previewParameterProviderClassName.orEmpty())
         setProperty("previewParameterIndex", previewParameterIndex?.toString().orEmpty())
+        setProperty("androidAssetsDir", androidAssetsDir?.absolutePath.orEmpty())
+        setProperty("androidAssetApk", androidAssetApk?.absolutePath.orEmpty())
+        setProperty("fontProbe", fontProbe.toString())
     }
 
     private fun setProperty(
@@ -83,7 +92,7 @@ data class RenderHarnessCommand(
     }
 
     companion object {
-        private const val ARG_COUNT = 18
+        private const val ARG_COUNT = 21
 
         fun fromArgs(args: Array<String>): RenderHarnessCommand {
             require(args.size == ARG_COUNT) { "Expected $ARG_COUNT arguments, got ${args.size}" }
@@ -106,6 +115,9 @@ data class RenderHarnessCommand(
                 previewParameterProviderClassName = args[15].ifBlank { null },
                 previewParameterIndex = args[16].ifBlank { null }?.toInt(),
                 resultFile = File(args[17]),
+                androidAssetsDir = args[18].ifBlank { null }?.let(::File),
+                androidAssetApk = args[19].ifBlank { null }?.let(::File),
+                fontProbe = args[20].toBoolean(),
             )
         }
     }

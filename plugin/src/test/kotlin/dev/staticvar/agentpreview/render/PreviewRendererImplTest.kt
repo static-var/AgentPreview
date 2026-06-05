@@ -27,6 +27,54 @@ class PreviewRendererImplTest {
     lateinit var tempDir: File
 
     @Test
+    fun `default process runner uses supplied sdk lookup base dir`() {
+        val projectDir = tempDir.resolve("gradle-root")
+        val sdkRoot = tempDir.resolve("sdk-from-local-properties")
+        val androidJar = sdkRoot.resolve("platforms/android-35/android.jar")
+        androidJar.parentFile.mkdirs()
+        androidJar.writeText("")
+        projectDir.mkdirs()
+        projectDir.resolve("local.properties").writeText("sdk.dir=${sdkRoot.absolutePath}\n")
+        val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
+        val javaExecutable = tempDir.resolve("fake-java/bin/java")
+        javaExecutable.parentFile.mkdirs()
+        javaExecutable.writeText(
+            """
+            #!/bin/sh
+            case "$2" in
+              *"${androidJar.absolutePath}"*) ;;
+              *) echo "classpath did not contain supplied-base android.jar: $2"; exit 42 ;;
+            esac
+            printf '\211PNG\0\0\0\0\0' > "${'$'}{10}"
+            cat > "${'$'}{21}" <<'EOF'
+            status=success
+            EOF
+            exit 0
+            """.trimIndent(),
+        )
+        javaExecutable.setExecutable(true)
+        try {
+            System.setProperty("agentpreview.java.executable", javaExecutable.absolutePath)
+            val renderer =
+                PreviewRendererImpl(
+                    robolectricSdk = 35,
+                    previewClasspath = listOf(File("app/classes")),
+                    sdkLookupBaseDir = projectDir,
+                )
+
+            val result = renderer.render(defaultPreview(), defaultViewport(), tempDir.resolve("output"))
+
+            assertEquals(RenderMode.Robolectric, result.renderMode)
+        } finally {
+            if (originalJavaExecutable == null) {
+                System.clearProperty("agentpreview.java.executable")
+            } else {
+                System.setProperty("agentpreview.java.executable", originalJavaExecutable)
+            }
+        }
+    }
+
+    @Test
     fun `renders preview through isolated harness process`() {
         val processRunner = RecordingRenderProcessRunner()
         val renderer =
@@ -34,6 +82,7 @@ class PreviewRendererImplTest {
                 robolectricSdk = 35,
                 previewClasspath = listOf(File("app/classes"), File("app/runtime.jar")),
                 includeUnmergedSemantics = true,
+                androidAssetsDir = File("app/merged-assets"),
                 processRunner = processRunner,
             )
         val preview =
@@ -77,6 +126,7 @@ class PreviewRendererImplTest {
                 fontScale = 1.3f,
                 showBackground = true,
                 backgroundColor = 0xFF112233,
+                androidAssetsDir = File("app/merged-assets"),
             ),
             processRunner.request,
         )
@@ -334,6 +384,17 @@ class PreviewRendererImplTest {
             return RenderProcessResult.Success
         }
     }
+
+    private fun defaultPreview(): PreviewDescriptor =
+        PreviewDescriptor(
+            id = "dev.example.Preview",
+            sourceSet = "main",
+            fullyQualifiedFunctionName = "dev.example.Preview",
+            fullyQualifiedClassName = "dev.example.PreviewKt",
+            sourceFile = "Preview.kt",
+        )
+
+    private fun defaultViewport(): Viewport = Viewport(platform = "android", name = "phone", width = 10, height = 10, density = 1.0f)
 
     private class SemanticsRenderProcessRunner(
         private val nodes: List<SnapshotNode>,

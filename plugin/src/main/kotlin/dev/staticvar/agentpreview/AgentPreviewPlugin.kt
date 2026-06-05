@@ -112,6 +112,7 @@ class AgentPreviewPlugin : Plugin<Project> {
                         ).rendererRuntimeFiles
                     },
                 )
+                it.androidAssetsDirs.from(extension.android.assetsDirs)
                 it.selectedVariant.set(selectedVariant)
                 it.androidViewportsJson.set(
                     project.provider {
@@ -122,6 +123,7 @@ class AgentPreviewPlugin : Plugin<Project> {
                     },
                 )
                 it.robolectricSdk.set(extension.android.robolectricSdk)
+                it.sdkLookupBaseDir.set(project.rootProject.layout.projectDirectory.asFile.absolutePath)
                 it.javaMajorVersion.set(javaMajorVersion(project))
                 it.fakeRenderer.set(
                     project.providers

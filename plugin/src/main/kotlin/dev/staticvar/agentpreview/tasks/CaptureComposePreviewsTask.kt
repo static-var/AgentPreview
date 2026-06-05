@@ -17,6 +17,7 @@ import dev.staticvar.agentpreview.model.CaptureReport
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.SnapshotNode
 import dev.staticvar.agentpreview.model.Viewport
+import dev.staticvar.agentpreview.render.AndroidAssetMaterializer
 import dev.staticvar.agentpreview.render.FakePreviewRenderer
 import dev.staticvar.agentpreview.render.PreviewRendererImpl
 import dev.staticvar.agentpreview.render.RenderResult
@@ -27,14 +28,20 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.Directory
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.FileCollection
 import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Classpath
+import org.gradle.api.tasks.IgnoreEmptyDirectories
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.LocalState
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.File
 import javax.imageio.ImageIO
@@ -170,6 +177,21 @@ abstract class CaptureComposePreviewsTask :
     @get:Classpath
     abstract val rendererRuntimeClasspath: ConfigurableFileCollection
 
+    /** Android asset source directories configured by the DSL and merged once for real Android-backed captures. */
+    @get:Internal
+    abstract val androidAssetsDirs: ConfigurableFileCollection
+
+    /** Effective Android asset source directories; fake captures must not snapshot or materialize assets. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    @get:IgnoreEmptyDirectories
+    val effectiveAndroidAssetsDirs: FileCollection =
+        project.objects.fileCollection().from(
+            fakeRenderer.map { isFake ->
+                if (isFake) project.files() else androidAssetsDirs
+            },
+        )
+
     /** Serialized Android viewport DSL used as a task input for viewport planning. */
     @get:Input
     abstract val androidViewportsJson: Property<String>
@@ -177,6 +199,10 @@ abstract class CaptureComposePreviewsTask :
     /** Robolectric SDK configured for real rendering and compatibility warnings. */
     @get:Input
     abstract val robolectricSdk: Property<Int>
+
+    /** Gradle root/project directory used to locate local.properties sdk.dir for Android SDK lookup. */
+    @get:Input
+    abstract val sdkLookupBaseDir: Property<String>
 
     /** Java major version of the current Gradle JVM, used to warn about unsupported render configurations. */
     @get:Input
@@ -443,6 +469,8 @@ abstract class CaptureComposePreviewsTask :
         val includeUnmergedSemantics: Boolean,
         val cropToContent: Boolean,
         val cropPaddingDp: Int,
+        val androidAssetsDir: File?,
+        val sdkLookupBaseDir: File,
     )
 
     private fun renderSettings() =
@@ -455,6 +483,8 @@ abstract class CaptureComposePreviewsTask :
             includeUnmergedSemantics = includeUnmergedSemantics.get(),
             cropToContent = effectiveCropToContent(),
             cropPaddingDp = effectiveCropPaddingDp(),
+            androidAssetsDir = materializedAndroidAssetsDir(),
+            sdkLookupBaseDir = File(sdkLookupBaseDir.get()),
         )
 
     private class CaptureRenderer(
@@ -466,6 +496,8 @@ abstract class CaptureComposePreviewsTask :
                 robolectricSdk = settings.robolectricSdk,
                 previewClasspath = settings.previewClasspath,
                 includeUnmergedSemantics = settings.includeUnmergedSemantics,
+                androidAssetsDir = settings.androidAssetsDir,
+                sdkLookupBaseDir = settings.sdkLookupBaseDir,
             )
         }
 
@@ -567,6 +599,17 @@ abstract class CaptureComposePreviewsTask :
 
     private fun rendererRuntimeClasspathIfAndroidBacked(): Set<File> =
         if (effectivePreviewClasses().isEmpty()) emptySet() else rendererRuntimeClasspath.files
+
+    private fun materializedAndroidAssetsDir(): File? {
+        if (fakeRenderer.get()) return null
+        val assetRoots = effectiveAndroidAssetsDirs.files
+        val hasAssets = assetRoots.any { root -> root.isDirectory && root.walkTopDown().any { it.isFile } }
+        if (!hasAssets) return null
+        return AndroidAssetMaterializer().materialize(
+            inputRoots = assetRoots,
+            outputRoot = renderOutputDirectory.get().asFile.resolve("merged-assets"),
+        )
+    }
 
     private fun logEffectiveRenderingClasspath() {
         if (effectivePreviewClasses().isEmpty()) return
