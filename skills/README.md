@@ -6,4 +6,4 @@ These files are plain Markdown so they can be copied into, referenced by, or loa
 
 ## Available skills
 
-No project skills are currently published in this directory.
+- [`agentpreview`](agentpreview/SKILL.md): use AgentPreview capture artifacts to visually and structurally inspect Compose UI while writing or reviewing code.
