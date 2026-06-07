@@ -110,6 +110,62 @@ class AgentPreviewPluginFunctionalTest {
     }
 
     @Test
+    fun `clean deletes configured agent preview output directories`() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            pluginManagement {
+                repositories {
+                    gradlePluginPortal()
+                    google()
+                    mavenCentral()
+                }
+            }
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+
+            plugins {
+                base
+                id("dev.staticvar.agentpreview")
+            }
+
+            tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                outputDirectory.set(layout.projectDirectory.dir("agent-preview-out/snapshots"))
+                reportDirectory.set(layout.projectDirectory.dir("agent-preview-out/reports"))
+                renderOutputDirectory.set(layout.projectDirectory.dir("agent-preview-out/render"))
+            }
+            """.trimIndent(),
+        )
+        val snapshots = projectDir.resolve("agent-preview-out/snapshots").apply {
+            mkdirs()
+            resolve("snapshot.json").writeText("{}")
+        }
+        val reports = projectDir.resolve("agent-preview-out/reports").apply {
+            mkdirs()
+            resolve("capture-report.json").writeText("{}")
+        }
+        val renderScratch = projectDir.resolve("agent-preview-out/render").apply {
+            mkdirs()
+            resolve("preview.png").writeText("scratch")
+        }
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("clean")
+                .withPluginClasspath()
+                .build()
+
+        assertTrue(result.task(":clean")?.outcome == TaskOutcome.SUCCESS || result.task(":clean")?.outcome == TaskOutcome.UP_TO_DATE)
+        assertFalse(snapshots.exists())
+        assertFalse(reports.exists())
+        assertFalse(renderScratch.exists())
+    }
+
+    @Test
     fun `fake renderer capture ignores configured android asset inputs`() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """

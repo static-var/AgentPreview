@@ -20,6 +20,7 @@ import kotlinx.serialization.json.Json
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.tasks.Delete
 import java.io.File
 
 class AgentPreviewPlugin : Plugin<Project> {
@@ -132,6 +133,12 @@ class AgentPreviewPlugin : Plugin<Project> {
                         .orElse(false),
                 )
             }
+
+        project.tasks.withType(Delete::class.java).matching { it.name == "clean" }.configureEach {
+            it.delete(captureComposePreviews.flatMap(CaptureComposePreviewsTask::outputDirectory))
+            it.delete(captureComposePreviews.flatMap(CaptureComposePreviewsTask::reportDirectory))
+            it.delete(captureComposePreviews.flatMap(CaptureComposePreviewsTask::renderOutputDirectory))
+        }
 
         AndroidPreviewAutoWiring(
             project = project,
