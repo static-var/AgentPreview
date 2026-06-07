@@ -53,6 +53,8 @@ class AgentPreviewConventionPlugin : Plugin<Project> {
         target.pluginManager.apply("dev.staticvar.agentpreview")
 
         target.extensions.configure<AgentPreviewExtension>("agentPreview") {
+            // Include deeper accessibility semantics in snapshots.
+            includeUnmergedSemantics.set(true)
             // Limit @PreviewParameter states per preview.
             maxPreviewParameterValues.set(3)
             // Refuse accidentally broad capture plans.
@@ -69,6 +71,12 @@ class AgentPreviewConventionPlugin : Plugin<Project> {
                 viewport("phone", widthDp = 393, heightDp = 852)
                 // Larger viewport for tablet layout checks.
                 viewport("tablet", widthDp = 800, heightDp = 1280)
+                screenshot {
+                    // Crop screenshots to meaningful UI bounds.
+                    cropToContent.set(true)
+                    // Keep context around cropped content.
+                    cropPaddingDp.set(20)
+                }
             }
         }
     }
