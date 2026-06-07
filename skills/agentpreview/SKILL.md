@@ -1,6 +1,6 @@
 ---
 name: agentpreview
-description: Use AgentPreview to inspect AndroidX Compose UI while writing or reviewing code by listing @Preview functions, running focused captureComposePreviews commands, and reading screenshot.png plus snapshot.json artifacts. Use when an agent needs visual or structured feedback for Android, Compose Multiplatform Android-target, or Android KMP Compose UI changes without launching the full app.
+description: Use when an agent needs visual or structured feedback for AndroidX Compose, Compose Multiplatform Android-target, or Android KMP UI changes without launching the full app.
 ---
 
 # AgentPreview
@@ -17,6 +17,10 @@ functions into artifacts an agent can inspect:
 The goal is to understand the UI you are writing: pixels from `screenshot.png`,
 plus machine-readable preview, viewport, semantics, layout, crop, and render
 metadata from `snapshot.json`.
+
+This skill is the operating loop, not the full manual. For install, convention
+plugin setup, property reference, schema details, or resource/font
+troubleshooting, read `docs/agent-usage.md` selectively.
 
 ## Focus The Capture
 
@@ -67,6 +71,7 @@ explicit dimensions and AgentPreview expands it across configured viewports.
 | `-PagentPreview.cropToContent=false` | Export full-viewport diagnostic screenshots. |
 | `-PagentPreview.cropPaddingDp=12` | Override default crop padding for the run. |
 | `-PagentPreview.fakeRenderer=true` | Discovery/debug wiring only. Never judge UI from fake screenshots. |
+| `-Dagentpreview.fontProbe=true` | Debug CMP font asset visibility when real renders lose fonts. |
 
 ## Inspect The Artifacts
 
@@ -121,3 +126,6 @@ visual differences.
   search.
 - Android wiring error: use an Android app/library or Compose Multiplatform
   module with an Android target.
+- Font/resource mismatch: require `render.mode=robolectric`, confirm the
+  selected Android variant, then use `docs/agent-usage.md` for `assetsDirs`,
+  AGP resource artifact, and `fontProbe` guidance.
