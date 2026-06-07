@@ -44,6 +44,12 @@ ANDROID_HOME=$HOME/Library/Android/sdk scripts/agentpreview-compatibility-matrix
   --keep
 ```
 
+Validate retained real-render JSON and PNG artifacts:
+
+```bash
+scripts/validate-agentpreview-compat-artifacts.py build/agentpreview-compat/summary.tsv
+```
+
 Add probing cells that may expose upstream version incompatibilities:
 
 ```bash
@@ -62,6 +68,8 @@ The harness writes:
 - `build/agentpreview-compat/logs/<case>/fake.log`: fake capture output.
 - `build/agentpreview-compat/logs/<case>/real.log`: real capture output when `--real` is used.
 - `build/agentpreview-compat/projects/<case>/`: generated project only when `--keep` is used.
+
+The validator checks that every retained real-render cell has one `snapshot.json`, one `screenshot.png`, `render.mode=robolectric`, expected semantics text/test tag in `nodes`, non-empty `layoutTree`, matching JSON/PNG dimensions, and non-blank PNG pixel content. It warns, but does not fail, when optional `layoutTree.semantics` enrichment is unavailable for a Compose version.
 
 ## Reading Failures
 
