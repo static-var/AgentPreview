@@ -222,7 +222,6 @@ body::after {
 }
 
 .site-header nav .nav-cta {
-  margin-left: 0.4rem;
   border: 1px solid var(--border-strong);
   border-top-width: 0;
   border-bottom-width: 0;
