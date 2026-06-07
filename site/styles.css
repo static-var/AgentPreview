@@ -1,3 +1,45 @@
+@font-face {
+  font-family: "AP Display";
+  src: url("https://staticvar.dev/ap/f/a.otf") format("opentype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AP Text";
+  src: url("https://staticvar.dev/ap/f/b.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AP Text";
+  src: url("https://staticvar.dev/ap/f/c.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "AP Mono";
+  src: url("https://staticvar.dev/ap/f/d.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0100-017F, U+2000-206F, U+2070-209F, U+20A0-20CF, U+2100-214F, U+2200-22FF, U+2300-23FF, U+2500-257F, U+25A0-25FF, U+2600-26FF, U+2700-27BF, U+27C0-27EF, U+27F0-27FF, U+E0A0-E0DF;
+}
+
+@font-face {
+  font-family: "AP Mono";
+  src: url("https://staticvar.dev/ap/f/e.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: normal;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0180-024F, U+0250-02AF, U+0300-036F, U+0370-03FF, U+0400-04FF, U+0500-052F, U+1D00-1D7F, U+1E00-1EFF, U+2800-28FF, U+2C00-2C5F, U+A640-A69F, U+FB00-FB4F;
+}
+
 :root {
   color-scheme: dark;
   --bg-terminal: #0a0a0a;
@@ -17,9 +59,9 @@
   --border-subtle: #262626;
   --border-strong: #ffffff;
   --shadow-terminal: 0 32px 80px rgba(0, 0, 0, 0.42);
-  --font-display: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: "AP Display", Georgia, serif;
+  --font-body: "AP Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "AP Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 * {
