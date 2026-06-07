@@ -53,14 +53,21 @@ class AgentPreviewConventionPlugin : Plugin<Project> {
         target.pluginManager.apply("dev.staticvar.agentpreview")
 
         target.extensions.configure<AgentPreviewExtension>("agentPreview") {
+            // Limit @PreviewParameter states per preview.
             maxPreviewParameterValues.set(3)
+            // Refuse accidentally broad capture plans.
             maxCaptures.set(8)
+            // Keep rendering deterministic while iterating.
             maxParallelRenders.set(1)
+            // Collect remaining outputs after failures.
             continueOnError.set(true)
 
             android {
+                // Render against the debug runtime classpath.
                 variant.set("debug")
+                // Standard phone viewport for responsive previews.
                 viewport("phone", widthDp = 393, heightDp = 852)
+                // Larger viewport for tablet layout checks.
                 viewport("tablet", widthDp = 800, heightDp = 1280)
             }
         }
