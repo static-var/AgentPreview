@@ -142,6 +142,112 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `adds generated robolectric config root when resources are present without assets`() {
+        val previewJar = tempDir.resolve("preview.jar").also { writeTextZip(it, "preview.txt" to "preview") }
+        val resourceApk = tempDir.resolve("resources.ap_").also { it.writeText("apk") }
+        val mergedManifest =
+            tempDir.resolve("merged-manifest/AndroidManifest.xml").also { file ->
+                file.parentFile.mkdirs()
+                file.writeText("<manifest />")
+            }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" RESOURCE_APK="${resourceApk.absolutePath}" MERGED_MANIFEST="${mergedManifest.absolutePath}" python3 - <<'PY'
+                import os, sys
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                config_entries = [entry for entry in entries if os.path.isfile(os.path.join(entry, 'com/android/tools/test_config.properties'))]
+                if len(config_entries) != 1:
+                    print('expected one generated robolectric config root for resources-only request, got %r' % (config_entries,), file=sys.stderr)
+                    sys.exit(1)
+                with open(os.path.join(config_entries[0], 'com/android/tools/test_config.properties')) as fh:
+                    properties = fh.read()
+                expected = {
+                    'android_resource_apk=' + os.environ['RESOURCE_APK'],
+                    'android_merged_manifest=' + os.environ['MERGED_MANIFEST'],
+                    'android_custom_package=dev.example.app',
+                }
+                missing = [entry for entry in expected if entry not in properties]
+                if missing:
+                    print('missing resource config entries %r in %s' % (missing, properties), file=sys.stderr)
+                    sys.exit(1)
+                if 'android_merged_assets=' in properties or 'android_merged_resources=' in properties:
+                    print('resources-only config should not contain assets or fake merged resources: ' + properties, file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                previewClasspath = listOf(previewJar),
+                androidResourceApk = resourceApk,
+                androidMergedManifest = mergedManifest,
+                androidCustomPackage = "dev.example.app",
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
+    fun `passes resource apk manifest namespace and optional assets into robolectric config`() {
+        val resourceApk = tempDir.resolve("resources.ap_").also { it.writeText("apk") }
+        val mergedManifest =
+            tempDir.resolve("merged-manifest/AndroidManifest.xml").also { file ->
+                file.parentFile.mkdirs()
+                file.writeText("<manifest />")
+            }
+        val assetsDir = tempDir.resolve("merged-assets").also { it.mkdirs() }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" RESOURCE_APK="${resourceApk.absolutePath}" MERGED_MANIFEST="${mergedManifest.absolutePath}" ASSETS_DIR="${assetsDir.absolutePath}" python3 - <<'PY'
+                import os, sys
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                config_entries = [entry for entry in entries if os.path.isfile(os.path.join(entry, 'com/android/tools/test_config.properties'))]
+                if len(config_entries) != 1:
+                    print('expected one generated robolectric config root, got %r' % (config_entries,), file=sys.stderr)
+                    sys.exit(1)
+                with open(os.path.join(config_entries[0], 'com/android/tools/test_config.properties')) as fh:
+                    properties = fh.read()
+                for expected in [
+                    'android_resource_apk=' + os.environ['RESOURCE_APK'],
+                    'android_merged_manifest=' + os.environ['MERGED_MANIFEST'],
+                    'android_custom_package=dev.example.app',
+                    'android_merged_assets=' + os.environ['ASSETS_DIR'],
+                ]:
+                    if expected not in properties:
+                        print('missing expected config entry %s in %s' % (expected, properties), file=sys.stderr)
+                        sys.exit(1)
+                if 'android_merged_resources=' in properties:
+                    print('resource apk config must not write fake merged resources: ' + properties, file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                androidAssetsDir = assetsDir,
+                androidResourceApk = resourceApk,
+                androidMergedManifest = mergedManifest,
+                androidCustomPackage = "dev.example.app",
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `packages merged assets into synthetic apk and passes it to isolated harness`() {
         val assetsDir = tempDir.resolve("merged-assets").also { it.mkdirs() }
         assetsDir.resolve("fonts").mkdirs()
@@ -633,6 +739,9 @@ class DefaultRenderProcessRunnerTest {
         maxOutputBytes: Int? = null,
         environment: AndroidRendererEnvironment = AndroidRendererEnvironment(),
         androidAssetsDir: File? = null,
+        androidResourceApk: File? = null,
+        androidMergedManifest: File? = null,
+        androidCustomPackage: String? = null,
     ): RenderProcessResult {
         val originalJavaExecutable = System.getProperty("agentpreview.java.executable")
         val javaExecutable = tempDir.resolve("fake-java-home/bin/java")
@@ -658,6 +767,9 @@ class DefaultRenderProcessRunnerTest {
                         showBackground = showBackground,
                         backgroundColor = backgroundColor,
                         androidAssetsDir = androidAssetsDir,
+                        androidResourceApk = androidResourceApk,
+                        androidMergedManifest = androidMergedManifest,
+                        androidCustomPackage = androidCustomPackage,
                         fontProbe = System.getProperty("agentpreview.fontProbe") == "true",
                     ),
                 previewClasspath = previewClasspath,
@@ -679,6 +791,9 @@ class DefaultRenderProcessRunnerTest {
         showBackground: Boolean = false,
         backgroundColor: Long? = null,
         androidAssetsDir: File? = null,
+        androidResourceApk: File? = null,
+        androidMergedManifest: File? = null,
+        androidCustomPackage: String? = null,
         fontProbe: Boolean = false,
     ): AndroidComposeRenderRequest =
         AndroidComposeRenderRequest(
@@ -698,6 +813,9 @@ class DefaultRenderProcessRunnerTest {
             showBackground = showBackground,
             backgroundColor = backgroundColor,
             androidAssetsDir = androidAssetsDir,
+            androidResourceApk = androidResourceApk,
+            androidMergedManifest = androidMergedManifest,
+            androidCustomPackage = androidCustomPackage,
             fontProbe = fontProbe,
         )
 

@@ -7,10 +7,17 @@ package dev.staticvar.agentpreview.render
 
 import java.io.File
 
+data class RobolectricTestConfig(
+    val resourceApk: File? = null,
+    val mergedAssetsDir: File? = null,
+    val mergedManifest: File? = null,
+    val customPackage: String? = null,
+)
+
 class RobolectricTestConfigWriter {
     fun write(
         configRoot: File,
-        mergedAssetsDir: File,
+        config: RobolectricTestConfig,
     ): File {
         val manifest = configRoot.resolve("AndroidManifest.xml")
         val resources = configRoot.resolve("res")
@@ -19,20 +26,37 @@ class RobolectricTestConfigWriter {
         if (resources.exists()) {
             resources.deleteRecursively()
         }
-        resources.mkdirs()
-        manifest.parentFile.mkdirs()
-        manifest.writeText(
-            """<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+        if (manifest.exists()) {
+            manifest.delete()
+        }
+
+        val manifestForConfig =
+            config.mergedManifest ?: run {
+                manifest.parentFile.mkdirs()
+                manifest.writeText(
+                    """<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
 """,
-        )
+                )
+                manifest
+            }
+
+        val mergedResources =
+            if (config.resourceApk == null) {
+                resources.mkdirs()
+                resources
+            } else {
+                null
+            }
+
         propertiesFile.parentFile.mkdirs()
         val properties =
-            mapOf(
-                "android_merged_assets" to mergedAssetsDir.absolutePath,
-                "android_merged_resources" to resources.absolutePath,
-                "android_merged_manifest" to manifest.absolutePath,
-                "android_custom_package" to "dev.staticvar.agentpreview.render",
-            )
+            buildMap {
+                config.mergedAssetsDir?.let { put("android_merged_assets", it.absolutePath) }
+                mergedResources?.let { put("android_merged_resources", it.absolutePath) }
+                put("android_merged_manifest", manifestForConfig.absolutePath)
+                put("android_custom_package", config.customPackage ?: DEFAULT_CUSTOM_PACKAGE)
+                config.resourceApk?.let { put("android_resource_apk", it.absolutePath) }
+            }
         propertiesFile.writeText(
             properties
                 .toSortedMap()
@@ -97,4 +121,8 @@ class RobolectricTestConfigWriter {
                 }
             }
         }
+
+    private companion object {
+        const val DEFAULT_CUSTOM_PACKAGE = "dev.staticvar.agentpreview.render"
+    }
 }

@@ -230,11 +230,14 @@ Useful capture flags:
 | `-PagentPreview.maxPreviewParameterValues=3` | Cap `@PreviewParameter` expansion. |
 | `-PagentPreview.dryRun=true` | Write the capture plan/report without rendering screenshots. |
 | `-PagentPreview.maxCaptures=10` | Fail before rendering if the plan is too broad. Use `0` to assert no captures. |
-| `-PagentPreview.continueOnError=true` | Keep rendering other previews after a failure. |
+| `-PagentPreview.continueOnError=true` | Keep rendering other previews after a failure; task still fails at end if any failed. |
 | `-PagentPreview.maxParallelRenders=2` | Render concurrently. Start with `1`; raise only when renders are stable. |
 | `-PagentPreview.cropToContent=false` | Disable default content cropping and export the full render viewport. |
 | `-PagentPreview.cropPaddingDp=12` | Override the default 20dp crop padding for this invocation. |
 | `-PagentPreview.fakeRenderer=true` | Debug discovery/index wiring only; screenshots and nodes are placeholders. |
+| `-Dagentpreview.fontProbe=true` | Print bounded CMP font asset diagnostics. |
+| `-Dagentpreview.java.executable=/path/to/java` | Use this Java for isolated renderer JVM. |
+| `-PagentPreview.javaMajorVersion=17` | Diagnostic Java-version warning override only; does not switch JVM. |
 
 Configure defaults in Gradle when you want stable agent behavior:
 
@@ -266,7 +269,7 @@ python3 -m json.tool app/build/agentPreviewReports/capture-report.json
 python3 -m json.tool app/build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/snapshot.json
 ```
 
-Open `screenshot.png` for visual state. Real rendered screenshots crop to meaningful layout/semantics content by default with 20dp padding. When bounds are unavailable or effectively the full viewport, AgentPreview exports the full viewport instead. Fake-renderer captures currently always export the full viewport. Read `snapshot.json` for machine-checkable structure and crop metadata. Schema details are in [snapshot-schema.md](snapshot-schema.md).
+Open `screenshot.png` for visual state only when `render.mode` is `robolectric`. Real rendered screenshots crop to meaningful layout/semantics content by default with 20dp padding. When bounds are unavailable or effectively the full viewport, AgentPreview exports the full viewport instead. Fake and diagnostic-fallback captures are placeholders. Read `snapshot.json` for machine-checkable structure and crop metadata. Schema details are in [snapshot-schema.md](snapshot-schema.md).
 
 Important `snapshot.json` fields:
 
@@ -281,7 +284,7 @@ Important `snapshot.json` fields:
 | `viewport.width`, `viewport.height`, `viewport.density` | Original render viewport dimensions. `@Preview(widthDp/heightDp)` overrides configured viewport dimensions. |
 | `screenshot.width`, `screenshot.height` | Exported PNG dimensions after crop/fallback. |
 | `screenshot.crop` | Crop settings, original-viewport crop rectangle when cropped, or fallback reason such as `disabled` or `ambiguous-content-bounds`. |
-| `render.mode` | Renderer used: usually `robolectric`; `fake` means discovery-only placeholder output. |
+| `render.mode` | `robolectric`, `fake`, or `diagnostic-fallback`. Only `robolectric` is visual evidence. |
 | `nodes` | Semantics nodes: text/content descriptions, roles, bounds, actions, tags, optional source. Use this for accessibility and interaction assertions. |
 | `layoutTree` | Experimental layout nodes with bounds and Compose/source hints. Use as a clue, not ground truth. |
 
@@ -318,7 +321,7 @@ Good default command while iterating:
 
 - No previews listed: ensure the plugin is applied to the module with compiled preview classes, then run the module task path (`:app:listComposePreviews`, not root task).
 - Too many captures: rerun with `-PagentPreview.dryRun=true`, inspect `build/agentPreviewReports/capture-report.json`, then narrow filters or raise `maxCaptures`.
-- One preview fails: rerun with `continueOnError=true` to collect remaining outputs, then focus the failing id.
+- One preview fails: rerun with `continueOnError=true` to collect remaining outputs. Task still fails; inspect report, then focus the failing id.
 - Parameterized preview explodes: lower `maxPreviewParameterValues` or filter an expanded id like `ParameterizedLoginPreview:previewParam-0`.
 - Empty `nodes`: fake renderer was used, semantics were not emitted, or the preview has no useful semantics. Prefer real rendering and add semantics/test tags when appropriate.
 - Missing/weak `layoutTree` hints: expected for some Compose/CMP cases. Fall back to screenshot, semantics nodes, and preview source.
@@ -331,4 +334,6 @@ Good default command while iterating:
 - `layoutTree` and source hints are experimental and nullable.
 - Compose Multiplatform Android-target captures may only emit preview-entrypoint fallback source hints when tooling composition data is unavailable.
 - `@PreviewParameter` support expects one user parameter annotated with `@PreviewParameter`; multiple user parameters are unsupported.
-- Fake renderer is only for discovery/debugging; do not use its screenshots or empty nodes for UI judgment.
+- Fake and diagnostic-fallback screenshots are placeholders; do not use them for UI judgment.
+- Real Android captures include Android merged assets and `agentPreview { android { assetsDirs.from(...) } }`. Assets are copied, packed into a synthetic APK, and added to Robolectric `AssetManager`; useful for CMP `composeResources` fonts/assets. Fake renderer ignores assets. Duplicate relative asset paths with different bytes fail. Android `res/` contents are not fully provided.
+- SDK lookup: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then Gradle-root `local.properties` `sdk.dir`. Missing requested `android-35` may fall back to highest installed platform with warning; install `platforms;android-35`.

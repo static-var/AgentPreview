@@ -285,7 +285,7 @@ plugins {
           </article>
           <article>
             <h3>CMP via Android</h3>
-            <p>Compose Multiplatform support is routed through the Android target, not native desktop or web targets.</p>
+            <p>Compose Multiplatform support is routed through the Android target, not native desktop or web targets. CMP assets/fonts are Android-asset backed; Android res contents are not complete.</p>
           </article>
           <article>
             <h3>Hints are best-effort</h3>
@@ -294,6 +294,10 @@ plugins {
           <article>
             <h3>Focused captures</h3>
             <p>Screenshots crop to composable content by default, with full-viewport fallback when content bounds are ambiguous.</p>
+          </article>
+          <article>
+            <h3>Placeholder modes</h3>
+            <p>Only <code>robolectric</code> is visual evidence. <code>fake</code> and <code>diagnostic-fallback</code> screenshots are placeholders.</p>
           </article>
         </div>
       </section>

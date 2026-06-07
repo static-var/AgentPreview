@@ -35,6 +35,9 @@ class PreviewRendererImplTest {
                 previewClasspath = listOf(File("app/classes"), File("app/runtime.jar")),
                 includeUnmergedSemantics = true,
                 androidAssetsDir = File("app/merged-assets"),
+                androidResourceApk = File("app/resources.ap_"),
+                androidMergedManifest = File("app/merged-manifest/AndroidManifest.xml"),
+                androidCustomPackage = "dev.example",
                 processRunner = processRunner,
             )
         val preview =
@@ -79,6 +82,9 @@ class PreviewRendererImplTest {
                 showBackground = true,
                 backgroundColor = 0xFF112233,
                 androidAssetsDir = File("app/merged-assets"),
+                androidResourceApk = File("app/resources.ap_"),
+                androidMergedManifest = File("app/merged-manifest/AndroidManifest.xml"),
+                androidCustomPackage = "dev.example",
             ),
             processRunner.request,
         )

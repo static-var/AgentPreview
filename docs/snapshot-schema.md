@@ -96,7 +96,7 @@ Current snapshots are emitted with `schemaVersion: 1`.
 }
 ```
 
-Optional fields are omitted when no value is available. In fake-renderer mode, `nodes` and `layoutTree` are empty and `render.mode` is `fake`.
+Optional fields are omitted when no value is available. `render.mode` is `robolectric`, `fake`, or `diagnostic-fallback`. In `fake` and `diagnostic-fallback`, screenshots are placeholders; `nodes` and `layoutTree` may be empty.
 
 ## Preview Parameters
 
@@ -129,7 +129,7 @@ Future desktop and web renderers should use separate platform-specific viewport 
 
 ## Semantics and Layout Tree
 
-Fake renderer snapshots emit an empty `nodes` list because no real Compose semantics tree is available. Production renderer snapshots populate `nodes` from Compose semantics when available and may include `layoutTree` entries derived from the rendered Compose layout hierarchy.
+Fake renderer snapshots emit an empty `nodes` list because no real Compose semantics tree is available. Diagnostic-fallback snapshots may also have empty `nodes`/`layoutTree` after a Robolectric resource-loading gap. Production `robolectric` snapshots populate `nodes` from Compose semantics when available and may include `layoutTree` entries derived from the rendered Compose layout hierarchy.
 
 `layoutTree` entries always keep `componentHint` as the implementation-level fallback. Production Android rendering may also add nullable best-effort source hints from Compose tooling data: `sourceName`, `sourceFile`, `sourceLine`, and `sourceHintKind`. The correlation prefers app/preview source files over Compose runtime internals such as `ReusableComposeNode`, `Layout.kt`, `Composer.kt`, and `Composables.kt`; if no app group can be correlated within ancestry/preorder/bounds constraints, the hint may be a useful framework composable or a framework/internal fallback. Current hint kinds include `tooling-node-identity`, `tooling-nearest-app-ancestor`, `tooling-sibling-preorder-app`, `tooling-useful-framework-ancestor`, `tooling-framework-node-identity`, `tooling-framework-ancestor`, `tooling-sibling-preorder-framework`, and `preview-entrypoint-fallback`.
 

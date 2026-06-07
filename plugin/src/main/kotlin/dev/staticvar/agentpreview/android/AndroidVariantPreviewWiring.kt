@@ -15,6 +15,7 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.Directory
 import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
 
 internal class AndroidVariantPreviewWiring(
@@ -95,15 +96,71 @@ internal class AndroidVariantPreviewWiring(
             jarsProperty = CaptureComposePreviewsTask::androidRuntimeClassJars,
             dirsProperty = CaptureComposePreviewsTask::androidRuntimeClassDirs,
         )
-        wireMergedAssets(artifacts)
+        wireMergedAssets(variant.name(), artifacts)
+        wireRobolectricResources(variant, artifacts)
     }
 
-    private fun wireMergedAssets(artifacts: Any) {
+    private fun wireMergedAssets(
+        variantName: String,
+        artifacts: Any,
+    ) {
         val assetsArtifact =
             artifacts.javaClass.classLoader.objectInstanceOrNull("com.android.build.api.artifact.SingleArtifact\$ASSETS") ?: return
         val mergedAssets = artifacts.invokeIfPresentReturning("get", assetsArtifact) ?: return
         captureComposePreviews.configure { task ->
             task.androidAssetsDirs.from(mergedAssets)
+            if (!project.plugins.hasPlugin(ANDROID_KMP_LIBRARY_PLUGIN_ID)) {
+                task.dependsOn(
+                    task.fakeRenderer.map { isFake ->
+                        if (isFake) emptyList() else listOf("merge${variantName.capitalizedVariantName()}Assets")
+                    },
+                )
+            }
+        }
+    }
+
+    private fun wireRobolectricResources(
+        variant: Any,
+        artifacts: Any,
+    ) {
+        val unitTestArtifacts = variant.invokeIfPresentReturningOrNull("getUnitTest")?.invokeIfPresentReturningOrNull("getArtifacts")
+        val resourceArtifacts = unitTestArtifacts ?: artifacts
+        val resourceClassLoader = resourceArtifacts.javaClass.classLoader
+        val manifestClassLoader = artifacts.javaClass.classLoader
+        val resourceApkArtifact =
+            resourceClassLoader.objectInstanceOrNull("com.android.build.gradle.internal.scope.InternalArtifactType\$APK_FOR_LOCAL_TEST")
+        val linkedResourceApkArtifact =
+            if (project.plugins.hasPlugin(ANDROID_APPLICATION_PLUGIN_ID)) {
+                manifestClassLoader.objectInstanceOrNull(
+                    "com.android.build.gradle.internal.scope.InternalArtifactType\$LINKED_RESOURCES_BINARY_FORMAT",
+                )
+            } else {
+                null
+            }
+        val mergedManifestArtifact =
+            manifestClassLoader.objectInstanceOrNull("com.android.build.api.artifact.SingleArtifact\$MERGED_MANIFEST")
+        val resourceApk = resourceApkArtifact?.let { resourceArtifacts.invokeIfPresentReturningOrNull("get", it) }
+        val linkedResourceApk = linkedResourceApkArtifact?.let { artifacts.invokeIfPresentReturningOrNull("get", it) }
+        val mergedManifest = mergedManifestArtifact?.let { artifacts.invokeIfPresentReturningOrNull("get", it) }
+        val namespace = variant.invokeIfPresentReturningOrNull("getNamespace")
+
+        captureComposePreviews.configure { task ->
+            @Suppress("UNCHECKED_CAST")
+            (resourceApk as? Provider<RegularFile>)?.let { task.androidResourceApk.set(it) }
+            @Suppress("UNCHECKED_CAST")
+            (linkedResourceApk as? Provider<Directory>)?.let { task.androidLinkedResourceApkDirs.from(it) }
+            @Suppress("UNCHECKED_CAST")
+            (mergedManifest as? Provider<RegularFile>)?.let { task.androidMergedManifest.set(it) }
+            when (namespace) {
+                is String -> {
+                    task.androidCustomPackage.set(namespace)
+                }
+
+                is Provider<*> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    task.androidCustomPackage.set(namespace as Provider<String>)
+                }
+            }
         }
     }
 
@@ -124,6 +181,11 @@ internal class AndroidVariantPreviewWiring(
     }
 
     private fun Any.name(): String = invokeRequired("getName") as String
+
+    private fun String.capitalizedVariantName(): String =
+        replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase() else char.toString()
+        }
 
     private fun Any.invokeRequired(
         methodName: String,
@@ -160,6 +222,14 @@ internal class AndroidVariantPreviewWiring(
                     exception.message.orEmpty(),
             )
         }
+    }
+
+    private fun Any.invokeIfPresentReturningOrNull(
+        methodName: String,
+        vararg args: Any,
+    ): Any? {
+        val method = matchingMethod(methodName, args) ?: return null
+        return runCatching { method.invoke(this, *args) }.getOrNull()
     }
 
     private fun Any.matchingMethod(

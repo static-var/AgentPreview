@@ -11,7 +11,7 @@ ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew -p samples/cmp-compose-app :com
 ANDROID_HOME=$HOME/Library/Android/sdk ./gradlew -p samples/cmp-compose-app :composeApp:captureComposePreviews
 ```
 
-Adjust `ANDROID_HOME` for your local Android SDK location. For discovery-only debugging, add `-PagentPreview.fakeRenderer=true` to the capture command.
+SDK lookup also checks `ANDROID_SDK_ROOT` and root `local.properties` `sdk.dir`. Install `platforms;android-35`. For discovery-only debugging, add `-PagentPreview.fakeRenderer=true`.
 
 Expected outputs are written under:
 

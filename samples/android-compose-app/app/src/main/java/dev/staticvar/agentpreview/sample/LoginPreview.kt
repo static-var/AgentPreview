@@ -6,6 +6,7 @@
 package dev.staticvar.agentpreview.sample
 
 import android.content.res.Configuration
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -108,4 +112,32 @@ class LoginEmailProvider : PreviewParameterProvider<String> {
 @Composable
 fun ParameterizedLoginPreview(@PreviewParameter(LoginEmailProvider::class) email: String) {
     LoginCard(email)
+}
+
+@Preview(name = "Android String Resource Validation", group = "Resources", widthDp = 240, heightDp = 120, showBackground = true)
+@Composable
+fun AndroidStringResourceValidationPreview() {
+    MaterialTheme {
+        Text(text = stringResource(R.string.agentpreview_resource_label))
+    }
+}
+
+@Preview(name = "Android Dimension Resource Validation", group = "Resources", widthDp = 240, heightDp = 120, showBackground = true)
+@Composable
+fun AndroidDimensionResourceValidationPreview() {
+    Box(
+        modifier =
+            Modifier
+                .size(dimensionResource(R.dimen.agentpreview_resource_padding))
+                .background(Color(0xFF6750A4)),
+    )
+}
+
+@Preview(name = "Android Vector Resource Validation", group = "Resources", widthDp = 240, heightDp = 120, showBackground = true)
+@Composable
+fun AndroidVectorResourceValidationPreview() {
+    Image(
+        painter = painterResource(R.drawable.agentpreview_resource_vector),
+        contentDescription = stringResource(R.string.agentpreview_resource_label),
+    )
 }

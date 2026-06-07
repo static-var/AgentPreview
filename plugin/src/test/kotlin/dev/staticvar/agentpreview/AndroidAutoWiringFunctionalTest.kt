@@ -275,13 +275,124 @@ class AndroidAutoWiringFunctionalTest {
             GradleRunner
                 .create()
                 .withProjectDir(projectDir)
-                .withArguments("captureComposePreviews", "-PagentPreview.dryRun=true")
+                .withArguments("mergeDebugAssets", "captureComposePreviews", "-PagentPreview.dryRun=true")
                 .withPluginClasspath()
                 .build()
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":mergeDebugAssets")?.outcome)
         assertTrue(result.output.contains("effectiveAndroidAssetsDirs="), result.output)
         assertTrue(result.output.contains("effectiveAndroidAssetFiles=standard.txt"), result.output)
+    }
+
+    @Test
+    fun `wires Android application resources manifest and namespace into capture task when artifact APIs are available`() {
+        writeSettings(requireAndroidSdk = true)
+        projectDir.resolve("src/main/AndroidManifest.xml").writeTextCreatingParents("<manifest />")
+        projectDir.resolve("src/main/res/values/strings.xml").writeTextCreatingParents(
+            """
+            <resources>
+                <string name="app_name">AgentPreview Test</string>
+            </resources>
+            """.trimIndent(),
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            androidApplicationBuildScript(
+                """
+                tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                    doFirst {
+                        println("androidResourceApk=" + androidResourceApk.orNull?.asFile?.invariantSeparatorsPath)
+                        println("androidLinkedResourceApkDirs=" + androidLinkedResourceApkDirs.files.joinToString("|") { it.invariantSeparatorsPath })
+                        println("androidMergedManifest=" + androidMergedManifest.orNull?.asFile?.invariantSeparatorsPath)
+                        println("androidCustomPackage=" + androidCustomPackage.orNull)
+                    }
+                }
+                """.trimIndent(),
+            ),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.dryRun=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome)
+        assertTrue(
+            result.output.lineSequence().any { line ->
+                line.startsWith("androidLinkedResourceApkDirs=") && line.contains("linked_resources_binary_format")
+            },
+            result.output,
+        )
+        assertTrue(result.output.contains("androidMergedManifest="), result.output)
+        assertTrue(result.output.contains("AndroidManifest.xml"), result.output)
+        assertTrue(result.output.contains("androidCustomPackage=dev.staticvar.agentpreview.test"), result.output)
+    }
+
+    @Test
+    fun `effective Android resource inputs preserve producer task dependencies`() {
+        writeSettings()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
+            import org.gradle.api.DefaultTask
+            import org.gradle.api.file.RegularFileProperty
+            import org.gradle.api.tasks.OutputFile
+            import org.gradle.api.tasks.TaskAction
+
+            plugins {
+                id("dev.staticvar.agentpreview")
+            }
+
+            abstract class GenerateFileTask : DefaultTask() {
+                @get:OutputFile
+                abstract val outputFile: RegularFileProperty
+
+                @TaskAction
+                fun write() {
+                    outputFile.get().asFile.apply {
+                        parentFile.mkdirs()
+                        writeText("generated")
+                    }
+                }
+            }
+
+            val generateResourceApk = tasks.register<GenerateFileTask>("generateResourceApk") {
+                outputFile.set(layout.buildDirectory.file("generated/resources/resources.ap_"))
+            }
+            val generateMergedManifest = tasks.register<GenerateFileTask>("generateMergedManifest") {
+                outputFile.set(layout.buildDirectory.file("generated/manifest/AndroidManifest.xml"))
+            }
+
+            tasks.named<CaptureComposePreviewsTask>("captureComposePreviews") {
+                androidResourceApk.set(generateResourceApk.flatMap { it.outputFile })
+                androidMergedManifest.set(generateMergedManifest.flatMap { it.outputFile })
+                doFirst {
+                    val resourceFiles = effectiveAndroidResourceApk.files
+                    val manifestFiles = effectiveAndroidMergedManifest.files
+                    println("effectiveAndroidResourceApk=" + resourceFiles.joinToString("|") { it.invariantSeparatorsPath + ":" + it.exists() })
+                    println("effectiveAndroidMergedManifest=" + manifestFiles.joinToString("|") { it.invariantSeparatorsPath + ":" + it.exists() })
+                }
+            }
+            """.trimIndent(),
+        )
+        writeEmptyPreviewIndex()
+
+        val result =
+            GradleRunner
+                .create()
+                .withProjectDir(projectDir)
+                .withArguments("captureComposePreviews", "-PagentPreview.dryRun=true")
+                .withPluginClasspath()
+                .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":generateResourceApk")?.outcome, result.output)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":generateMergedManifest")?.outcome, result.output)
+        assertEquals(TaskOutcome.SUCCESS, result.task(":captureComposePreviews")?.outcome, result.output)
+        assertTrue(result.output.contains("resources.ap_:true"), result.output)
+        assertTrue(result.output.contains("AndroidManifest.xml:true"), result.output)
     }
 
     @Test
@@ -839,13 +950,20 @@ class AndroidAutoWiringFunctionalTest {
         }
     }
 
-    private fun androidLibraryBuildScript(body: String): String =
+    private fun androidLibraryBuildScript(body: String): String = androidBuildScript(pluginId = "com.android.library", body = body)
+
+    private fun androidApplicationBuildScript(body: String): String = androidBuildScript(pluginId = "com.android.application", body = body)
+
+    private fun androidBuildScript(
+        pluginId: String,
+        body: String,
+    ): String =
         """
         import dev.staticvar.agentpreview.tasks.CaptureComposePreviewsTask
         import dev.staticvar.agentpreview.tasks.ListComposePreviewsTask
 
         plugins {
-            id("com.android.library") version "8.13.2"
+            id("$pluginId") version "8.13.2"
             id("dev.staticvar.agentpreview")
         }
 

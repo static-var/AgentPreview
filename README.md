@@ -86,7 +86,9 @@ Outputs are written under:
 - Rendering is Android-backed; desktop and web Compose renderers are not separate targets yet.
 - `@PreviewParameter` is supported for one annotated user parameter.
 - Layout-tree source hints are experimental, best-effort, and sometimes missing.
-- Fake renderer mode (`-PagentPreview.fakeRenderer=true`) is for discovery/debug wiring only; do not judge UI from its placeholder outputs.
+- Render modes: `robolectric`, `fake`, `diagnostic-fallback`. Do not judge UI from `fake` or `diagnostic-fallback` screenshots.
+- Android/CMP assets are wired for real Android captures, including CMP `composeResources` fonts/assets. Fake renderer ignores assets. Android `res/` contents are not fully provided.
+- Android SDK lookup: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then root `local.properties` `sdk.dir`. Install `platforms;android-35` for exact Robolectric SDK 35 matching.
 
 ## License
 
