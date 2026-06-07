@@ -1,25 +1,3 @@
-@font-face {
-  font-family: "Construct Mono";
-  src: url("https://staticvar.dev/fonts/ConstructMono.otf") format("opentype");
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Artific";
-  src: url("https://staticvar.dev/fonts/Artific-Regular.otf") format("opentype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Artific";
-  src: url("https://staticvar.dev/fonts/Artific-Bold.otf") format("opentype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   color-scheme: dark;
   --bg-terminal: #0a0a0a;
@@ -39,9 +17,9 @@
   --border-subtle: #262626;
   --border-strong: #ffffff;
   --shadow-terminal: 0 32px 80px rgba(0, 0, 0, 0.42);
-  --font-display: "Construct Mono", Georgia, serif;
-  --font-body: "Artific", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "Iosevka Web", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 * {
@@ -256,7 +234,7 @@ h2 {
   color: var(--text-primary);
   font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
@@ -270,14 +248,14 @@ h3 {
 h1 {
   max-width: 14ch;
   margin-bottom: 1.4rem;
-  font-size: clamp(3.5rem, 6vw, 5.2rem);
+  font-size: 5.2rem;
   line-height: 1.02;
 }
 
 h2 {
   max-width: 13ch;
   margin-bottom: 1.25rem;
-  font-size: clamp(2.4rem, 5.6vw, 5.35rem);
+  font-size: 5rem;
   line-height: 1.04;
 }
 
@@ -485,9 +463,13 @@ pre code {
   color: var(--accent-purple-hover);
   background: rgba(10, 10, 10, 0.66);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.strip code {
+  font-size: 1em;
 }
 
 .section {
@@ -717,11 +699,11 @@ pre code {
   }
 
   h1 {
-    font-size: clamp(3rem, 14vw, 5rem);
+    font-size: 4.15rem;
   }
 
   h2 {
-    font-size: clamp(2.45rem, 12vw, 4.5rem);
+    font-size: 3.8rem;
   }
 }
 
@@ -751,6 +733,23 @@ pre code {
   .hero {
     padding-top: 4rem;
     padding-bottom: 3rem;
+  }
+
+  h1 {
+    font-size: 3.05rem;
+    line-height: 1.05;
+  }
+
+  h2 {
+    font-size: 2.55rem;
+    line-height: 1.08;
+  }
+
+  .eyebrow,
+  .strip span,
+  .site-header nav a,
+  .statusline {
+    font-size: 0.72rem;
   }
 
   .hero-actions {

@@ -15,11 +15,8 @@
     />
     <meta property="og:type" content="website" />
     <link rel="canonical" href="https://ap.staticvar.dev/" />
-    <link rel="preload" href="https://staticvar.dev/fonts/ConstructMono.otf" as="font" type="font/otf" crossorigin />
-    <link rel="preload" href="https://staticvar.dev/fonts/Artific-Regular.otf" as="font" type="font/otf" crossorigin />
-    <link rel="preload" href="https://staticvar.dev/fonts/WOFF2/Iosevka-Regular-subset.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="https://staticvar.dev/fonts/Iosevka.css" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=20260607b" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -51,7 +48,7 @@
             <a class="button secondary" href="https://github.com/static-var/AgentPreview">View source</a>
           </div>
           <p class="honesty-note">
-            Published as <code>dev.staticvar.agentpreview</code> version <code>0.1.0</code> for Android and Compose Multiplatform projects with an Android target.
+            Published as <code>dev.staticvar.agentpreview</code> for Android and Compose Multiplatform projects with an Android target. Keep the concrete plugin version in your Gradle version catalog or <code>pluginManagement</code> block.
           </p>
         </div>
 
@@ -167,15 +164,18 @@ app-main-ProfileCard-previewParam-0/android-phone/
           <p>
             AgentPreview stays close to the build. List previews, dry-run a plan, narrow by preview or viewport, then capture only the UI states that matter for the current change.
           </p>
+          <p class="gradle-note">
+            Gradle does not auto-select the latest community plugin version. Define the AgentPreview plugin version once in your version catalog or <code>pluginManagement</code>, then apply that alias in the module that owns previews.
+          </p>
         </div>
         <div class="steps">
           <article>
             <span class="step-number">01</span>
             <h3>Add the plugin</h3>
             <pre><code>// build.gradle.kts
-// Add beside your existing Android and Compose plugins.
+// Version comes from your Gradle version catalog.
 plugins {
-  id("dev.staticvar.agentpreview") version "0.1.0"
+  alias(libs.plugins.agentpreview)
 }</code></pre>
           </article>
           <article>
@@ -245,7 +245,7 @@ plugins {
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.android")
-  id("dev.staticvar.agentpreview") version "0.1.0"
+  alias(libs.plugins.agentpreview)
 }
 
 ./gradlew :app:captureComposePreviews</code></pre>
@@ -257,7 +257,7 @@ plugins {
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.multiplatform")
-  id("dev.staticvar.agentpreview") version "0.1.0"
+  alias(libs.plugins.agentpreview)
 }
 
 ./gradlew :composeApp:captureComposePreviews</code></pre>
@@ -269,7 +269,7 @@ plugins {
 plugins {
   id("com.android.kotlin.multiplatform.library")
   id("org.jetbrains.kotlin.multiplatform")
-  id("dev.staticvar.agentpreview") version "0.1.0"
+  alias(libs.plugins.agentpreview)
 }
 
 ./gradlew :designSystem:captureComposePreviews</code></pre>
