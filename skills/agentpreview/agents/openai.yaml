@@ -1,0 +1,4 @@
+interface:
+  display_name: "AgentPreview"
+  short_description: "Inspect Compose previews while writing UI"
+  default_prompt: "Use $agentpreview to capture and inspect focused Compose preview artifacts for this UI change."

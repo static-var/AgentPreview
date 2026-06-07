@@ -6,14 +6,4 @@ These files are plain Markdown so they can be copied into, referenced by, or loa
 
 ## Available skills
 
-- [`agentpreview-compose-iteration/SKILL.md`](agentpreview-compose-iteration/SKILL.md): how agents should use AgentPreview to build, inspect, and iterate on Jetpack Compose UI from Figma/design/screenshot requests.
-
-## How to use
-
-Ask your coding agent to read the skill before starting UI work, or copy the skill into your agent tool's preferred rules/skills/instructions location.
-
-Example prompt:
-
-```text
-Before editing Compose UI, read skills/agentpreview-compose-iteration/SKILL.md and follow that workflow.
-```
+- [`agentpreview`](agentpreview/SKILL.md): use AgentPreview capture artifacts to visually and structurally inspect Compose UI while writing or reviewing code.
