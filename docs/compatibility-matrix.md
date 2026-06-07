@@ -11,6 +11,8 @@ The harness creates one temporary project per matrix cell under `build/agentprev
 
 Fake rendering is the default because it proves Gradle wiring, preview discovery, classpath setup, and task execution without paying the cost of real Robolectric rendering for every cell. Add `--real` when you need to prove screenshot/resource behavior for a smaller set of cells.
 
+Because the generated projects use this checkout through Gradle `includeBuild`, the lowest practical Gradle version is constrained by this repository's own included builds and samples. To probe lower Gradle versions than the checkout can evaluate, publish the plugin artifact first and adapt the generated project to apply the published version instead of using `includeBuild`.
+
 ## Commands
 
 List the default current-version matrix:
@@ -47,6 +49,8 @@ Add probing cells that may expose upstream version incompatibilities:
 ```bash
 ANDROID_HOME=$HOME/Library/Android/sdk scripts/agentpreview-compatibility-matrix.sh --extended
 ```
+
+By default, the script uses `build-brief` when available. Set `AGENTPREVIEW_COMPAT_USE_BUILD_BRIEF=false` to run the generated wrappers directly when debugging wrapper or build-brief behavior.
 
 ## Output
 

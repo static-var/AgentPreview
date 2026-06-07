@@ -12,15 +12,15 @@ USE_BUILD_BRIEF="${AGENTPREVIEW_COMPAT_USE_BUILD_BRIEF:-auto}"
 ANDROID_HOME_VALUE="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 
 QUICK_CASES=(
-  "android-current|android-app|9.2.1|8.13.2|2.3.21|2026.05.01||1.11.2|36|36|23"
-  "cmp-current|cmp-app|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|36|36|23"
-  "kmp-current|kmp-library|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|36|36|23"
+  "android-current|android-app|9.2.1|8.13.2|2.3.21|2026.05.01||1.11.2|1.12.0|36|36|23"
+  "cmp-current|cmp-app|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|1.12.0|36|36|23"
+  "kmp-current|kmp-library|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|1.12.0|36|36|23"
 )
 
 EXTENDED_CASES=(
-  "android-agp-8-7-kotlin-2-0|android-app|8.10.2|8.7.3|2.0.21|2024.10.00||1.7.8|35|35|23"
-  "android-agp-8-13-target-35|android-app|9.2.1|8.13.2|2.3.21|2026.05.01||1.11.2|36|35|23"
-  "cmp-current-sdk-35|cmp-app|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|35|35|23"
+  "android-agp-8-7-kotlin-2-0|android-app|8.13|8.7.3|2.0.21|2024.10.00||1.7.8|1.9.3|35|35|23"
+  "android-agp-8-13-target-35|android-app|9.2.1|8.13.2|2.3.21|2026.05.01||1.11.2|1.12.0|36|35|23"
+  "cmp-current-target-35|cmp-app|9.2.1|8.13.2|2.3.21||1.11.0|1.11.2|1.12.0|36|35|23"
 )
 
 usage() {
@@ -94,6 +94,14 @@ GRADLE_PREFIX=()
 if [[ "$USE_BUILD_BRIEF" == "true" ]] || { [[ "$USE_BUILD_BRIEF" == "auto" ]] && command -v build-brief >/dev/null 2>&1; }; then
   GRADLE_PREFIX=(build-brief)
 fi
+
+gradle_command() {
+  if [[ "${#GRADLE_PREFIX[@]}" -gt 0 ]]; then
+    "${GRADLE_PREFIX[@]}" "$@"
+  else
+    "$@"
+  fi
+}
 
 all_cases() {
   printf '%s\n' "${QUICK_CASES[@]}"
@@ -195,9 +203,10 @@ write_android_app() {
   local agp="$2"
   local kotlin="$3"
   local compose_bom="$4"
-  local compile_sdk="$5"
-  local target_sdk="$6"
-  local min_sdk="$7"
+  local activity_compose="$5"
+  local compile_sdk="$6"
+  local target_sdk="$7"
+  local min_sdk="$8"
 
   write_common_settings "$project_dir" "AgentPreviewCompatAndroidApp" 'include(":app")'
   write_common_gradle_properties "$project_dir"
@@ -249,7 +258,7 @@ agentPreview {
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:$compose_bom"))
-    implementation("androidx.activity:activity-compose:1.12.0")
+    implementation("androidx.activity:activity-compose:$activity_compose")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
@@ -308,9 +317,10 @@ write_cmp_app() {
   local kotlin="$3"
   local cmp="$4"
   local compose_ui="$5"
-  local compile_sdk="$6"
-  local target_sdk="$7"
-  local min_sdk="$8"
+  local activity_compose="$6"
+  local compile_sdk="$7"
+  local target_sdk="$8"
+  local min_sdk="$9"
 
   write_common_settings "$project_dir" "AgentPreviewCompatCmpApp" 'include(":composeApp")'
   write_common_gradle_properties "$project_dir"
@@ -344,7 +354,7 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
-            implementation("androidx.activity:activity-compose:1.12.0")
+            implementation("androidx.activity:activity-compose:$activity_compose")
             implementation("androidx.compose.ui:ui-tooling-preview:$compose_ui")
         }
         commonMain.dependencies {
@@ -503,16 +513,17 @@ write_project() {
   local compose_bom="$5"
   local cmp="$6"
   local compose_ui="$7"
-  local compile_sdk="$8"
-  local target_sdk="$9"
-  local min_sdk="${10}"
+  local activity_compose="$8"
+  local compile_sdk="$9"
+  local target_sdk="${10}"
+  local min_sdk="${11}"
 
   case "$kind" in
     android-app)
-      write_android_app "$project_dir" "$agp" "$kotlin" "$compose_bom" "$compile_sdk" "$target_sdk" "$min_sdk"
+      write_android_app "$project_dir" "$agp" "$kotlin" "$compose_bom" "$activity_compose" "$compile_sdk" "$target_sdk" "$min_sdk"
       ;;
     cmp-app)
-      write_cmp_app "$project_dir" "$agp" "$kotlin" "$cmp" "$compose_ui" "$compile_sdk" "$target_sdk" "$min_sdk"
+      write_cmp_app "$project_dir" "$agp" "$kotlin" "$cmp" "$compose_ui" "$activity_compose" "$compile_sdk" "$target_sdk" "$min_sdk"
       ;;
     kmp-library)
       write_kmp_library "$project_dir" "$agp" "$kotlin" "$cmp" "$compose_ui" "$compile_sdk" "$min_sdk"
@@ -525,15 +536,15 @@ write_project() {
 }
 
 print_case_table_header() {
-  printf '%-28s %-12s %-8s %-8s %-8s %-12s %-8s %-8s %-6s %-6s %-6s\n' \
-    "name" "kind" "gradle" "agp" "kotlin" "composeBom" "cmp" "compose" "compile" "target" "min"
+  printf '%-28s %-12s %-8s %-8s %-8s %-12s %-8s %-8s %-8s %-6s %-6s %-6s\n' \
+    "name" "kind" "gradle" "agp" "kotlin" "composeBom" "cmp" "compose" "activity" "compile" "target" "min"
 }
 
 print_case_line() {
   local line="$1"
-  IFS='|' read -r name kind gradle agp kotlin compose_bom cmp compose_ui compile_sdk target_sdk min_sdk <<<"$line"
-  printf '%-28s %-12s %-8s %-8s %-8s %-12s %-8s %-8s %-6s %-6s %-6s\n' \
-    "$name" "$kind" "$gradle" "$agp" "$kotlin" "${compose_bom:--}" "${cmp:--}" "$compose_ui" "$compile_sdk" "$target_sdk" "$min_sdk"
+  IFS='|' read -r name kind gradle agp kotlin compose_bom cmp compose_ui activity_compose compile_sdk target_sdk min_sdk <<<"$line"
+  printf '%-28s %-12s %-8s %-8s %-8s %-12s %-8s %-8s %-8s %-6s %-6s %-6s\n' \
+    "$name" "$kind" "$gradle" "$agp" "$kotlin" "${compose_bom:--}" "${cmp:--}" "$compose_ui" "$activity_compose" "$compile_sdk" "$target_sdk" "$min_sdk"
 }
 
 if [[ "$LIST_ONLY" == "true" ]]; then
@@ -549,13 +560,13 @@ REPORT="$WORK_DIR/report.md"
 SUMMARY="$WORK_DIR/summary.tsv"
 printf '# AgentPreview Compatibility Matrix\n\n' >"$REPORT"
 printf 'Generated from `%s`.\n\n' "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || printf unknown)" >>"$REPORT"
-printf '| Case | Kind | Gradle | AGP | Kotlin | Compose BOM | CMP | Compose UI | SDK | Fake | Real | Logs |\n' >>"$REPORT"
-printf '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n' >>"$REPORT"
-printf 'case\tkind\tgradle\tagp\tkotlin\tcompose_bom\tcmp\tcompose_ui\tcompile_sdk\ttarget_sdk\tmin_sdk\tfake\treal\tproject_dir\n' >"$SUMMARY"
+printf '| Case | Kind | Gradle | AGP | Kotlin | Compose BOM | CMP | Compose UI | Activity | SDK | Fake | Real | Logs |\n' >>"$REPORT"
+printf '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n' >>"$REPORT"
+printf 'case\tkind\tgradle\tagp\tkotlin\tcompose_bom\tcmp\tcompose_ui\tactivity_compose\tcompile_sdk\ttarget_sdk\tmin_sdk\tfake\treal\tproject_dir\n' >"$SUMMARY"
 
 overall_status=0
 while IFS= read -r selected; do
-  IFS='|' read -r name kind gradle agp kotlin compose_bom cmp compose_ui compile_sdk target_sdk min_sdk <<<"$selected"
+  IFS='|' read -r name kind gradle agp kotlin compose_bom cmp compose_ui activity_compose compile_sdk target_sdk min_sdk <<<"$selected"
   safe="$(safe_name "$name")"
   project_dir="$WORK_DIR/projects/$safe"
   log_dir="$WORK_DIR/logs/$safe"
@@ -568,13 +579,13 @@ while IFS= read -r selected; do
 
   echo "==> $name ($kind, Gradle $gradle, AGP $agp, Kotlin $kotlin)"
   write_wrapper_bootstrap "$project_dir"
-  if run_logged "$name wrapper" "$log_dir/wrapper.log" "${GRADLE_PREFIX[@]}" "$ROOT_DIR/gradlew" -p "$project_dir" wrapper --gradle-version "$gradle" --distribution-type bin; then
+  if run_logged "$name wrapper" "$log_dir/wrapper.log" gradle_command "$ROOT_DIR/gradlew" -p "$project_dir" wrapper --gradle-version "$gradle" --distribution-type bin; then
     chmod +x "$project_dir/gradlew"
-    write_project "$project_dir" "$kind" "$agp" "$kotlin" "$compose_bom" "$cmp" "$compose_ui" "$compile_sdk" "$target_sdk" "$min_sdk"
-    if run_logged "$name fake" "$log_dir/fake.log" "${GRADLE_PREFIX[@]}" "$project_dir/gradlew" -p "$project_dir" "$module_path:listComposePreviews" "$module_path:captureComposePreviews" -PagentPreview.previewNameFilter=CompatPreview -PagentPreview.maxCaptures=1 -PagentPreview.fakeRenderer=true; then
+    write_project "$project_dir" "$kind" "$agp" "$kotlin" "$compose_bom" "$cmp" "$compose_ui" "$activity_compose" "$compile_sdk" "$target_sdk" "$min_sdk"
+    if run_logged "$name fake" "$log_dir/fake.log" gradle_command "$project_dir/gradlew" -p "$project_dir" "$module_path:listComposePreviews" "$module_path:captureComposePreviews" -PagentPreview.previewNameFilter=CompatPreview -PagentPreview.maxCaptures=1 -PagentPreview.fakeRenderer=true; then
       fake_status="pass"
       if [[ "$RUN_REAL" == "true" ]]; then
-        if run_logged "$name real" "$log_dir/real.log" "${GRADLE_PREFIX[@]}" "$project_dir/gradlew" -p "$project_dir" "$module_path:captureComposePreviews" -PagentPreview.previewNameFilter=CompatPreview -PagentPreview.maxCaptures=1; then
+        if run_logged "$name real" "$log_dir/real.log" gradle_command "$project_dir/gradlew" -p "$project_dir" "$module_path:captureComposePreviews" -PagentPreview.previewNameFilter=CompatPreview -PagentPreview.maxCaptures=1; then
           real_status="pass"
         else
           real_status="fail"
@@ -592,10 +603,10 @@ while IFS= read -r selected; do
 
   log_link="logs/$safe"
   sdk="$compile_sdk/$target_sdk/$min_sdk"
-  printf '| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` |\n' \
-    "$name" "$kind" "$gradle" "$agp" "$kotlin" "${compose_bom:--}" "${cmp:--}" "$compose_ui" "$sdk" "$fake_status" "$real_status" "$log_link" >>"$REPORT"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$name" "$kind" "$gradle" "$agp" "$kotlin" "$compose_bom" "$cmp" "$compose_ui" "$compile_sdk" "$target_sdk" "$min_sdk" "$fake_status" "$real_status" "$project_dir" >>"$SUMMARY"
+  printf '| `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` |\n' \
+    "$name" "$kind" "$gradle" "$agp" "$kotlin" "${compose_bom:--}" "${cmp:--}" "$compose_ui" "$activity_compose" "$sdk" "$fake_status" "$real_status" "$log_link" >>"$REPORT"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$name" "$kind" "$gradle" "$agp" "$kotlin" "$compose_bom" "$cmp" "$compose_ui" "$activity_compose" "$compile_sdk" "$target_sdk" "$min_sdk" "$fake_status" "$real_status" "$project_dir" >>"$SUMMARY"
 
   if [[ "$KEEP_PROJECTS" != "true" ]]; then
     rm -rf "$project_dir"
