@@ -1,5 +1,7 @@
 # AgentPreview
 
+[![skills.sh](https://skills.sh/b/static-var/AgentPreview)](https://skills.sh/static-var/AgentPreview)
+
 AgentPreview is a Gradle plugin that captures AndroidX Compose `@Preview` functions into files an AI agent can inspect:
 
 ```text
@@ -11,6 +13,20 @@ AgentPreview is a Gradle plugin that captures AndroidX Compose `@Preview` functi
 Preview ids are sanitized for file paths: `:app:main:LoginPreview` becomes `app-main-LoginPreview`, and viewport folders include the platform, e.g. `android-phone`.
 
 Use it when an agent is editing Compose UI and needs a quick screenshot plus structured preview data without driving the full app.
+
+## Agent skill
+
+Install the AgentPreview workflow skill with the open `skills` CLI:
+
+```bash
+npx skills add static-var/AgentPreview --skill agentpreview
+```
+
+For Codex global install:
+
+```bash
+npx skills add static-var/AgentPreview --skill agentpreview -g -a codex -y
+```
 
 ## Setup
 
