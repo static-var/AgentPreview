@@ -56,6 +56,17 @@ Add probing cells that may expose upstream version incompatibilities:
 ANDROID_HOME=$HOME/Library/Android/sdk scripts/agentpreview-compatibility-matrix.sh --extended
 ```
 
+The extended matrix includes current-version cells, 6-9 month lagging-release cells that model large projects behind current AndroidX/Kotlin/CMP updates, and one older Android baseline for regression pressure.
+
+Lagging-release cells currently include:
+
+| Case | Shape | Gradle | AGP | Kotlin | Compose / CMP | Activity Compose | SDKs |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `android-lagging-2025-09` | Android app | 8.13 | 8.12.2 | 2.2.20 | Compose BOM 2025.09.00, UI 1.9.0 | 1.11.0 | compile 36, target 35 |
+| `android-lagging-2025-12` | Android app | 8.13 | 8.12.2 | 2.2.20 | Compose BOM 2025.12.00, UI 1.10.0 | 1.12.2 | compile 36, target 35 |
+| `cmp-lagging-2025-09` | CMP app | 8.13 | 8.12.2 | 2.2.20 | CMP 1.9.0, UI 1.9.0 | 1.11.0 | compile 36, target 35 |
+| `kmp-lagging-2025-09` | KMP library | 8.13 | 8.12.2 | 2.2.20 | CMP 1.9.0, UI 1.9.0 | 1.11.0 | compile 36, target 35 |
+
 By default, the script uses `build-brief` when available. Set `AGENTPREVIEW_COMPAT_USE_BUILD_BRIEF=false` to run the generated wrappers directly when debugging wrapper or build-brief behavior.
 
 ## Output
