@@ -84,6 +84,7 @@ Outputs are written under:
 ## More docs
 
 - Detailed setup and agent workflow: [`docs/agent-usage.md`](docs/agent-usage.md)
+- Generated compatibility matrix: [`docs/compatibility-matrix.md`](docs/compatibility-matrix.md)
 - `snapshot.json` schema: [`docs/snapshot-schema.md`](docs/snapshot-schema.md)
 - Release process: [`docs/releasing.md`](docs/releasing.md)
 
