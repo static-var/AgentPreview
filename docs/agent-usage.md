@@ -35,6 +35,60 @@ pluginManagement {
 }
 ```
 
+### Convention plugin usage
+
+If your project centralizes module setup in a build-logic or convention plugin, apply AgentPreview inside that convention plugin and configure the existing `agentPreview` extension. This keeps each UI module small while still letting teams standardize viewports and capture defaults.
+
+```kotlin
+// build-logic/src/main/kotlin/com/example/AgentPreviewConventionPlugin.kt
+package com.example
+
+import dev.staticvar.agentpreview.AgentPreviewExtension
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.kotlin.dsl.configure
+
+class AgentPreviewConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) {
+        target.pluginManager.apply("dev.staticvar.agentpreview")
+
+        target.extensions.configure<AgentPreviewExtension>("agentPreview") {
+            maxPreviewParameterValues.set(3)
+            maxCaptures.set(8)
+            maxParallelRenders.set(1)
+            continueOnError.set(true)
+
+            android {
+                variant.set("debug")
+                viewport("phone", widthDp = 393, heightDp = 852)
+                viewport("tablet", widthDp = 800, heightDp = 1280)
+            }
+        }
+    }
+}
+```
+
+The convention plugin build needs AgentPreview on its compile classpath so it can reference `AgentPreviewExtension`:
+
+```kotlin
+// build-logic/build.gradle.kts
+plugins {
+    `kotlin-dsl`
+}
+
+repositories {
+    google()
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation("dev.staticvar:plugin:0.1.0")
+}
+```
+
+When developing against a local checkout, add AgentPreview as an included build for plugin resolution and as a top-level included build for dependency substitution if the convention plugin compiles against `AgentPreviewExtension`. See [`samples/convention-plugin`](../samples/convention-plugin) for a complete build-logic sample.
+
 
 ### Android app module
 
