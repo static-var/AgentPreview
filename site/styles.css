@@ -354,9 +354,8 @@ pre code {
 }
 
 .copy-snippet {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  align-items: stretch;
+  position: relative;
+  display: block;
   width: 100%;
   max-width: 100%;
   margin: 1.7rem 0 1.15rem;
@@ -365,7 +364,11 @@ pre code {
 }
 
 .copy-snippet pre {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  min-height: 48px;
   border: 0;
   padding: 0.58rem 0.75rem;
   text-align: center;
@@ -378,7 +381,10 @@ pre code {
 }
 
 .copy-button {
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -907,13 +913,14 @@ pre code {
   }
 
   .copy-snippet {
-    grid-template-columns: minmax(0, 1fr) 46px;
     margin-top: 1.45rem;
     margin-bottom: 1.05rem;
   }
 
   .copy-snippet pre {
+    min-height: 48px;
     padding: 0.55rem 0.62rem;
+    font-size: 0.78rem;
   }
 
   .copy-button {
@@ -934,6 +941,8 @@ pre code {
 
 @media (max-width: 480px) {
   .copy-snippet pre {
+    justify-content: flex-start;
+    padding-right: calc(46px + 0.62rem);
     text-align: left;
   }
 }
