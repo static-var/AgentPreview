@@ -19,7 +19,7 @@
     <link rel="preload" href="https://staticvar.dev/ap/f/a.otf" as="font" type="font/otf" crossorigin />
     <link rel="preload" href="https://staticvar.dev/ap/f/b.otf" as="font" type="font/otf" crossorigin />
     <link rel="preload" href="https://staticvar.dev/ap/f/d.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="./styles.css?v=20260607c" />
+    <link rel="stylesheet" href="./styles.css?v=20260607d" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -312,7 +312,12 @@ plugins {
       <section class="cta" aria-labelledby="cta-title">
         <h2 id="cta-title">Capture one preview. Review the actual artifact.</h2>
         <p>Use the agent workflow docs and snapshot schema to wire AgentPreview into an Android or CMP Android-target build, or install the AgentPreview workflow skill for your coding agent.</p>
-        <pre><code>npx skills add static-var/AgentPreview --skill agentpreview</code></pre>
+        <div class="copy-snippet">
+          <pre><code id="skill-install-command">npx skills add static-var/AgentPreview --skill agentpreview</code></pre>
+          <button class="copy-button" type="button" data-copy-target="skill-install-command" aria-label="Copy install command">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
         <a class="button primary" href="https://github.com/static-var/AgentPreview">Open AgentPreview on GitHub</a>
         <p>
           <a href="https://github.com/static-var/AgentPreview/blob/main/docs/agent-usage.md">Agent workflow</a>
@@ -332,5 +337,36 @@ plugins {
       <span>"ap.staticvar.dev"</span>
       <span>0:artifacts 1:workflow 2:limits</span>
     </div>
+    <script>
+      document.querySelectorAll("[data-copy-target]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const target = document.getElementById(button.dataset.copyTarget);
+          const text = target ? target.textContent.trim() : "";
+
+          try {
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const field = document.createElement("textarea");
+              field.value = text;
+              field.setAttribute("readonly", "");
+              field.style.position = "fixed";
+              field.style.opacity = "0";
+              document.body.appendChild(field);
+              field.select();
+              document.execCommand("copy");
+              field.remove();
+            }
+
+            button.dataset.copied = "true";
+            window.setTimeout(() => {
+              delete button.dataset.copied;
+            }, 1600);
+          } catch {
+            button.dataset.copied = "false";
+          }
+        });
+      });
+    </script>
   </body>
 </html>

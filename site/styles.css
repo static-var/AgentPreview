@@ -353,6 +353,93 @@ pre code {
   white-space: pre;
 }
 
+.copy-snippet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  margin: 1.7rem 0 1.15rem;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-terminal);
+}
+
+.copy-snippet pre {
+  min-width: 0;
+  border: 0;
+  padding: 0.58rem 0.75rem;
+}
+
+.copy-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-terminal-alt) 84%, var(--accent-purple));
+  cursor: pointer;
+}
+
+.copy-button span,
+.copy-button span::before {
+  display: block;
+  width: 13px;
+  height: 16px;
+  border: 1px solid currentColor;
+}
+
+.copy-button span {
+  position: relative;
+}
+
+.copy-button span::before {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  background: var(--bg-terminal);
+}
+
+.copy-button::after {
+  content: "Copied";
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
+  padding: 0.26rem 0.42rem;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  background: var(--bg-terminal);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.copy-button:hover,
+.copy-button:focus-visible {
+  color: var(--bg-terminal);
+  background: var(--accent-purple);
+}
+
+.copy-button:hover span::before,
+.copy-button:focus-visible span::before {
+  background: var(--accent-purple);
+}
+
+.copy-button[data-copied="true"]::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -391,6 +478,16 @@ pre code {
 .button.primary {
   color: var(--bg-terminal);
   background: var(--text-primary);
+}
+
+.cta .button.primary {
+  position: relative;
+}
+
+.cta .button.primary::before {
+  position: absolute;
+  left: 1.05rem;
+  margin-right: 0;
 }
 
 .button.secondary {
@@ -800,6 +897,21 @@ pre code {
 
   .button {
     width: 100%;
+  }
+
+  .copy-snippet {
+    grid-template-columns: minmax(0, 1fr) 46px;
+    margin-top: 1.45rem;
+    margin-bottom: 1.05rem;
+  }
+
+  .copy-snippet pre {
+    padding: 0.55rem 0.62rem;
+  }
+
+  .copy-button {
+    width: 46px;
+    min-width: 46px;
   }
 
   .artifact-summary {
