@@ -57,14 +57,22 @@ Capture previews:
 
 Real rendered screenshots crop to detected Compose content by default with 20dp padding. If layout/semantics bounds are ambiguous, AgentPreview keeps the full viewport and records the fallback in `snapshot.json`.
 
-For a focused capture while iterating:
+For a focused capture while iterating, use the full left-hand id from `listComposePreviews`, dry-run the plan, then render the same target:
 
 ```bash
 ./gradlew :app:captureComposePreviews \
-  -PagentPreview.previewNameFilter=Login \
-  -PagentPreview.viewportFilter=phone \
-  -PagentPreview.maxCaptures=4
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1 \
+  -PagentPreview.dryRun=true
+
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1
 ```
+
+Use `viewportFilter=preview` for previews with explicit `@Preview(widthDp/heightDp)` dimensions. Use configured names such as `phone` or `android-phone` when AgentPreview expands a preview across configured viewports.
 
 Use `-PagentPreview.cropToContent=false` for full-viewport diagnostic captures, or `-PagentPreview.cropPaddingDp=12` to override the default crop padding for one run.
 
@@ -76,7 +84,6 @@ Outputs are written under:
 ## More docs
 
 - Detailed setup and agent workflow: [`docs/agent-usage.md`](docs/agent-usage.md)
-- Agent workflow skill: [`skills/agentpreview-compose-iteration/SKILL.md`](skills/agentpreview-compose-iteration/SKILL.md)
 - `snapshot.json` schema: [`docs/snapshot-schema.md`](docs/snapshot-schema.md)
 - Release process: [`docs/releasing.md`](docs/releasing.md)
 
@@ -87,7 +94,7 @@ Outputs are written under:
 - `@PreviewParameter` is supported for one annotated user parameter.
 - Layout-tree source hints are experimental, best-effort, and sometimes missing.
 - Render modes: `robolectric`, `fake`, `diagnostic-fallback`. Do not judge UI from `fake` or `diagnostic-fallback` screenshots.
-- Android/CMP assets are wired for real Android captures, including CMP `composeResources` fonts/assets. Fake renderer ignores assets. Android `res/` contents are not fully provided.
+- Android/CMP assets are wired for real Android captures, including CMP `composeResources` fonts/assets. Fake renderer ignores assets. Common Android `res/` values such as strings, dimensions, and vectors are wired for Robolectric captures, while some resource edge cases may still fall back.
 - Android SDK lookup: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then root `local.properties` `sdk.dir`. Install `platforms;android-35` for exact Robolectric SDK 35 matching.
 
 ## License

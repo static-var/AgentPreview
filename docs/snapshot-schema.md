@@ -43,7 +43,7 @@ Current snapshots are emitted with `schemaVersion: 1`.
   "nodes": [
     {
       "id": "n1",
-      "role": "button",
+      "role": "Button",
       "text": "Continue",
       "bounds": {
         "x": 48,
@@ -51,8 +51,8 @@ Current snapshots are emitted with `schemaVersion: 1`.
         "width": 297,
         "height": 56
       },
-      "actions": ["click"],
-      "tag": "continue_button",
+      "actions": ["OnClick"],
+      "tag": "continue-button",
       "source": "LoginScreen.kt:84"
     }
   ],

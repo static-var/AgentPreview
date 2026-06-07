@@ -138,9 +138,11 @@ app-main-ProfileCard-previewParam-0/android-phone/
   },
   "nodes": [{
     "id": "semantics-12",
-    "role": "button",
+    "role": "Button",
     "text": "Continue",
     "bounds": { "x": 48, "y": 720, "width": 297, "height": 56 },
+    "actions": ["OnClick"],
+    "tag": "continue-button",
     "source": "LoginScreen.kt:84"
   }],
   "layoutTree": [{
@@ -171,6 +173,7 @@ app-main-ProfileCard-previewParam-0/android-phone/
             <span class="step-number">01</span>
             <h3>Add the plugin</h3>
             <pre><code>// build.gradle.kts
+// Add beside your existing Android and Compose plugins.
 plugins {
   id("dev.staticvar.agentpreview") version "0.1.0"
 }</code></pre>
@@ -196,16 +199,17 @@ plugins {
 
 ./gradlew :app:captureComposePreviews \
   -PagentPreview.dryRun=true \
-  -PagentPreview.previewNameFilter=Login</code></pre>
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1</code></pre>
           </article>
           <article>
             <span class="step-number">04</span>
             <h3>Capture the target states</h3>
             <pre><code>./gradlew :app:captureComposePreviews \
-  -PagentPreview.previewNameFilter=Login,ProfileCard:previewParam-0 \
-  -PagentPreview.viewportFilter=phone \
-  -PagentPreview.maxCaptures=4 \
-  -PagentPreview.maxParallelRenders=2</code></pre>
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1</code></pre>
           </article>
         </div>
       </section>
@@ -285,7 +289,7 @@ plugins {
           </article>
           <article>
             <h3>CMP via Android</h3>
-            <p>Compose Multiplatform support is routed through the Android target, not native desktop or web targets. CMP assets/fonts are Android-asset backed; Android res contents are not complete.</p>
+            <p>Compose Multiplatform support is routed through the Android target, not native desktop or web targets. CMP assets/fonts are Android-asset backed; common strings, dimensions, and vectors are wired for Robolectric captures.</p>
           </article>
           <article>
             <h3>Hints are best-effort</h3>
@@ -304,13 +308,19 @@ plugins {
 
       <section class="cta" aria-labelledby="cta-title">
         <h2 id="cta-title">Capture one preview. Review the actual artifact.</h2>
-        <p>Use the docs and snapshot schema to wire AgentPreview into an Android or CMP Android-target build.</p>
+        <p>Use the agent workflow docs and snapshot schema to wire AgentPreview into an Android or CMP Android-target build.</p>
         <a class="button primary" href="https://github.com/static-var/AgentPreview">Open AgentPreview on GitHub</a>
+        <p>
+          <a href="https://github.com/static-var/AgentPreview/blob/main/docs/agent-usage.md">Agent workflow</a>
+          ·
+          <a href="https://github.com/static-var/AgentPreview/blob/main/docs/snapshot-schema.md">Snapshot schema</a>
+        </p>
       </section>
     </main>
 
     <footer class="site-footer">
       <span>AgentPreview - zsh</span>
+      <a href="https://github.com/static-var/AgentPreview/blob/main/docs/agent-usage.md">Agent workflow</a>
       <a href="https://github.com/static-var/AgentPreview/blob/main/docs/snapshot-schema.md">Snapshot schema</a>
       <a href="https://github.com/static-var/AgentPreview/blob/main/LICENSE">MIT License</a>
     </footer>

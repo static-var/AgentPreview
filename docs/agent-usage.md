@@ -8,7 +8,7 @@ AgentPreview is a Gradle plugin for turning AndroidX Compose `@Preview` function
   snapshot.json
 ```
 
-Use it when you need to inspect, compare, or iterate on Compose UI without launching an app manually. For a reusable agent workflow, see [`skills/agentpreview-compose-iteration/SKILL.md`](../skills/agentpreview-compose-iteration/SKILL.md).
+Use it when you need to inspect, compare, or iterate on Compose UI without launching an app manually.
 
 Output path note: preview ids are sanitized for file-system paths. For example, `:app:main:LoginPreview` becomes `app-main-LoginPreview`, and a `phone` Android viewport is stored under `android-phone`. Use `listComposePreviews` for the logical id and `find <module>/build/agentPreviewSnapshots -name snapshot.json` when locating files programmatically.
 
@@ -208,25 +208,33 @@ Output is one preview per line:
 :app:main:ParameterizedLoginPreview  Parameterized Login  [@PreviewParameter provider=..., limit=...; capture ids append :previewParam-N]
 ```
 
-Use the left-hand id for focused captures.
+Use the full left-hand id for exact focused captures. Short filters such as `Login` are useful while exploring, but they can match several previews; dry-run first when combining broad filters with `maxCaptures`.
 
 ## 3. Run a focused capture
 
-Prefer a narrow, cheap run while editing UI:
+Prefer a narrow, cheap run while editing UI. Start with a dry run, inspect `capture-report.json`, then render the same exact target:
 
 ```bash
 ./gradlew :app:captureComposePreviews \
-  -PagentPreview.previewNameFilter=LoginPreview \
-  -PagentPreview.viewportFilter=phone \
-  -PagentPreview.maxCaptures=4
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1 \
+  -PagentPreview.dryRun=true
+
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1
 ```
+
+Use `viewportFilter=preview` for previews with explicit `@Preview(widthDp/heightDp)` dimensions. Use configured viewport names such as `phone`, `tablet`, `android-phone`, or `android-tablet` when the preview omits explicit dimensions and AgentPreview expands it across configured viewports.
 
 Useful capture flags:
 
 | Flag | Use |
 | --- | --- |
-| `-PagentPreview.previewNameFilter=LoginPreview,EmptyState` | Capture matching preview ids, names, groups, function names, or expanded `:previewParam-N` ids. |
-| `-PagentPreview.viewportFilter=phone,tablet` | Capture only named viewports. |
+| `-PagentPreview.previewNameFilter=:app:main:LoginPreview,EmptyState` | Capture matching preview ids, names, groups, function names, or expanded `:previewParam-N` ids. Prefer full ids for exact targeting. |
+| `-PagentPreview.viewportFilter=preview,phone,android-tablet` | Capture only named viewports. Explicit-dimension previews use `preview`; configured viewports can match by name or `platform-name`. |
 | `-PagentPreview.maxPreviewParameterValues=3` | Cap `@PreviewParameter` expansion. |
 | `-PagentPreview.dryRun=true` | Write the capture plan/report without rendering screenshots. |
 | `-PagentPreview.maxCaptures=10` | Fail before rendering if the plan is too broad. Use `0` to assert no captures. |
@@ -298,24 +306,27 @@ Important `snapshot.json` fields:
 ## 5. Suggested UI-agent loop
 
 1. Run `listComposePreviews`.
-2. Pick the smallest relevant preview and viewport.
-3. Run `captureComposePreviews` with `previewNameFilter`, `viewportFilter`, and `maxCaptures`.
-4. Inspect `screenshot.png` visually.
-5. Inspect `snapshot.json` for labels, bounds, semantics roles/actions, and layout hints.
-6. Edit Compose code.
-7. Re-run the same focused command.
-8. Broaden to more viewports/previews only after the focused case is correct.
+2. Pick the smallest relevant preview. Prefer its full left-hand id for exact targeting.
+3. Dry-run `captureComposePreviews` with `previewNameFilter`, `viewportFilter`, and `maxCaptures`.
+4. Inspect `capture-report.json`; confirm the planned count, selected preview, viewport, and zero failures.
+5. Render the same focused command without `dryRun=true`.
+6. Inspect `screenshot.png` visually only when `render.mode` is `robolectric`.
+7. Inspect `snapshot.json` for labels, bounds, semantics roles/actions, and layout hints.
+8. Edit Compose code and re-run the same focused command.
+9. Broaden to more viewports/previews only after the focused case is correct.
 
 Good default command while iterating:
 
 ```bash
 ./gradlew :app:captureComposePreviews \
-  -PagentPreview.previewNameFilter=Login \
-  -PagentPreview.viewportFilter=phone \
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
   -PagentPreview.maxPreviewParameterValues=2 \
-  -PagentPreview.maxCaptures=4 \
+  -PagentPreview.maxCaptures=1 \
   -PagentPreview.continueOnError=true
 ```
+
+When reporting results, include the preview id, viewport, screenshot path, snapshot path, `render.mode`, capture-report failure count, and any remaining visual differences.
 
 ## Failure handling
 
@@ -335,5 +346,5 @@ Good default command while iterating:
 - Compose Multiplatform Android-target captures may only emit preview-entrypoint fallback source hints when tooling composition data is unavailable.
 - `@PreviewParameter` support expects one user parameter annotated with `@PreviewParameter`; multiple user parameters are unsupported.
 - Fake and diagnostic-fallback screenshots are placeholders; do not use them for UI judgment.
-- Real Android captures include Android merged assets and `agentPreview { android { assetsDirs.from(...) } }`. Assets are copied, packed into a synthetic APK, and added to Robolectric `AssetManager`; useful for CMP `composeResources` fonts/assets. Fake renderer ignores assets. Duplicate relative asset paths with different bytes fail. Android `res/` contents are not fully provided.
+- Real Android captures include Android merged assets and `agentPreview { android { assetsDirs.from(...) } }`. Assets are copied, packed into a synthetic APK, and added to Robolectric `AssetManager`; useful for CMP `composeResources` fonts/assets. Fake renderer ignores assets. Duplicate relative asset paths with different bytes fail. Common Android `res/` values such as strings, dimensions, and vectors are wired for Robolectric captures, while some resource edge cases may still fall back.
 - SDK lookup: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then Gradle-root `local.properties` `sdk.dir`. Missing requested `android-35` may fall back to highest installed platform with warning; install `platforms;android-35`.
