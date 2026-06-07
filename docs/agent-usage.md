@@ -408,6 +408,34 @@ When reporting results, include the preview id, viewport, screenshot path, snaps
 - Renderer complains about Android wiring: use an Android app/library or CMP Android target; for discovery-only checks use `-PagentPreview.fakeRenderer=true`.
 - Configuration-cache issues: rerun with `--no-configuration-cache` to confirm whether the problem is cache-specific.
 
+### Fonts, assets, and Android resources
+
+When a screenshot renders but fonts, images, strings, dimensions, or other resources look wrong, first confirm the capture is real evidence:
+
+1. Inspect `snapshot.json` and require `render.mode` to be `robolectric`. Fake and diagnostic-fallback captures are placeholders and cannot prove font or resource behavior.
+2. Confirm AgentPreview is applied to the Android app/library or CMP module with the Android target that owns the preview, then confirm `agentPreview { android { variant.set("debug") } }` matches the variant whose resources you expect.
+3. Identify where the missing asset actually comes from:
+   - Android `res/font`, `res/drawable`, `res/values`, and dependency resources should normally come through AGP-linked Android resource artifacts for the selected variant.
+   - Android `src/<variant>/assets`, Compose Multiplatform `composeResources`, generated assets, and custom asset folders must be visible through the Android merged-assets output or `android.assetsDirs`.
+   - Classes and synthetic `R` jars are not enough for resource contents; the renderer needs the actual Android resource artifact or asset files.
+
+For CMP fonts/assets or custom generated asset folders that are not auto-wired, add the asset root in Gradle. Use the directory whose children should be visible through `LocalContext.current.assets`:
+
+```kotlin
+agentPreview {
+    android {
+        // Add custom assets visible to Robolectric AssetManager.
+        assetsDirs.from(layout.projectDirectory.dir("src/commonMain/composeResources"))
+        // Add generated CMP assets with task dependencies.
+        assetsDirs.from(tasks.named("copyAndroidMainComposeResourcesToAndroidAssets"))
+    }
+}
+```
+
+If multiple asset roots contain the same relative path with different bytes, AgentPreview fails instead of guessing precedence. Prefer a single AGP merged-assets directory when available.
+
+If Android `res/font` or other `res/` values still do not load, check the selected module and variant first. The real renderer passes AGP resource APK/linked-resource artifacts, merged manifest, namespace, and optional merged assets into Robolectric. Resource failures after that are usually variant/module wiring gaps or renderer resource-loading edge cases. Use `capture-report.json` for the failing preview id, then rerun the focused command with `-Dagentpreview.fontProbe=true` when debugging CMP font asset visibility.
+
 ## Known limitations
 
 - Rendering is Android-backed. Desktop/web Compose targets are not separate renderers here.
@@ -415,5 +443,5 @@ When reporting results, include the preview id, viewport, screenshot path, snaps
 - Compose Multiplatform Android-target captures may only emit preview-entrypoint fallback source hints when tooling composition data is unavailable.
 - `@PreviewParameter` support expects one user parameter annotated with `@PreviewParameter`; multiple user parameters are unsupported.
 - Fake and diagnostic-fallback screenshots are placeholders; do not use them for UI judgment.
-- Real Android captures include Android merged assets and `agentPreview { android { assetsDirs.from(...) } }`. Assets are copied, packed into a synthetic APK, and added to Robolectric `AssetManager`; useful for CMP `composeResources` fonts/assets. Fake renderer ignores assets. Duplicate relative asset paths with different bytes fail. Common Android `res/` values such as strings, dimensions, and vectors are wired for Robolectric captures, while some resource edge cases may still fall back.
+- Real Android captures include Android merged assets and Android resource artifacts where available; see the fonts/assets troubleshooting section for manual `assetsDirs` wiring and resource edge cases.
 - SDK lookup: `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then Gradle-root `local.properties` `sdk.dir`. Missing requested `android-35` may fall back to highest installed platform with warning; install `platforms;android-35`.
