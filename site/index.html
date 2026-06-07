@@ -19,7 +19,7 @@
     <link rel="preload" href="https://staticvar.dev/ap/f/a.otf" as="font" type="font/otf" crossorigin />
     <link rel="preload" href="https://staticvar.dev/ap/f/b.otf" as="font" type="font/otf" crossorigin />
     <link rel="preload" href="https://staticvar.dev/ap/f/d.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="./styles.css?v=20260607d" />
+    <link rel="stylesheet" href="./styles.css?v=20260607e" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -31,6 +31,7 @@
         <span>ap.staticvar.dev</span>
       </a>
       <nav aria-label="Primary navigation">
+        <a href="#tool-fit">Tool fit</a>
         <a href="#artifacts">Artifacts</a>
         <a href="#workflow">Workflow</a>
         <a href="#limits">Limits</a>
@@ -87,6 +88,42 @@ app-main-ProfileCard-previewParam-0/android-phone/
         <span>Compose semantics</span>
         <span>layoutTree hints</span>
         <span>CMP via Android target</span>
+      </section>
+
+      <section class="section tool-fit" id="tool-fit" aria-labelledby="tool-fit-title">
+        <div class="section-heading">
+          <p class="eyebrow">Use the right layer</p>
+          <h2 id="tool-fit-title">Agent UI tools are complementary, not interchangeable.</h2>
+          <p>
+            AgentPreview focuses on pre-launch Compose preview artifacts. Android CLI focuses on the Android runtime and device workflow. A2UI focuses on agent-generated UI protocols. Official screenshot testing focuses on regression gates.
+          </p>
+        </div>
+        <div class="tool-grid">
+          <article>
+            <span class="tool-label">01 / Gradle preview artifacts</span>
+            <h3>AgentPreview</h3>
+            <p>Use when an agent edits Compose UI and needs a focused screenshot plus <code>snapshot.json</code> from a specific <code>@Preview</code>, preview parameter, or viewport before launching the app.</p>
+            <p class="tool-boundary">Less useful for full navigation flows, permissions, backend state, or device-only behavior.</p>
+          </article>
+          <article>
+            <span class="tool-label">02 / Device and emulator runtime</span>
+            <h3>Android CLI</h3>
+            <p>Use when the task needs Android SDK setup, emulator lifecycle, APK deployment, runtime screen capture, layout-tree inspection, or visual element targeting on a connected device or emulator.</p>
+            <p class="tool-boundary">Less useful for discovering Compose previews or rendering isolated preview states without a running app.</p>
+          </article>
+          <article>
+            <span class="tool-label">03 / Agent-generated interfaces</span>
+            <h3>A2UI</h3>
+            <p>Use when an agent should send declarative UI messages that a host app renders with trusted native components, catalogs, data binding, and action handling.</p>
+            <p class="tool-boundary">Less useful as an Android inspection tool; renderer behavior depends on the client implementation.</p>
+          </article>
+          <article>
+            <span class="tool-label">04 / Golden regression gates</span>
+            <h3>Compose Preview Screenshot Testing</h3>
+            <p>Use when a team wants approved reference images, validation tasks, and HTML diff reports around selected Compose previews in CI or release checks.</p>
+            <p class="tool-boundary">Less useful for ad hoc agent iteration when you do not want to create or update golden files.</p>
+          </article>
+        </div>
       </section>
 
       <section class="section two-column" id="artifacts" aria-labelledby="artifacts-title">
@@ -335,7 +372,7 @@ plugins {
     </footer>
     <div class="statusline" aria-hidden="true">
       <span>"ap.staticvar.dev"</span>
-      <span>0:artifacts 1:workflow 2:limits</span>
+      <span>0:tool-fit 1:artifacts 2:workflow 3:limits</span>
     </div>
     <script>
       document.querySelectorAll("[data-copy-target]").forEach((button) => {

@@ -39,6 +39,19 @@ Preview ids are sanitized for file paths: `:app:main:LoginPreview` becomes `app-
 | `snapshot.json` | Preview metadata, viewport data, semantics, layout hints, and source hints. |
 | `capture-report.json` | Capture plan, selected previews, output paths, and render failures. |
 
+## Where each tool fits
+
+AgentPreview is one part of a broader Android and agent-UI toolbox. These tools overlap around UI feedback, but they work at different layers:
+
+| Tool | Best for | Not for |
+| --- | --- | --- |
+| AgentPreview | Pre-launch Compose iteration: discover `@Preview` functions, dry-run focused capture plans, and export `screenshot.png` plus `snapshot.json` for agents. | Full app journeys, runtime permissions, backend/device state, or behavior that only exists after app launch. |
+| Android CLI | Android SDK setup, emulator/device lifecycle, APK deployment, runtime screen capture, layout-tree inspection, and visual element targeting on a running app. | Discovering or rendering isolated Compose previews from Gradle without launching the app. |
+| A2UI | Agent-generated product UI: an agent sends declarative UI messages that a host app renders with trusted native components, catalogs, data binding, and actions. | Inspecting Android builds or proving what an existing Compose preview currently renders. |
+| Compose Preview Screenshot Testing | Golden-image regression checks for selected Compose previews, including validation tasks and HTML diff reports. | Fast ad hoc agent iteration when you do not want to create or maintain reference images. |
+
+Use them together when the task crosses layers. For example, A2UI can define the protocol for an agent-rendered experience, AgentPreview can inspect the Compose components that implement that experience, and Android CLI can validate the final running app on an emulator or device.
+
 ## Install
 
 Use the published Gradle Plugin Portal plugin in the target module that owns the previews. Gradle requires a concrete plugin version, so pin the latest version shown on the [Plugin Portal](https://plugins.gradle.org/plugin/dev.staticvar.agentpreview) or in the badge above.

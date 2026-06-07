@@ -523,6 +523,7 @@ pre code {
 .terminal-window,
 .feature-grid article,
 .limit-grid article,
+.tool-grid article,
 .steps article,
 .split-panel,
 .cta {
@@ -640,7 +641,8 @@ pre code {
 .split-panel > *,
 .steps > *,
 .feature-grid > *,
-.limit-grid > * {
+.limit-grid > *,
+.tool-grid > * {
   min-width: 0;
 }
 
@@ -651,6 +653,7 @@ pre code {
 
 .feature-grid,
 .limit-grid,
+.tool-grid,
 .steps {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -662,6 +665,7 @@ pre code {
 
 .feature-grid article,
 .limit-grid article,
+.tool-grid article,
 .steps article {
   min-height: 158px;
   padding: 1.15rem;
@@ -671,10 +675,32 @@ pre code {
 
 .feature-grid article:hover,
 .limit-grid article:hover,
+.tool-grid article:hover,
 .steps article:hover {
   background:
     linear-gradient(140deg, color-mix(in srgb, var(--accent-purple) 10%, transparent), transparent 48%),
     var(--bg-terminal-alt);
+}
+
+.tool-grid article {
+  min-height: 236px;
+}
+
+.tool-label {
+  display: block;
+  margin-bottom: 0.9rem;
+  color: var(--accent-green);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tool-boundary {
+  margin: 1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.94rem;
 }
 
 .code-panel {
@@ -838,7 +864,8 @@ pre code {
   .split-panel,
   .steps,
   .feature-grid,
-  .limit-grid {
+  .limit-grid,
+  .tool-grid {
     grid-template-columns: 1fr;
   }
 
