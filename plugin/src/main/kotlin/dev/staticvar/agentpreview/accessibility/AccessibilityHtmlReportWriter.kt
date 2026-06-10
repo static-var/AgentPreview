@@ -67,7 +67,7 @@ internal object AccessibilityHtmlReportWriter {
                     bundle = bundle,
                     findings = findingsByBundle[bundle.previewId to bundle.viewportLabel].orEmpty(),
                     outputPath = outputDir.toPath(),
-                    bundleStatus = bundleStatus(bundle, report),
+                    bundleStatus = bundleStatus(bundle, report, unmatchedFindings),
                 )
             }
             appendUnmatchedFindings(unmatchedFindings)
@@ -82,12 +82,17 @@ internal object AccessibilityHtmlReportWriter {
     private fun bundleStatus(
         bundle: AuditedSnapshotBundle,
         report: AccessibilityAuditReport,
+        unmatchedFindings: Map<Pair<String, String>, List<AccessibilityFinding>>,
     ): BundleStatus =
         when {
             report.warnings.any {
                 it.contains("does not match bundle preview id ${bundle.previewId}") && it.contains("viewport ${bundle.viewportLabel}")
             } -> {
-                BundleStatus.UnmatchedFindings
+                if (unmatchedFindings.isEmpty()) {
+                    BundleStatus.NotChecked
+                } else {
+                    BundleStatus.UnmatchedFindings
+                }
             }
 
             report.warnings.any { it.startsWith("Skipping accessibility audit for ${bundle.previewId}/${bundle.viewportLabel}:") } -> {

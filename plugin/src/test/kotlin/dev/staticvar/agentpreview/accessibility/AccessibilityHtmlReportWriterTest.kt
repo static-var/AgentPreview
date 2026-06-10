@@ -157,6 +157,33 @@ class AccessibilityHtmlReportWriterTest {
     }
 
     @Test
+    fun `renders mismatched snapshot without findings as not checked instead of unmatched findings`() {
+        val snapshotFile = tempDir.resolve("mismatched-clean.json")
+        snapshotFile.writeText(
+            """
+            {
+              "schemaVersion": 1,
+              "preview": {"id": "DecodedPreview"},
+              "viewport": {"name": "phone", "width": 360, "height": 640, "density": 1.0},
+              "render": {"mode": "robolectric"},
+              "nodes": []
+            }
+            """.trimIndent(),
+        )
+        val bundle = bundle("BundlePreview", "phone", snapshotFile, renderMode = "robolectric")
+
+        val report = AccessibilityAuditor.audit(listOf(bundle))
+        val html = AccessibilityHtmlReportWriter.write(report, listOf(bundle), tempDir).readText()
+
+        assertEquals(0, report.findings.size)
+        assertTrue(report.warnings.any { it.contains("BundlePreview") && it.contains("DecodedPreview") }, report.warnings.toString())
+        assertContains(html, "Snapshot preview id DecodedPreview does not match bundle preview id BundlePreview")
+        assertContains(html, "Not checked")
+        assertFalse(html.contains("review unmatched findings below"), html)
+        assertFalse(html.contains("Unmatched findings"), html)
+    }
+
+    @Test
     fun `marks all skipped bundles as not checked instead of no findings`() {
         val nonRobolectricSnapshot = tempDir.resolve("non-robolectric.json")
         nonRobolectricSnapshot.writeText(
