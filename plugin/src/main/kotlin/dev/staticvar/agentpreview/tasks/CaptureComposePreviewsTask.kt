@@ -286,6 +286,9 @@ abstract class CaptureComposePreviewsTask :
             return
         }
 
+        if (accessibilityCheck) {
+            clearAccessibilityReport()
+        }
         enforceMaxCaptures(plan)
         prepareOutputDirectory()
 

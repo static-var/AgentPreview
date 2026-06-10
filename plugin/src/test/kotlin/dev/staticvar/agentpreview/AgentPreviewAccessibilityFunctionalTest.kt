@@ -157,6 +157,36 @@ class AgentPreviewAccessibilityFunctionalTest {
         assertTrue(cliOverrideResult.output.contains("Tip: run with -PagentPreview.accessibilityCheck=true"), cliOverrideResult.output)
     }
 
+    @Test
+    fun `enabled pre-render failure clears stale accessibility report from previous run`() {
+        writeSettings()
+        writeBuildFile()
+        writePreviewIndex(loginPreviewJson())
+
+        val enabledResult =
+            runner(
+                "captureComposePreviews",
+                "-PagentPreview.fakeRenderer=true",
+                "-PagentPreview.accessibilityCheck=true",
+            ).build()
+
+        assertEquals(TaskOutcome.SUCCESS, enabledResult.task(":captureComposePreviews")?.outcome)
+        assertTrue(accessibilityReport().isFile)
+        assertTrue(accessibilityAssets().isDirectory)
+
+        val failingResult =
+            runner(
+                "captureComposePreviews",
+                "-PagentPreview.fakeRenderer=true",
+                "-PagentPreview.accessibilityCheck=true",
+                "-PagentPreview.maxCaptures=0",
+            ).buildAndFail()
+
+        assertTrue(failingResult.output.contains("agentPreview.maxCaptures planned 1 capture(s)"), failingResult.output)
+        assertFalse(accessibilityReport().exists())
+        assertFalse(accessibilityAssets().exists())
+    }
+
     private fun runner(vararg arguments: String): GradleRunner =
         GradleRunner
             .create()
