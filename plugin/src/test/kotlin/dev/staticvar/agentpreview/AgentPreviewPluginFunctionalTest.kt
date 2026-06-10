@@ -138,18 +138,21 @@ class AgentPreviewPluginFunctionalTest {
             }
             """.trimIndent(),
         )
-        val snapshots = projectDir.resolve("agent-preview-out/snapshots").apply {
-            mkdirs()
-            resolve("snapshot.json").writeText("{}")
-        }
-        val reports = projectDir.resolve("agent-preview-out/reports").apply {
-            mkdirs()
-            resolve("capture-report.json").writeText("{}")
-        }
-        val renderScratch = projectDir.resolve("agent-preview-out/render").apply {
-            mkdirs()
-            resolve("preview.png").writeText("scratch")
-        }
+        val snapshots =
+            projectDir.resolve("agent-preview-out/snapshots").apply {
+                mkdirs()
+                resolve("snapshot.json").writeText("{}")
+            }
+        val reports =
+            projectDir.resolve("agent-preview-out/reports").apply {
+                mkdirs()
+                resolve("capture-report.json").writeText("{}")
+            }
+        val renderScratch =
+            projectDir.resolve("agent-preview-out/render").apply {
+                mkdirs()
+                resolve("preview.png").writeText("scratch")
+            }
 
         val result =
             GradleRunner

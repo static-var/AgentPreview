@@ -161,7 +161,7 @@ internal object AccessibilityRules {
         recommendation: String,
         guideline: String,
     ) = AccessibilityFinding(
-        id = "${category.name.lowercase(Locale.US)}:${snapshot.preview.id}:${viewportLabel}:${node.id}",
+        id = "${category.name.lowercase(Locale.US)}:${snapshot.preview.id}:$viewportLabel:${node.id}",
         severity = severity,
         category = category,
         message = message,
