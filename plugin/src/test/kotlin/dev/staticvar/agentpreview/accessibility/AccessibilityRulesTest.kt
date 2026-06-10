@@ -137,6 +137,62 @@ class AccessibilityRulesTest {
     }
 
     @Test
+    fun `rules audit role only interactive nodes`() {
+        val snapshot =
+            snapshot(
+                viewport = Viewport(name = "zero-density", width = 360, height = 640, density = 0.0f),
+                nodes =
+                    listOf(
+                        node(
+                            id = "role-only-missing-name-small",
+                            role = "Button",
+                            bounds = Bounds(x = 16, y = 20, width = 44, height = 56),
+                        ),
+                    ),
+            )
+
+        val findings = AccessibilityRules.evaluate(snapshot, viewportLabel = "zero-density")
+
+        assertFinding(
+            findings = findings,
+            category = AccessibilityCategory.MISSING_ACCESSIBLE_NAME,
+            severity = AccessibilitySeverity.ERROR,
+            nodeId = "role-only-missing-name-small",
+        )
+        assertFinding(
+            findings = findings,
+            category = AccessibilityCategory.SMALL_TOUCH_TARGET,
+            severity = AccessibilitySeverity.WARNING,
+            nodeId = "role-only-missing-name-small",
+        )
+    }
+
+    @Test
+    fun `missing role applies to any nonblank action`() {
+        val snapshot =
+            snapshot(
+                nodes =
+                    listOf(
+                        node(
+                            id = "click-action-no-role",
+                            text = "Open",
+                            actions = listOf("click"),
+                            bounds = Bounds(x = 16, y = 20, width = 96, height = 96),
+                        ),
+                    ),
+            )
+
+        val findings = AccessibilityRules.evaluate(snapshot, viewportLabel = "default")
+
+        assertFinding(
+            findings = findings,
+            category = AccessibilityCategory.MISSING_ROLE,
+            severity = AccessibilitySeverity.WARNING,
+            nodeId = "click-action-no-role",
+        )
+    }
+
+    @Test
     fun `flattener preserves hierarchy and merges child accessible names`() {
         val snapshot =
             snapshot(

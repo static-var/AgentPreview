@@ -48,7 +48,7 @@ internal object AccessibilityRules {
                     )
             }
 
-            if (node.role.isNullOrBlank() && node.actions.any { it.startsWith("On") }) {
+            if (node.role.isNullOrBlank() && node.actions.any { it.isNotBlank() }) {
                 findings +=
                     finding(
                         category = AccessibilityCategory.MISSING_ROLE,

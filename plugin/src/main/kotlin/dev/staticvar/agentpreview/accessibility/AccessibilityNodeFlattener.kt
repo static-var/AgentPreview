@@ -8,6 +8,7 @@ package dev.staticvar.agentpreview.accessibility
 import dev.staticvar.agentpreview.model.Bounds
 import dev.staticvar.agentpreview.model.PreviewSnapshot
 import dev.staticvar.agentpreview.model.SnapshotNode
+import java.util.Locale
 
 internal data class FlattenedAccessibilityNode(
     val id: String,
@@ -35,6 +36,8 @@ internal data class FlattenedAccessibilityNode(
 }
 
 internal object AccessibilityNodeFlattener {
+    private val interactiveRoles = setOf("button", "checkbox", "radio button", "radiobutton", "switch", "tab")
+
     fun flatten(snapshot: PreviewSnapshot): List<FlattenedAccessibilityNode> = flattenNodes(snapshot.nodes, parentId = null)
 
     private fun flattenNodes(
@@ -53,7 +56,7 @@ internal object AccessibilityNodeFlattener {
                     source = node.source,
                     parentId = parentId,
                     siblingIndex = index,
-                    isActionable = node.actions.any { it.isNotBlank() },
+                    isActionable = node.hasActionableSemantics(),
                 )
             listOf(flattened) + flattenNodes(node.children, parentId = node.id)
         }
@@ -65,6 +68,10 @@ internal object AccessibilityNodeFlattener {
                 .mapNotNull { accessibleNameFor(it) }
                 .joinToString(" ")
                 .trimToNull()
+
+    private fun SnapshotNode.hasActionableSemantics(): Boolean =
+        actions.any { it.isNotBlank() } ||
+            role.trimToNull()?.lowercase(Locale.US) in interactiveRoles
 
     private fun String?.trimToNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
 }
