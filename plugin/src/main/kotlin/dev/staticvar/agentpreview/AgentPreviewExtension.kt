@@ -19,13 +19,14 @@ import org.gradle.api.provider.Provider
  *
  * Defaults: snapshots are written under `build/agentPreviewSnapshots`, reports under
  * `build/agentPreviewReports`, Android rendering uses the `debug` variant, preview filters are empty,
- * `maxPreviewParameterValues` is 50, `maxParallelRenders` is 1, and `continueOnError` is false.
+ * `maxPreviewParameterValues` is 50, `maxParallelRenders` is 1, `continueOnError` is false, and
+ * `accessibilityCheck` is false.
  * Scalar command-line properties such as `-PagentPreview.maxPreviewParameterValues=n`,
  * `-PagentPreview.maxCaptures=n`, `-PagentPreview.maxParallelRenders=n`, and
- * `-PagentPreview.continueOnError=true|false` take precedence over the matching DSL defaults for that
- * invocation. List filters are additive: DSL `previewNameFilter`/`viewportNameFilter` entries are combined
- * with CSV command-line filters from `-PagentPreview.previewNameFilter=...` and
- * `-PagentPreview.viewportFilter=...`.
+ * `-PagentPreview.continueOnError=true|false`, and `-PagentPreview.accessibilityCheck=true|false` take
+ * precedence over the matching DSL defaults for that invocation. List filters are additive: DSL
+ * `previewNameFilter`/`viewportNameFilter` entries are combined with CSV command-line filters from
+ * `-PagentPreview.previewNameFilter=...` and `-PagentPreview.viewportFilter=...`.
  */
 abstract class AgentPreviewExtension(
     project: Project,
@@ -67,6 +68,9 @@ abstract class AgentPreviewExtension(
     /** Continue writing successful captures and reports when an individual preview render fails. */
     abstract val continueOnError: Property<Boolean>
 
+    /** Generate a non-failing accessibility HTML report from rendered snapshot bundles. */
+    abstract val accessibilityCheck: Property<Boolean>
+
     init {
         includeUnmergedSemantics.convention(false)
         previewNameFilter.convention(emptyList())
@@ -74,6 +78,7 @@ abstract class AgentPreviewExtension(
         maxPreviewParameterValues.convention(50)
         maxParallelRenders.convention(1)
         continueOnError.convention(false)
+        accessibilityCheck.convention(false)
     }
 
     fun android(action: Action<AndroidPreviewConfig>) {

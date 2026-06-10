@@ -5,11 +5,16 @@
  */
 package dev.staticvar.agentpreview.tasks
 
+import dev.staticvar.agentpreview.accessibility.AccessibilityAuditor
+import dev.staticvar.agentpreview.accessibility.AccessibilityHtmlReportWriter
+import dev.staticvar.agentpreview.accessibility.AccessibilityReportAssetWriter
+import dev.staticvar.agentpreview.accessibility.AuditedSnapshotBundle
 import dev.staticvar.agentpreview.config.AndroidPreviewConfigValidator
 import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.export.PreviewSnapshotMapper
 import dev.staticvar.agentpreview.export.ScreenshotCropPlanner
+import dev.staticvar.agentpreview.export.SnapshotExportMetadata
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.export.SnapshotOutputPath
 import dev.staticvar.agentpreview.model.CaptureFailure
@@ -45,6 +50,7 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import java.util.Collections
 import javax.imageio.ImageIO
 
 abstract class CaptureComposePreviewsTask :
@@ -123,6 +129,15 @@ abstract class CaptureComposePreviewsTask :
     @get:Input
     @get:Optional
     abstract val cliContinueOnError: Property<String>
+
+    /** Generate a non-failing accessibility HTML report from rendered snapshot bundles. */
+    @get:Input
+    abstract val accessibilityCheck: Property<Boolean>
+
+    /** CLI scalar override for [accessibilityCheck]. */
+    @get:Input
+    @get:Optional
+    abstract val cliAccessibilityCheck: Property<String>
 
     /** Crop screenshots to detected content bounds when reliable bounds exist. */
     @get:Input
@@ -254,12 +269,16 @@ abstract class CaptureComposePreviewsTask :
         warnIfConfigurationIsIncompatible()
         logEffectiveRenderingClasspath()
         val plan = capturePlan()
+        val accessibilityCheck = effectiveAccessibilityCheck()
 
         if (plan.dryRun) {
             writeReport(plan.report())
-            logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0)
+            logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0, accessibilityCheck = accessibilityCheck)
             logArtifactLocations(plan, wroteSnapshots = false)
             logNoSelection(plan)
+            if (accessibilityCheck) {
+                logger.lifecycle("Accessibility check requires rendered snapshots; skipping accessibility report for dry run.")
+            }
             return
         }
 
@@ -268,16 +287,22 @@ abstract class CaptureComposePreviewsTask :
 
         if (plan.selectedPreviewCount == 0) {
             writeReport(plan.report())
-            logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0)
+            logSummary(plan, capturedViewportCount = 0, failedViewportCount = 0, accessibilityCheck = accessibilityCheck)
             logArtifactLocations(plan, wroteSnapshots = false)
             logger.lifecycle("No Compose previews selected for capture.")
+            if (accessibilityCheck) {
+                writeAccessibilityReport(emptyList())
+            }
             return
         }
 
         val result = renderCaptures(plan)
         writeReport(plan.report(result.capturedViewportCount, result.failures))
-        logSummary(plan, result.capturedViewportCount, result.failures.size)
+        logSummary(plan, result.capturedViewportCount, result.failures.size, accessibilityCheck)
         logArtifactLocations(plan, wroteSnapshots = result.capturedViewportCount > 0)
+        if (accessibilityCheck) {
+            writeAccessibilityReport(result.exportedBundles)
+        }
         if (result.failures.isNotEmpty() && !plan.continueOnError && plan.maxParallelRenders > 1) {
             logger.lifecycle(
                 "AgentPreview stopped scheduling new captures after the first parallel failure; " +
@@ -332,12 +357,13 @@ abstract class CaptureComposePreviewsTask :
         outputRoot.mkdirs()
     }
 
-    private fun renderCaptures(plan: CapturePlan): CaptureResult {
-        val renderSettings = renderSettings()
+    private fun renderCaptures(plan: CapturePlan): CaptureTaskResult {
+        val exportedBundles = Collections.synchronizedList(mutableListOf<CurrentRunExport>())
+        val renderSettings = renderSettings(recordExport = exportedBundles::add)
         val requests = captureRequests(plan)
         preflightDestinationCollisions(requests, renderSettings.outputRoot).takeIf { it.isNotEmpty() }?.let { failures ->
             failures.forEach(::logFailure)
-            return CaptureResult(capturedViewportCount = 0, failures = failures)
+            return CaptureTaskResult(capturedViewportCount = 0, failures = failures, exportedBundles = emptyList())
         }
         val executor =
             if (plan.maxParallelRenders == 1) {
@@ -346,11 +372,17 @@ abstract class CaptureComposePreviewsTask :
                 logger.lifecycle("AgentPreview parallel render workers: ${plan.maxParallelRenders}")
                 ParallelCaptureExecutor(plan.maxParallelRenders)
             }
-        return executor.execute(
-            requests = requests,
-            continueOnError = plan.continueOnError,
-            render = { request -> renderCapture(request, renderSettings) },
-            record = ::recordCompletedCapture,
+        val result =
+            executor.execute(
+                requests = requests,
+                continueOnError = plan.continueOnError,
+                render = { request -> renderCapture(request, renderSettings) },
+                record = ::recordCompletedCapture,
+            )
+        return CaptureTaskResult(
+            capturedViewportCount = result.capturedViewportCount,
+            failures = result.failures,
+            exportedBundles = exportedBundles.toList(),
         )
     }
 
@@ -407,19 +439,28 @@ abstract class CaptureComposePreviewsTask :
                     layoutTree = renderResult.layoutTree.takeUnless { renderSettings.useFakeRenderer }.orEmpty(),
                     semanticsNodes = cropSemanticsNodes,
                 )
-            SnapshotExporter().export(
-                previewId = request.preview.id,
-                screenshotFile = renderResult.screenshotFile,
-                snapshot =
-                    PreviewSnapshotMapper().map(
-                        preview = request.preview,
-                        renderResult = renderResult,
-                        useFakeRenderer = renderSettings.useFakeRenderer,
-                        cropPlan = cropPlan,
-                    ),
-                outputRoot = renderSettings.outputRoot,
-                viewport = request.viewport,
-                cropPlan = cropPlan,
+            val exportedBundle =
+                SnapshotExporter().export(
+                    previewId = request.preview.id,
+                    screenshotFile = renderResult.screenshotFile,
+                    snapshot =
+                        PreviewSnapshotMapper().map(
+                            preview = request.preview,
+                            renderResult = renderResult,
+                            useFakeRenderer = renderSettings.useFakeRenderer,
+                            cropPlan = cropPlan,
+                        ),
+                    outputRoot = renderSettings.outputRoot,
+                    viewport = request.viewport,
+                    cropPlan = cropPlan,
+                )
+            renderSettings.recordExport(
+                CurrentRunExport(
+                    previewId = request.preview.id,
+                    viewportLabel = request.viewport.label(),
+                    renderMode = renderResult.renderMode.logLabel,
+                    export = exportedBundle,
+                ),
             )
             SingleCaptureResult.Captured(request.preview.id, request.viewport, renderResult.renderMode.logLabel)
         } catch (exception: Exception) {
@@ -458,6 +499,7 @@ abstract class CaptureComposePreviewsTask :
         plan: CapturePlan,
         capturedViewportCount: Int,
         failedViewportCount: Int,
+        accessibilityCheck: Boolean,
     ) {
         logger.lifecycle(
             captureSummary(
@@ -472,6 +514,11 @@ abstract class CaptureComposePreviewsTask :
                 dryRun = plan.dryRun,
             ),
         )
+        if (!plan.dryRun && !accessibilityCheck) {
+            logger.lifecycle(
+                "Tip: run with -PagentPreview.accessibilityCheck=true to generate an accessibility report for rendered snapshots.",
+            )
+        }
     }
 
     private fun logArtifactLocations(
@@ -499,6 +546,34 @@ abstract class CaptureComposePreviewsTask :
 
     private fun reportFile(): File = reportDirectory.get().asFile.resolve("capture-report.json")
 
+    private fun writeAccessibilityReport(exports: List<CurrentRunExport>) {
+        val bundles =
+            exports.map { exported ->
+                AuditedSnapshotBundle(
+                    previewId = exported.previewId,
+                    viewportLabel = exported.viewportLabel,
+                    snapshotFile = exported.export.snapshotFile,
+                    screenshotFile = exported.export.screenshotFile,
+                    reportScreenshotFile = null,
+                    renderMode = exported.renderMode,
+                )
+            }
+        val assetsResult =
+            AccessibilityReportAssetWriter.write(
+                bundles = bundles,
+                assetsDir = reportDirectory.get().asFile.resolve("accessibility-assets"),
+            )
+        val auditReport = AccessibilityAuditor.audit(assetsResult.bundles)
+        val reportWithAssetWarnings = auditReport.copy(warnings = assetsResult.warnings + auditReport.warnings)
+        val reportFile =
+            AccessibilityHtmlReportWriter.write(
+                report = reportWithAssetWarnings,
+                bundles = assetsResult.bundles,
+                outputDir = reportDirectory.get().asFile,
+            )
+        logger.lifecycle("AgentPreview accessibility report written to: ${reportFile.absolutePath}")
+    }
+
     private fun Viewport.label(): String = "$platform-$name"
 
     private data class RenderSettings(
@@ -515,9 +590,10 @@ abstract class CaptureComposePreviewsTask :
         val androidMergedManifest: File?,
         val androidCustomPackage: String?,
         val sdkLookupBaseDir: File,
+        val recordExport: (CurrentRunExport) -> Unit,
     )
 
-    private fun renderSettings() =
+    private fun renderSettings(recordExport: (CurrentRunExport) -> Unit) =
         RenderSettings(
             useFakeRenderer = fakeRenderer.get(),
             outputRoot = outputDirectory.get().asFile,
@@ -532,6 +608,7 @@ abstract class CaptureComposePreviewsTask :
             androidMergedManifest = materializedAndroidMergedManifest(),
             androidCustomPackage = effectiveAndroidCustomPackage.get().ifBlank { null },
             sdkLookupBaseDir = File(sdkLookupBaseDir.get()),
+            recordExport = recordExport,
         )
 
     private class CaptureRenderer(
@@ -611,6 +688,16 @@ abstract class CaptureComposePreviewsTask :
             defaultValue = continueOnError.get(),
             cliValue = cliContinueOnError.orNull,
         )
+
+    private fun effectiveAccessibilityCheck(): Boolean {
+        val cliValue = cliAccessibilityCheck.orNull
+        val parsedValue = cliValue?.toBooleanStrictOrNull()
+        require(cliValue == null || parsedValue != null) {
+            "agentPreview.accessibilityCheck must be true or false. " +
+                "Configure agentPreview { accessibilityCheck.set(true|false) } or pass -PagentPreview.accessibilityCheck=true|false."
+        }
+        return parsedValue ?: accessibilityCheck.get()
+    }
 
     private fun effectiveCropToContent(): Boolean =
         AgentPreviewTaskOptions.cropToContent(
@@ -727,3 +814,16 @@ abstract class CaptureComposePreviewsTask :
         androidRuntimeClassDirs.get().map { directory -> directory.asFile }.toSet() +
             androidRuntimeClassJars.get().map { jar -> jar.asFile }
 }
+
+private data class CaptureTaskResult(
+    val capturedViewportCount: Int,
+    val failures: List<CaptureFailure>,
+    val exportedBundles: List<CurrentRunExport>,
+)
+
+private data class CurrentRunExport(
+    val previewId: String,
+    val viewportLabel: String,
+    val renderMode: String,
+    val export: SnapshotExportMetadata,
+)
