@@ -5,6 +5,7 @@
  */
 package dev.staticvar.agentpreview.tasks
 
+import dev.staticvar.agentpreview.export.SnapshotExportMetadata
 import dev.staticvar.agentpreview.model.CaptureFailure
 import dev.staticvar.agentpreview.model.PreviewDescriptor
 import dev.staticvar.agentpreview.model.Viewport
@@ -74,6 +75,7 @@ class CaptureExecutorTest {
             )
 
         assertEquals(2, result.capturedViewportCount)
+        assertEquals(listOf("preview-0", "preview-1"), result.capturedExports.map { it.previewId })
     }
 
     private fun requests(count: Int): List<CaptureRequest> =
@@ -92,7 +94,18 @@ class CaptureExecutorTest {
             )
         }
 
-    private fun captured(request: CaptureRequest) = SingleCaptureResult.Captured(request.preview.id, request.viewport, "fake")
+    private fun captured(request: CaptureRequest) =
+        SingleCaptureResult.Captured(
+            previewId = request.preview.id,
+            viewport = request.viewport,
+            renderModeLabel = "fake",
+            export =
+                SnapshotExportMetadata(
+                    directory = File("out/${request.preview.id}"),
+                    snapshotFile = File("out/${request.preview.id}/snapshot.json"),
+                    screenshotFile = File("out/${request.preview.id}/screenshot.png"),
+                ),
+        )
 
     private fun failure(request: CaptureRequest) =
         SingleCaptureResult.Failed(CaptureFailure(request.preview.id, request.viewport.label(), "boom"))

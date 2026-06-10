@@ -29,9 +29,9 @@ internal object AccessibilityHtmlReportWriter {
     ): String {
         val errorCount = report.findings.count { it.severity == AccessibilitySeverity.ERROR }
         val warningCount = report.findings.count { it.severity == AccessibilitySeverity.WARNING } + report.warnings.size
-        val findingsByBundle = report.findings.groupBy { it.previewId to it.viewportLabel }
-        val bundleKeys = bundles.map { it.previewId to it.viewportLabel }.toSet()
-        val unmatchedFindings = findingsByBundle.filterKeys { it !in bundleKeys }
+        val bundleResults =
+            report.bundleResults.takeIf { it.isNotEmpty() }
+                ?: fallbackBundleResults(bundles, report.findings)
 
         return buildString {
             appendLine("<!doctype html>")
@@ -47,11 +47,11 @@ internal object AccessibilityHtmlReportWriter {
             appendLine("<body>")
             appendLine("  <main class=\"page\">")
             appendLine("    <h1>AgentPreview Accessibility Report</h1>")
-            appendSummaryMetric("Audited", report.auditedBundleCount)
-            appendSummaryMetric("Skipped", report.skippedBundleCount)
-            appendSummaryMetric("Findings", report.findings.size)
-            appendSummaryMetric("Errors", errorCount)
-            appendSummaryMetric("Warnings", warningCount)
+            appendSummary(
+                report = report,
+                errorCount = errorCount,
+                warningCount = warningCount,
+            )
             appendWarnings(report.warnings)
             appendLine("    <section class=\"section\">")
             appendLine("      <h2>Preview Results</h2>")
@@ -62,15 +62,12 @@ internal object AccessibilityHtmlReportWriter {
                     appendLine("      <p class=\"empty\">No bundles were checked for accessibility</p>")
                 }
             }
-            bundles.forEach { bundle ->
-                appendBundleSection(
-                    bundle = bundle,
-                    findings = findingsByBundle[bundle.previewId to bundle.viewportLabel].orEmpty(),
+            bundleResults.forEach { bundleResult ->
+                appendBundleResult(
+                    bundleResult = bundleResult,
                     outputPath = outputDir.toPath(),
-                    bundleStatus = bundleStatus(bundle, report, unmatchedFindings),
                 )
             }
-            appendUnmatchedFindings(unmatchedFindings)
             appendLine("    </section>")
             appendNotChecked(report.notChecked)
             appendLine("  </main>")
@@ -79,69 +76,39 @@ internal object AccessibilityHtmlReportWriter {
         }
     }
 
-    private fun bundleStatus(
-        bundle: AuditedSnapshotBundle,
-        report: AccessibilityAuditReport,
-        unmatchedFindings: Map<Pair<String, String>, List<AccessibilityFinding>>,
-    ): BundleStatus =
-        when {
-            report.warnings.any {
-                it.contains("does not match bundle preview id ${bundle.previewId}") && it.contains("viewport ${bundle.viewportLabel}")
-            } -> {
-                if (unmatchedFindings.isEmpty()) {
-                    BundleStatus.NotChecked
-                } else {
-                    BundleStatus.UnmatchedFindings
-                }
-            }
-
-            report.warnings.any { it.startsWith("Skipping accessibility audit for ${bundle.previewId}/${bundle.viewportLabel}:") } -> {
-                BundleStatus.NotChecked
-            }
-
-            report.auditedBundleCount == 0 && report.skippedBundleCount > 0 -> {
-                BundleStatus.NotChecked
-            }
-
-            else -> {
-                BundleStatus.Checked
-            }
+    private fun fallbackBundleResults(
+        bundles: List<AuditedSnapshotBundle>,
+        findings: List<AccessibilityFinding>,
+    ): List<AccessibilityBundleResult> {
+        val findingsByBundle = findings.groupBy { it.previewId to it.viewportLabel }
+        return bundles.map { bundle ->
+            AccessibilityBundleResult(
+                bundle = bundle,
+                status = AccessibilityBundleStatus.CHECKED,
+                findings = findingsByBundle[bundle.previewId to bundle.viewportLabel].orEmpty(),
+            )
         }
-
-    private fun StringBuilder.appendUnmatchedFindings(unmatchedFindings: Map<Pair<String, String>, List<AccessibilityFinding>>) {
-        if (unmatchedFindings.isEmpty()) return
-
-        appendLine("      <section class=\"bundle warnings\">")
-        appendLine("        <h3>Unmatched findings</h3>")
-        appendLine(
-            "        <p class=\"empty\">These findings did not match any reported bundle preview and viewport key.</p>",
-        )
-        unmatchedFindings.toSortedMap(compareBy<Pair<String, String>> { it.first }.thenBy { it.second }).forEach { (key, findings) ->
-            appendLine("        <section class=\"bundle\">")
-            appendLine("          <h4>${key.first.escapeHtml()} <small>${key.second.escapeHtml()}</small></h4>")
-            findings.forEach { finding -> appendFinding(finding) }
-            appendLine("        </section>")
-        }
-        appendLine("      </section>")
     }
 
-    private enum class BundleStatus {
-        Checked,
-        NotChecked,
-        UnmatchedFindings,
+    private fun StringBuilder.appendSummary(
+        report: AccessibilityAuditReport,
+        errorCount: Int,
+        warningCount: Int,
+    ) {
+        appendLine("    <section class=\"summary\">")
+        appendSummaryMetric("Audited", report.auditedBundleCount)
+        appendSummaryMetric("Skipped", report.skippedBundleCount)
+        appendSummaryMetric("Findings", report.findings.size)
+        appendSummaryMetric("Errors", errorCount)
+        appendSummaryMetric("Warnings", warningCount)
+        appendLine("    </section>")
     }
 
     private fun StringBuilder.appendSummaryMetric(
         label: String,
         value: Int,
     ) {
-        if (!contains("<section class=\"summary\">")) {
-            appendLine("    <section class=\"summary\">")
-        }
         appendLine("      <div class=\"metric\"><span>${label.escapeHtml()}</span><strong>$value</strong></div>")
-        if (label == "Warnings") {
-            appendLine("    </section>")
-        }
     }
 
     private fun StringBuilder.appendWarnings(warnings: List<String>) {
@@ -157,12 +124,11 @@ internal object AccessibilityHtmlReportWriter {
         appendLine("    </section>")
     }
 
-    private fun StringBuilder.appendBundleSection(
-        bundle: AuditedSnapshotBundle,
-        findings: List<AccessibilityFinding>,
+    private fun StringBuilder.appendBundleResult(
+        bundleResult: AccessibilityBundleResult,
         outputPath: Path,
-        bundleStatus: BundleStatus,
     ) {
+        val bundle = bundleResult.bundle
         appendLine("      <section class=\"bundle\">")
         appendLine("        <h3>${bundle.previewId.escapeHtml()} <small>${bundle.viewportLabel.escapeHtml()}</small></h3>")
         bundle.reportScreenshotFile?.let { screenshot ->
@@ -173,22 +139,22 @@ internal object AccessibilityHtmlReportWriter {
                 ).escapeHtml()}\" alt=\"Screenshot for ${bundle.previewId.escapeHtml()} ${bundle.viewportLabel.escapeHtml()}\">",
             )
         }
-        if (findings.isEmpty()) {
-            when (bundleStatus) {
-                BundleStatus.Checked -> {
+        if (bundleResult.findings.isEmpty()) {
+            when (bundleResult.status) {
+                AccessibilityBundleStatus.CHECKED -> {
                     appendLine("        <p class=\"empty\">No accessibility findings</p>")
                 }
 
-                BundleStatus.NotChecked -> {
+                AccessibilityBundleStatus.SKIPPED -> {
                     appendLine("        <p class=\"empty\">Not checked</p>")
                 }
 
-                BundleStatus.UnmatchedFindings -> {
-                    appendLine("        <p class=\"empty\">No findings matched this bundle key; review unmatched findings below.</p>")
+                AccessibilityBundleStatus.MISMATCHED_SNAPSHOT -> {
+                    appendLine("        <p class=\"empty\">Not checked: snapshot identity did not match this capture bundle</p>")
                 }
             }
         } else {
-            findings.forEach { finding -> appendFinding(finding) }
+            bundleResult.findings.forEach { finding -> appendFinding(finding) }
         }
         appendLine("      </section>")
     }
@@ -200,6 +166,8 @@ internal object AccessibilityHtmlReportWriter {
         appendLine("          <p><span class=\"label\">Recommendation:</span> ${finding.recommendation.escapeHtml()}</p>")
         appendLine("          <p><span class=\"label\">Guideline:</span> ${finding.guideline.escapeHtml()}</p>")
         appendLine("          <div class=\"meta\">")
+        appendMeta("Preview id", finding.previewId)
+        appendMeta("Viewport", finding.viewportLabel)
         appendMeta("Node id", finding.node.id)
         appendMeta("Role", finding.node.role ?: "None")
         appendMeta("Name", finding.node.accessibleName ?: "None")

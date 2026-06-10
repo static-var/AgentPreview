@@ -8,6 +8,7 @@ package dev.staticvar.agentpreview.accessibility
 import dev.staticvar.agentpreview.model.PreviewSnapshot
 import java.util.Locale
 
+// Snapshot rules are deterministic heuristics for captured layout trees, not a replacement for device assistive-tech validation.
 internal object AccessibilityRules {
     private val placeholderLabels = setOf("button", "icon", "image", "click", "tap", "submit button")
 

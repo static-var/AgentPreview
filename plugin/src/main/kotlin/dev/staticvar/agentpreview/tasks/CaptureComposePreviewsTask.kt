@@ -14,7 +14,6 @@ import dev.staticvar.agentpreview.config.ConfiguredViewport
 import dev.staticvar.agentpreview.dependencies.AarClasspathMaterializer
 import dev.staticvar.agentpreview.export.PreviewSnapshotMapper
 import dev.staticvar.agentpreview.export.ScreenshotCropPlanner
-import dev.staticvar.agentpreview.export.SnapshotExportMetadata
 import dev.staticvar.agentpreview.export.SnapshotExporter
 import dev.staticvar.agentpreview.export.SnapshotOutputPath
 import dev.staticvar.agentpreview.model.CaptureFailure
@@ -50,7 +49,6 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.File
-import java.util.Collections
 import javax.imageio.ImageIO
 
 abstract class CaptureComposePreviewsTask :
@@ -365,8 +363,7 @@ abstract class CaptureComposePreviewsTask :
     }
 
     private fun renderCaptures(plan: CapturePlan): CaptureTaskResult {
-        val exportedBundles = Collections.synchronizedList(mutableListOf<CurrentRunExport>())
-        val renderSettings = renderSettings(recordExport = exportedBundles::add)
+        val renderSettings = renderSettings()
         val requests = captureRequests(plan)
         preflightDestinationCollisions(requests, renderSettings.outputRoot).takeIf { it.isNotEmpty() }?.let { failures ->
             failures.forEach(::logFailure)
@@ -389,7 +386,7 @@ abstract class CaptureComposePreviewsTask :
         return CaptureTaskResult(
             capturedViewportCount = result.capturedViewportCount,
             failures = result.failures,
-            exportedBundles = exportedBundles.toList(),
+            exportedBundles = result.capturedExports,
         )
     }
 
@@ -446,7 +443,7 @@ abstract class CaptureComposePreviewsTask :
                     layoutTree = renderResult.layoutTree.takeUnless { renderSettings.useFakeRenderer }.orEmpty(),
                     semanticsNodes = cropSemanticsNodes,
                 )
-            val exportedBundle =
+            val export =
                 SnapshotExporter().export(
                     previewId = request.preview.id,
                     screenshotFile = renderResult.screenshotFile,
@@ -461,15 +458,12 @@ abstract class CaptureComposePreviewsTask :
                     viewport = request.viewport,
                     cropPlan = cropPlan,
                 )
-            renderSettings.recordExport(
-                CurrentRunExport(
-                    previewId = request.preview.id,
-                    viewportLabel = request.viewport.label(),
-                    renderMode = renderResult.renderMode.logLabel,
-                    export = exportedBundle,
-                ),
+            SingleCaptureResult.Captured(
+                previewId = request.preview.id,
+                viewport = request.viewport,
+                renderModeLabel = renderResult.renderMode.logLabel,
+                export = export,
             )
-            SingleCaptureResult.Captured(request.preview.id, request.viewport, renderResult.renderMode.logLabel)
         } catch (exception: Exception) {
             SingleCaptureResult.Failed(
                 CaptureFailure(request.preview.id, request.viewport.label(), exception.message ?: exception.javaClass.name),
@@ -571,7 +565,7 @@ abstract class CaptureComposePreviewsTask :
         }
     }
 
-    private fun writeAccessibilityReport(exports: List<CurrentRunExport>) {
+    private fun writeAccessibilityReport(exports: List<CapturedSnapshotExport>) {
         val bundles =
             exports.map { exported ->
                 AuditedSnapshotBundle(
@@ -580,7 +574,7 @@ abstract class CaptureComposePreviewsTask :
                     snapshotFile = exported.export.snapshotFile,
                     screenshotFile = exported.export.screenshotFile,
                     reportScreenshotFile = null,
-                    renderMode = exported.renderMode,
+                    renderMode = exported.renderModeLabel,
                 )
             }
         val assetsResult =
@@ -615,10 +609,9 @@ abstract class CaptureComposePreviewsTask :
         val androidMergedManifest: File?,
         val androidCustomPackage: String?,
         val sdkLookupBaseDir: File,
-        val recordExport: (CurrentRunExport) -> Unit,
     )
 
-    private fun renderSettings(recordExport: (CurrentRunExport) -> Unit) =
+    private fun renderSettings() =
         RenderSettings(
             useFakeRenderer = fakeRenderer.get(),
             outputRoot = outputDirectory.get().asFile,
@@ -633,7 +626,6 @@ abstract class CaptureComposePreviewsTask :
             androidMergedManifest = materializedAndroidMergedManifest(),
             androidCustomPackage = effectiveAndroidCustomPackage.get().ifBlank { null },
             sdkLookupBaseDir = File(sdkLookupBaseDir.get()),
-            recordExport = recordExport,
         )
 
     private class CaptureRenderer(
@@ -843,12 +835,5 @@ abstract class CaptureComposePreviewsTask :
 private data class CaptureTaskResult(
     val capturedViewportCount: Int,
     val failures: List<CaptureFailure>,
-    val exportedBundles: List<CurrentRunExport>,
-)
-
-private data class CurrentRunExport(
-    val previewId: String,
-    val viewportLabel: String,
-    val renderMode: String,
-    val export: SnapshotExportMetadata,
+    val exportedBundles: List<CapturedSnapshotExport>,
 )

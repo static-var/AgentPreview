@@ -13,8 +13,22 @@ internal data class AccessibilityAuditReport(
     val skippedBundleCount: Int,
     val findings: List<AccessibilityFinding>,
     val warnings: List<String>,
+    val bundleResults: List<AccessibilityBundleResult> = emptyList(),
     val notChecked: List<String> = defaultNotCheckedNotes,
 )
+
+internal data class AccessibilityBundleResult(
+    val bundle: AuditedSnapshotBundle,
+    val status: AccessibilityBundleStatus,
+    val findings: List<AccessibilityFinding> = emptyList(),
+    val warnings: List<String> = emptyList(),
+)
+
+internal enum class AccessibilityBundleStatus {
+    CHECKED,
+    SKIPPED,
+    MISMATCHED_SNAPSHOT,
+}
 
 internal data class AuditedSnapshotBundle(
     val previewId: String,

@@ -67,8 +67,8 @@ internal class SnapshotExporter(
         x == 0 && y == 0 && width == image.width && height == image.height
 }
 
-internal class SnapshotExportMetadata(
+internal data class SnapshotExportMetadata(
     val directory: File,
     val snapshotFile: File,
     val screenshotFile: File,
-) : File(directory.path)
+)

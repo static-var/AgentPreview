@@ -15,8 +15,7 @@ internal object AccessibilityAuditor {
         }
 
     fun audit(bundles: List<AuditedSnapshotBundle>): AccessibilityAuditReport {
-        val findings = mutableListOf<AccessibilityFinding>()
-        val warnings = mutableListOf<String>()
+        val bundleResults = mutableListOf<AccessibilityBundleResult>()
         var auditedBundleCount = 0
         var skippedBundleCount = 0
 
@@ -24,8 +23,8 @@ internal object AccessibilityAuditor {
             val snapshotFile = bundle.snapshotFile
             if (!snapshotFile.isFile || !snapshotFile.canRead()) {
                 skippedBundleCount++
-                warnings +=
-                    "Skipping accessibility audit for ${bundle.previewId}/${bundle.viewportLabel}: unreadable snapshot ${snapshotFile.path}."
+                bundleResults +=
+                    bundle.skipped("unreadable snapshot ${snapshotFile.path}")
                 return@forEach
             }
 
@@ -34,33 +33,57 @@ internal object AccessibilityAuditor {
                     json.decodeFromString<PreviewSnapshot>(snapshotFile.readText())
                 }.getOrElse { throwable ->
                     skippedBundleCount++
-                    warnings +=
-                        "Skipping accessibility audit for ${bundle.previewId}/${bundle.viewportLabel}: malformed snapshot ${snapshotFile.path} (${throwable.message})."
+                    bundleResults +=
+                        bundle.skipped("malformed snapshot ${snapshotFile.path} (${throwable.message})")
                     return@forEach
                 }
 
             val renderMode = snapshot.render?.mode ?: bundle.renderMode
             if (renderMode != "robolectric") {
                 skippedBundleCount++
-                warnings +=
-                    "Skipping accessibility audit for ${bundle.previewId}/${bundle.viewportLabel}: render.mode=${renderMode ?: "null"} is not supported."
+                bundleResults +=
+                    bundle.skipped("render.mode=${renderMode ?: "null"} is not supported")
                 return@forEach
             }
 
-            if (snapshot.preview.id != bundle.previewId) {
-                warnings +=
-                    "Snapshot preview id ${snapshot.preview.id} does not match bundle preview id ${bundle.previewId} for viewport ${bundle.viewportLabel}."
-            }
-
             auditedBundleCount++
-            findings += AccessibilityRules.evaluate(snapshot, bundle.viewportLabel)
+            val findings = AccessibilityRules.evaluate(snapshot, bundle.viewportLabel)
+            bundleResults +=
+                if (snapshot.preview.id == bundle.previewId) {
+                    AccessibilityBundleResult(
+                        bundle = bundle,
+                        status = AccessibilityBundleStatus.CHECKED,
+                        findings = findings,
+                    )
+                } else {
+                    AccessibilityBundleResult(
+                        bundle = bundle,
+                        status = AccessibilityBundleStatus.MISMATCHED_SNAPSHOT,
+                        findings = findings,
+                        warnings =
+                            listOf(
+                                "Snapshot preview id ${snapshot.preview.id} does not match bundle preview id " +
+                                    "${bundle.previewId} for viewport ${bundle.viewportLabel}.",
+                            ),
+                    )
+                }
         }
 
+        val findings = bundleResults.flatMap { it.findings }
+        val warnings = bundleResults.flatMap { it.warnings }
         return AccessibilityAuditReport(
             auditedBundleCount = auditedBundleCount,
             skippedBundleCount = skippedBundleCount,
             findings = findings,
             warnings = warnings,
+            bundleResults = bundleResults,
         )
     }
+
+    private fun AuditedSnapshotBundle.skipped(reason: String): AccessibilityBundleResult =
+        AccessibilityBundleResult(
+            bundle = this,
+            status = AccessibilityBundleStatus.SKIPPED,
+            warnings = listOf("Skipping accessibility audit for $previewId/$viewportLabel: $reason."),
+        )
 }

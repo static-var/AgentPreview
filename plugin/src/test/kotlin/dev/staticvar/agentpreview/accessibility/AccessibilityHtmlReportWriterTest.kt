@@ -123,7 +123,7 @@ class AccessibilityHtmlReportWriterTest {
     }
 
     @Test
-    fun `renders unmatched findings and warns when bundle id differs from decoded snapshot id`() {
+    fun `renders mismatched snapshot findings under the capture bundle`() {
         val snapshotFile = tempDir.resolve("mismatched.json")
         snapshotFile.writeText(
             """
@@ -150,7 +150,8 @@ class AccessibilityHtmlReportWriterTest {
 
         assertEquals(1, report.findings.size)
         assertTrue(report.warnings.any { it.contains("BundlePreview") && it.contains("DecodedPreview") }, report.warnings.toString())
-        assertContains(html, "Unmatched findings")
+        assertEquals(AccessibilityBundleStatus.MISMATCHED_SNAPSHOT, report.bundleResults.single().status)
+        assertFalse(html.contains("Unmatched findings"), html)
         assertContains(html, "DecodedPreview")
         assertContains(html, "missing-name")
         assertContains(html, "Snapshot preview id DecodedPreview does not match bundle preview id BundlePreview")
@@ -178,7 +179,7 @@ class AccessibilityHtmlReportWriterTest {
         assertEquals(0, report.findings.size)
         assertTrue(report.warnings.any { it.contains("BundlePreview") && it.contains("DecodedPreview") }, report.warnings.toString())
         assertContains(html, "Snapshot preview id DecodedPreview does not match bundle preview id BundlePreview")
-        assertContains(html, "Not checked")
+        assertContains(html, "Not checked: snapshot identity did not match this capture bundle")
         assertFalse(html.contains("review unmatched findings below"), html)
         assertFalse(html.contains("Unmatched findings"), html)
     }
@@ -332,6 +333,15 @@ class AccessibilityHtmlReportWriterTest {
         assertEquals(2, report.auditedBundleCount)
         assertEquals(2, report.skippedBundleCount)
         assertEquals(1, report.findings.size)
+        assertEquals(
+            listOf(
+                AccessibilityBundleStatus.CHECKED,
+                AccessibilityBundleStatus.CHECKED,
+                AccessibilityBundleStatus.SKIPPED,
+                AccessibilityBundleStatus.SKIPPED,
+            ),
+            report.bundleResults.map { it.status },
+        )
         assertEquals(AccessibilityCategory.MISSING_ACCESSIBLE_NAME, report.findings.single().category)
         assertTrue(report.warnings.any { it.contains("render.mode=desktop") }, report.warnings.toString())
         assertTrue(report.warnings.any { it.contains("malformed snapshot") }, report.warnings.toString())
