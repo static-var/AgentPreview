@@ -147,6 +147,16 @@ Outputs are written under:
 | --- | --- |
 | Snapshots | `<module>/build/agentPreviewSnapshots/<sanitized-preview-id>/<platform>-<viewport>/` |
 | Capture report | `<module>/build/agentPreviewReports/capture-report.json` |
+| Accessibility report | `<module>/build/agentPreviewReports/accessibility-report.html` when `-PagentPreview.accessibilityCheck=true` |
+
+To generate an advisory accessibility report for the same captured previews:
+
+```bash
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.accessibilityCheck=true
+```
+
+The report copies current-run screenshots into `build/agentPreviewReports/accessibility-assets/`, checks only previews captured by that command, and does not fail the build for accessibility findings.
 
 ## Capture controls
 
@@ -157,6 +167,7 @@ Outputs are written under:
 | `-PagentPreview.cropToContent=false` | You need a full-viewport diagnostic capture. |
 | `-PagentPreview.cropPaddingDp=12` | You want to override the default 20dp crop padding for one run. |
 | `-PagentPreview.dryRun=true` | You want the planned captures without rendering screenshots. |
+| `-PagentPreview.accessibilityCheck=true` | You want an advisory HTML report for labels, roles/actions, touch targets, duplicate labels, and traversal heuristics. |
 
 Real rendered screenshots crop to detected Compose content by default. If layout or semantics bounds are ambiguous, AgentPreview keeps the full viewport and records the fallback in `snapshot.json`.
 

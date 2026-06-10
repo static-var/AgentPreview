@@ -395,6 +395,18 @@ Good default command while iterating:
   -PagentPreview.continueOnError=true
 ```
 
+For an accessibility-focused pass, add the opt-in check to the same focused capture command:
+
+```bash
+./gradlew :app:captureComposePreviews \
+  -PagentPreview.previewNameFilter=:app:main:LoginPreview \
+  -PagentPreview.viewportFilter=preview \
+  -PagentPreview.maxCaptures=1 \
+  -PagentPreview.accessibilityCheck=true
+```
+
+AgentPreview writes `build/agentPreviewReports/accessibility-report.html` with copied screenshot assets under `build/agentPreviewReports/accessibility-assets/`. The report covers only previews rendered in that task execution, is advisory, and does not replace TalkBack, Switch Access, Accessibility Scanner, Play pre-launch reports, user testing, or full WCAG review.
+
 When reporting results, include the preview id, viewport, screenshot path, snapshot path, `render.mode`, capture-report failure count, and any remaining visual differences.
 
 ## Failure handling
