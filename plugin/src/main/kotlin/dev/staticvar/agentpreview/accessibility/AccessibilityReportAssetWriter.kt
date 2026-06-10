@@ -18,12 +18,21 @@ internal object AccessibilityReportAssetWriter {
         bundles: List<AuditedSnapshotBundle>,
         assetsDir: File,
     ): AccessibilityReportAssetResult {
-        if (assetsDir.exists()) {
-            assetsDir.deleteRecursively()
-        }
-        assetsDir.mkdirs()
-
         val warnings = mutableListOf<String>()
+        if (assetsDir.exists()) {
+            val deleted = assetsDir.deleteRecursively()
+            if (!deleted) {
+                warnings += "Failed to clean accessibility report assets directory ${assetsDir.path}; stale assets may remain."
+            }
+        }
+        if (!assetsDir.mkdirs() && !assetsDir.isDirectory) {
+            warnings += "Failed to create accessibility report assets directory ${assetsDir.path}; screenshots will be omitted."
+            return AccessibilityReportAssetResult(
+                bundles = bundles.map { it.copy(reportScreenshotFile = null) },
+                warnings = warnings,
+            )
+        }
+
         val usedAssetNames = mutableSetOf<String>()
         val updatedBundles =
             bundles.map { bundle ->

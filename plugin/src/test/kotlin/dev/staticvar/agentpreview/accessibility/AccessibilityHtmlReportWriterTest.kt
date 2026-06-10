@@ -123,6 +123,75 @@ class AccessibilityHtmlReportWriterTest {
     }
 
     @Test
+    fun `renders unmatched findings and warns when bundle id differs from decoded snapshot id`() {
+        val snapshotFile = tempDir.resolve("mismatched.json")
+        snapshotFile.writeText(
+            """
+            {
+              "schemaVersion": 1,
+              "preview": {"id": "DecodedPreview"},
+              "viewport": {"name": "phone", "width": 360, "height": 640, "density": 1.0},
+              "render": {"mode": "robolectric"},
+              "nodes": [
+                {
+                  "id": "missing-name",
+                  "role": "Button",
+                  "bounds": {"x": 0, "y": 0, "width": 96, "height": 96},
+                  "actions": ["OnClick"]
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+        val bundle = bundle("BundlePreview", "phone", snapshotFile, renderMode = "robolectric")
+
+        val report = AccessibilityAuditor.audit(listOf(bundle))
+        val html = AccessibilityHtmlReportWriter.write(report, listOf(bundle), tempDir).readText()
+
+        assertEquals(1, report.findings.size)
+        assertTrue(report.warnings.any { it.contains("BundlePreview") && it.contains("DecodedPreview") }, report.warnings.toString())
+        assertContains(html, "Unmatched findings")
+        assertContains(html, "DecodedPreview")
+        assertContains(html, "missing-name")
+        assertContains(html, "Snapshot preview id DecodedPreview does not match bundle preview id BundlePreview")
+    }
+
+    @Test
+    fun `marks all skipped bundles as not checked instead of no findings`() {
+        val nonRobolectricSnapshot = tempDir.resolve("non-robolectric.json")
+        nonRobolectricSnapshot.writeText(
+            """
+            {
+              "schemaVersion": 1,
+              "preview": {"id": "DesktopPreview"},
+              "viewport": {"name": "desktop", "width": 800, "height": 600, "density": 1.0},
+              "render": {"mode": "desktop"},
+              "nodes": []
+            }
+            """.trimIndent(),
+        )
+        val malformedSnapshot = tempDir.resolve("malformed.json").apply { writeText("{") }
+        val bundles =
+            listOf(
+                bundle("DesktopPreview", "desktop", nonRobolectricSnapshot, renderMode = "desktop"),
+                bundle("BrokenPreview", "phone", malformedSnapshot, renderMode = "robolectric"),
+            )
+
+        val report = AccessibilityAuditor.audit(bundles)
+        val html = AccessibilityHtmlReportWriter.write(report, bundles, tempDir).readText()
+
+        assertEquals(0, report.auditedBundleCount)
+        assertEquals(2, report.skippedBundleCount)
+        assertContains(html, "No bundles were checked for accessibility")
+        assertContains(html, "Not checked")
+        assertContains(html, "DesktopPreview")
+        assertContains(html, "BrokenPreview")
+        assertContains(html, "render.mode=desktop")
+        assertContains(html, "malformed snapshot")
+        assertFalse(html.contains("No accessibility findings"), html)
+    }
+
+    @Test
     fun `asset writer recreates asset directory and copies available screenshots with sanitized names`() {
         val sourceScreenshot = tempDir.resolve("source screenshot.png").apply { writeText("png") }
         val assetsDir = tempDir.resolve("assets").apply { mkdirs() }
@@ -151,6 +220,30 @@ class AccessibilityHtmlReportWriterTest {
         assertEquals(copiedScreenshot, result.bundles[0].reportScreenshotFile)
         assertEquals(null, result.bundles[1].reportScreenshotFile)
         assertTrue(result.warnings.single().contains("MissingPreview"), result.warnings.toString())
+    }
+
+    @Test
+    fun `asset writer warns when assets path cannot be recreated as a directory`() {
+        val sourceScreenshot = tempDir.resolve("source.png").apply { writeText("png") }
+        val blockingParent = tempDir.resolve("asset-parent").apply { writeText("not a directory") }
+        val assetsPath = blockingParent.resolve("assets")
+        val available =
+            AuditedSnapshotBundle(
+                previewId = "Preview",
+                viewportLabel = "phone",
+                snapshotFile = tempDir.resolve("snapshot.json"),
+                screenshotFile = sourceScreenshot,
+                reportScreenshotFile = null,
+                renderMode = "robolectric",
+            )
+
+        val result = AccessibilityReportAssetWriter.write(listOf(available), assetsPath)
+
+        assertTrue(
+            result.warnings.any { it.contains("Failed to create accessibility report assets directory") },
+            result.warnings.toString(),
+        )
+        assertEquals(null, result.bundles.single().reportScreenshotFile)
     }
 
     @Test

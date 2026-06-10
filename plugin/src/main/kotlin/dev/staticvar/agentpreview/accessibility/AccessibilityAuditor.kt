@@ -47,6 +47,11 @@ internal object AccessibilityAuditor {
                 return@forEach
             }
 
+            if (snapshot.preview.id != bundle.previewId) {
+                warnings +=
+                    "Snapshot preview id ${snapshot.preview.id} does not match bundle preview id ${bundle.previewId} for viewport ${bundle.viewportLabel}."
+            }
+
             auditedBundleCount++
             findings += AccessibilityRules.evaluate(snapshot, bundle.viewportLabel)
         }
