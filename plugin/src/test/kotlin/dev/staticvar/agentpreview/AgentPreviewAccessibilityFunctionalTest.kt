@@ -125,7 +125,7 @@ class AgentPreviewAccessibilityFunctionalTest {
     }
 
     @Test
-    fun `DSL accessibility check enables report and CLI false overrides DSL true`() {
+    fun `disabled accessibility check clears stale report from previous enabled run`() {
         writeSettings()
         writeBuildFile(
             """
@@ -142,8 +142,8 @@ class AgentPreviewAccessibilityFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, dslResult.task(":captureComposePreviews")?.outcome)
         assertTrue(accessibilityReport().isFile)
+        assertTrue(accessibilityAssets().isDirectory)
 
-        accessibilityReport().delete()
         val cliOverrideResult =
             runner(
                 "captureComposePreviews",
@@ -153,6 +153,7 @@ class AgentPreviewAccessibilityFunctionalTest {
 
         assertEquals(TaskOutcome.SUCCESS, cliOverrideResult.task(":captureComposePreviews")?.outcome)
         assertFalse(accessibilityReport().exists())
+        assertFalse(accessibilityAssets().exists())
         assertTrue(cliOverrideResult.output.contains("Tip: run with -PagentPreview.accessibilityCheck=true"), cliOverrideResult.output)
     }
 
@@ -227,4 +228,6 @@ class AgentPreviewAccessibilityFunctionalTest {
         """.trimIndent()
 
     private fun accessibilityReport(): File = projectDir.resolve("build/agentPreviewReports/accessibility-report.html")
+
+    private fun accessibilityAssets(): File = projectDir.resolve("build/agentPreviewReports/accessibility-assets")
 }

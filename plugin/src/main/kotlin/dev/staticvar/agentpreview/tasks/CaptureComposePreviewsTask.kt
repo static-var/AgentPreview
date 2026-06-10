@@ -268,8 +268,11 @@ abstract class CaptureComposePreviewsTask :
     fun capture() {
         warnIfConfigurationIsIncompatible()
         logEffectiveRenderingClasspath()
-        val plan = capturePlan()
         val accessibilityCheck = effectiveAccessibilityCheck()
+        if (!accessibilityCheck) {
+            clearAccessibilityReport()
+        }
+        val plan = capturePlan()
 
         if (plan.dryRun) {
             writeReport(plan.report())
@@ -277,6 +280,7 @@ abstract class CaptureComposePreviewsTask :
             logArtifactLocations(plan, wroteSnapshots = false)
             logNoSelection(plan)
             if (accessibilityCheck) {
+                clearAccessibilityReport()
                 logger.lifecycle("Accessibility check requires rendered snapshots; skipping accessibility report for dry run.")
             }
             return
@@ -545,6 +549,24 @@ abstract class CaptureComposePreviewsTask :
     }
 
     private fun reportFile(): File = reportDirectory.get().asFile.resolve("capture-report.json")
+
+    private fun clearAccessibilityReport() {
+        val reportRoot = reportDirectory.get().asFile
+        reportRoot.resolve("accessibility-report.html").deleteIfExists()
+        reportRoot.resolve("accessibility-assets").deleteRecursivelyIfExists()
+    }
+
+    private fun File.deleteIfExists() {
+        if (isFile && !delete()) {
+            logger.warn("Failed to delete stale accessibility report $absolutePath.")
+        }
+    }
+
+    private fun File.deleteRecursivelyIfExists() {
+        if (exists() && !deleteRecursively()) {
+            logger.warn("Failed to delete stale accessibility report assets $absolutePath.")
+        }
+    }
 
     private fun writeAccessibilityReport(exports: List<CurrentRunExport>) {
         val bundles =
