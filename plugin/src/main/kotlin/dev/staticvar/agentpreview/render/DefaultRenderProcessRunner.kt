@@ -59,7 +59,7 @@ internal class DefaultRenderProcessRunner(
                 }
         val classpath =
             listOfNotNull(robolectricConfigClasspath) +
-                classpathMaterializer.materialize(currentPluginClasspath() + androidJar.files + previewClasspath)
+                classpathMaterializer.materialize(previewClasspath + androidJar.files + currentPluginClasspath())
         val harnessResultFile = File.createTempFile("agentpreview-render-harness-", ".properties")
         harnessResultFile.delete()
         val harnessCommand =
