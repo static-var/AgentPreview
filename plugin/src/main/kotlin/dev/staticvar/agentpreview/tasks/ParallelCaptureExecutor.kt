@@ -22,6 +22,7 @@ internal class ParallelCaptureExecutor(
         val executor = Executors.newFixedThreadPool(maxParallelRenders)
         val completions: CompletionService<SingleCaptureResult> = ExecutorCompletionService(executor)
         val failures = mutableListOf<CaptureFailure>()
+        val capturedExports = mutableListOf<CapturedSnapshotExport>()
         var capturedViewportCount = 0
         var submitted = 0
         var completed = 0
@@ -39,6 +40,7 @@ internal class ParallelCaptureExecutor(
             when (result) {
                 is SingleCaptureResult.Captured -> {
                     capturedViewportCount++
+                    capturedExports += result.toCapturedSnapshotExport()
                 }
 
                 is SingleCaptureResult.Failed -> {
@@ -59,6 +61,6 @@ internal class ParallelCaptureExecutor(
             executor.shutdownNow()
         }
 
-        return CaptureResult(capturedViewportCount, failures)
+        return CaptureResult(capturedViewportCount, failures, capturedExports)
     }
 }

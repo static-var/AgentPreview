@@ -94,6 +94,8 @@ class AgentPreviewPlugin : Plugin<Project> {
                 it.cliDryRun.set(project.providers.gradleProperty("agentPreview.dryRun"))
                 it.continueOnError.set(extension.continueOnError)
                 it.cliContinueOnError.set(project.providers.gradleProperty("agentPreview.continueOnError"))
+                it.accessibilityCheck.set(extension.accessibilityCheck)
+                it.cliAccessibilityCheck.set(project.providers.gradleProperty("agentPreview.accessibilityCheck"))
                 it.cropToContent.set(extension.android.screenshot.cropToContent)
                 it.cliCropToContent.set(project.providers.gradleProperty("agentPreview.cropToContent"))
                 it.cropPaddingDp.set(extension.android.screenshot.cropPaddingDp)

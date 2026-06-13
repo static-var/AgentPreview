@@ -38,11 +38,11 @@ class SnapshotExporterTest {
         try {
             val futures =
                 listOf(
-                    executor.submit<File> {
+                    executor.submit<SnapshotExportMetadata> {
                         start.await(1, TimeUnit.SECONDS)
                         SnapshotExporter().export(snapshotA.preview.id, screenshotA, snapshotA, outputRoot)
                     },
-                    executor.submit<File> {
+                    executor.submit<SnapshotExportMetadata> {
                         start.await(1, TimeUnit.SECONDS)
                         SnapshotExporter().export(snapshotB.preview.id, screenshotB, snapshotB, outputRoot)
                     },

@@ -27,15 +27,21 @@ internal class SnapshotExporter(
         outputRoot: File,
         viewport: Viewport? = null,
         cropPlan: ScreenshotCropPlan? = null,
-    ): File {
+    ): SnapshotExportMetadata {
         // Sanitized directories are path labels; logical snapshot identity remains preview.id in snapshot.json.
         val destination = outputPath.resolve(outputRoot, previewId, viewport)
         outputPath.validateAvailable(destination)
-        writeScreenshot(screenshotFile, destination.resolve("screenshot.png"), cropPlan)
-        destination.resolve("snapshot.json").writeText(
+        val exportedScreenshot = destination.resolve("screenshot.png")
+        val exportedSnapshot = destination.resolve("snapshot.json")
+        writeScreenshot(screenshotFile, exportedScreenshot, cropPlan)
+        exportedSnapshot.writeText(
             json.encodeToString(PreviewSnapshot.serializer(), snapshot),
         )
-        return destination
+        return SnapshotExportMetadata(
+            directory = destination,
+            snapshotFile = exportedSnapshot,
+            screenshotFile = exportedScreenshot,
+        )
     }
 
     private fun writeScreenshot(
@@ -60,3 +66,9 @@ internal class SnapshotExporter(
     private fun ScreenshotCropRect.matches(image: java.awt.image.BufferedImage): Boolean =
         x == 0 && y == 0 && width == image.width && height == image.height
 }
+
+internal data class SnapshotExportMetadata(
+    val directory: File,
+    val snapshotFile: File,
+    val screenshotFile: File,
+)
