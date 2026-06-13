@@ -88,6 +88,39 @@ class DefaultRenderProcessRunnerTest {
     }
 
     @Test
+    fun `puts preview runtime classpath before plugin support classpath`() {
+        val previewRuntimeJar = tempDir.resolve("preview-runtime.jar").also { writeTextZip(it, "runtime.txt" to "runtime") }
+
+        val result =
+            runWithFakeJava(
+                """
+                #!/bin/sh
+                CLASSPATH="${'$'}2" PREVIEW_RUNTIME_JAR="${previewRuntimeJar.absolutePath}" python3 - <<'PY'
+                import os, sys
+                entries = os.environ['CLASSPATH'].split(os.pathsep)
+                if entries[0] != os.environ['PREVIEW_RUNTIME_JAR']:
+                    print('consumer preview runtime must be first so it cannot be shadowed by plugin support jars; got %r' % (entries[:5],), file=sys.stderr)
+                    sys.exit(1)
+                if len(entries) <= 1:
+                    print('expected plugin support entries after preview runtime, got %r' % (entries,), file=sys.stderr)
+                    sys.exit(1)
+                PY
+                if [ "${'$'}?" -ne 0 ]; then
+                  exit 1
+                fi
+                cat > "${'$'}{21}" <<'EOF'
+                status=success
+                EOF
+                exit 0
+                """.trimIndent(),
+                previewClasspath = listOf(previewRuntimeJar),
+                environment = AndroidRendererEnvironment(env = emptyMap(), baseDir = tempDir.resolve("no-sdk").also { it.mkdirs() }),
+            )
+
+        assertEquals(RenderProcessResult.Success, result)
+    }
+
+    @Test
     fun `adds generated robolectric config root before plugin and preview classpath when assets are present`() {
         val runtimeJar = tempDir.resolve("runtime.jar").also { writeTextZip(it, "runtime.txt" to "runtime") }
         val previewJar = tempDir.resolve("preview.jar").also { writeTextZip(it, "preview.txt" to "preview") }
